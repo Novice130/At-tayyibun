@@ -1,0 +1,427 @@
+// Prisma Schema for At-Tayyibun Muslim Matrimony Platform
+// All sensitive fields are encrypted before storage using AES-256-GCM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum MembershipTier {
+  FREE
+  SILVER
+  GOLD
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum PhotoType {
+  AI_AVATAR
+  REAL_PHOTO
+}
+
+enum PhotoVisibility {
+  PRIVATE
+  APPROVED_ONLY
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+  EXPIRED
+}
+
+enum CampaignStatus {
+  DRAFT
+  SENDING
+  SENT
+}
+
+// =============================================================================
+// CORE ENTITIES
+// =============================================================================
+
+/// User account - one per phone number
+model User {
+  id                  String          @id @default(uuid()) @db.Uuid
+  publicId            String          @unique @map("public_id") @db.VarChar(16)
+  email               String          @unique @db.VarChar(255)
+  phone               String          @unique @db.VarChar(20)
+  passwordHash        String?         @map("password_hash")
+  role                Role            @default(USER)
+  membershipTier      MembershipTier  @default(FREE) @map("membership_tier")
+  isVerified          Boolean         @default(false) @map("is_verified")
+  isPhoneVerified     Boolean         @default(false) @map("is_phone_verified")
+  membershipExpiresAt DateTime?       @map("membership_expires_at")
+  rankBoost           Int             @default(0) @map("rank_boost")
+  rankBoostedAt       DateTime?       @map("rank_boosted_at")
+  lastLoginAt         DateTime?       @map("last_login_at")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  profile             Profile?
+  photos              Photo[]
+  sentRequests        InfoRequest[]       @relation("RequestsSent")
+  receivedRequests    InfoRequest[]       @relation("RequestsReceived")
+  skipReasonsGiven    SkipReason[]        @relation("SkipReasonsGiven")
+  skipReasonsReceived SkipReason[]        @relation("SkipReasonsReceived")
+  sentMessages        Message[]           @relation("MessagesSent")
+  receivedMessages    Message[]           @relation("MessagesReceived")
+  auditLogs           AuditLog[]
+  createdCampaigns    EmailCampaign[]
+  campaignRecipients  CampaignRecipient[]
+  unsubscribe         Unsubscribe?
+
+  @@index([publicId])
+  @@index([membershipTier])
+  @@index([createdAt])
+  @@map("users")
+}
+
+/// User profile with public and encrypted private fields
+model Profile {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @unique @map("user_id") @db.Uuid
+  firstName       String   @map("first_name") @db.VarChar(100)
+  lastNameEnc     String   @map("last_name_enc") // Encrypted
+  dob             DateTime @db.Date
+  gender          Gender
+  ethnicity       String   @db.VarChar(50)
+  city            String?  @db.VarChar(100)
+  state           String?  @db.VarChar(50)
+  bioEnc          String?  @map("bio_enc") // Encrypted
+  biodataJsonEnc  String?  @map("biodata_json_enc") // Encrypted JSON (custom form fields)
+  publicFields    Json?    @map("public_fields") // Non-sensitive display fields
+  aiAvatarId      String?  @map("ai_avatar_id") @db.Uuid
+  profileComplete Boolean  @default(false) @map("profile_complete")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiAvatar Photo? @relation("AiAvatar", fields: [aiAvatarId], references: [id])
+
+  @@index([gender])
+  @@index([ethnicity])
+  @@index([profileComplete])
+  @@map("profiles")
+}
+
+/// Photos (AI avatars and real photos)
+model Photo {
+  id               String          @id @default(uuid()) @db.Uuid
+  userId           String          @map("user_id") @db.Uuid
+  type             PhotoType
+  gcsOriginalPath  String?         @map("gcs_original_path")
+  gcsThumbnailPath String?         @map("gcs_thumbnail_path")
+  gcsDisplayPath   String?         @map("gcs_display_path")
+  isPrimary        Boolean         @default(false) @map("is_primary")
+  visibility       PhotoVisibility @default(PRIVATE)
+  adminApproved    Boolean         @default(false) @map("admin_approved")
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  // Relations
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarForProfile Profile[] @relation("AiAvatar")
+
+  @@index([userId, type])
+  @@index([visibility])
+  @@map("photos")
+}
+
+// =============================================================================
+// INFO REQUEST WORKFLOW
+// =============================================================================
+
+/// Request for restricted info (photo/phone/email)
+model InfoRequest {
+  id            String        @id @default(uuid()) @db.Uuid
+  requesterId   String        @map("requester_id") @db.Uuid
+  targetId      String        @map("target_id") @db.Uuid
+  status        RequestStatus @default(PENDING)
+  allowedShares String[]      @map("allowed_shares") // ["photo", "phone", "email"]
+  createdAt     DateTime      @default(now()) @map("created_at")
+  expiresAt     DateTime      @map("expires_at")
+  respondedAt   DateTime?     @map("responded_at")
+  oneTimeToken  String?       @unique @map("one_time_token")
+  tokenUsedAt   DateTime?     @map("token_used_at")
+
+  // Relations
+  requester User @relation("RequestsSent", fields: [requesterId], references: [id])
+  target    User @relation("RequestsReceived", fields: [targetId], references: [id])
+
+  // Ensure only one PENDING request per requester
+  @@unique([requesterId, status], name: "one_active_request_per_user")
+  @@index([targetId, status])
+  @@index([expiresAt])
+  @@map("info_requests")
+}
+
+/// Reason for skipping/moving on from a profile
+model SkipReason {
+  id          String   @id @default(uuid()) @db.Uuid
+  requesterId String   @map("requester_id") @db.Uuid
+  targetId    String   @map("target_id") @db.Uuid
+  reasonCode  String   @map("reason_code") @db.VarChar(50)
+  customText  String?  @map("custom_text")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  requester User @relation("SkipReasonsGiven", fields: [requesterId], references: [id])
+  target    User @relation("SkipReasonsReceived", fields: [targetId], references: [id])
+
+  @@index([requesterId])
+  @@map("skip_reasons")
+}
+
+// =============================================================================
+// MESSAGING
+// =============================================================================
+
+/// Direct messages between users (content encrypted)
+model Message {
+  id          String   @id @default(uuid()) @db.Uuid
+  senderId    String   @map("sender_id") @db.Uuid
+  recipientId String   @map("recipient_id") @db.Uuid
+  contentEnc  String   @map("content_enc") // Encrypted
+  isRead      Boolean  @default(false) @map("is_read")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  // Relations
+  sender    User @relation("MessagesSent", fields: [senderId], references: [id])
+  recipient User @relation("MessagesReceived", fields: [recipientId], references: [id])
+
+  @@index([senderId, recipientId])
+  @@index([recipientId, isRead])
+  @@map("messages")
+}
+
+// =============================================================================
+// ADS & COUPONS
+// =============================================================================
+
+/// Partner businesses for ads
+model Partner {
+  id       String  @id @default(uuid()) @db.Uuid
+  name     String  @db.VarChar(100)
+  website  String? @db.VarChar(255)
+  isActive Boolean @default(true) @map("is_active")
+
+  // Relations
+  ads     Ad[]
+  coupons Coupon[]
+
+  @@map("partners")
+}
+
+/// Advertisement configuration
+model Ad {
+  id             String    @id @default(uuid()) @db.Uuid
+  partnerId      String    @map("partner_id") @db.Uuid
+  title          String    @db.VarChar(100)
+  imageUrl       String    @map("image_url")
+  clickUrl       String    @map("click_url")
+  // Frequency per N profiles viewed: { "FREE": 3, "SILVER": 6, "GOLD": 0 }
+  frequencyRules Json      @map("frequency_rules")
+  isActive       Boolean   @default(true) @map("is_active")
+  startDate      DateTime? @map("start_date")
+  endDate        DateTime? @map("end_date")
+
+  // Relations
+  partner     Partner        @relation(fields: [partnerId], references: [id])
+  impressions AdImpression[]
+
+  @@index([isActive, startDate, endDate])
+  @@map("ads")
+}
+
+/// Track ad impressions and clicks
+model AdImpression {
+  id        String   @id @default(uuid()) @db.Uuid
+  adId      String   @map("ad_id") @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  clicked   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  ad Ad @relation(fields: [adId], references: [id])
+
+  @@index([adId, createdAt])
+  @@map("ad_impressions")
+}
+
+/// Coupon codes for partner discounts
+model Coupon {
+  id             String    @id @default(uuid()) @db.Uuid
+  partnerId      String    @map("partner_id") @db.Uuid
+  code           String    @db.VarChar(50)
+  description    String?
+  redirectUrl    String    @map("redirect_url")
+  trackingParams Json?     @map("tracking_params")
+  validFrom      DateTime? @map("valid_from")
+  validUntil     DateTime? @map("valid_until")
+  isActive       Boolean   @default(true) @map("is_active")
+
+  // Relations
+  partner Partner @relation(fields: [partnerId], references: [id])
+
+  @@index([isActive, validFrom, validUntil])
+  @@map("coupons")
+}
+
+// =============================================================================
+// DYNAMIC FORM SCHEMA
+// =============================================================================
+
+/// Admin-configurable signup form schema
+model FormSchema {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(100)
+  version   Int      @default(1)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  fields FormField[]
+
+  @@map("form_schemas")
+}
+
+/// Individual form field definition
+model FormField {
+  id           String  @id @default(uuid()) @db.Uuid
+  schemaId     String  @map("schema_id") @db.Uuid
+  fieldName    String  @map("field_name") @db.VarChar(50)
+  fieldType    String  @map("field_type") @db.VarChar(30) // text, email, select, etc.
+  label        String  @db.VarChar(100)
+  placeholder  String? @db.VarChar(200)
+  required     Boolean @default(false)
+  options      Json?   // For select/radio fields
+  displayOrder Int     @map("display_order")
+  isEncrypted  Boolean @default(false) @map("is_encrypted")
+
+  // Relations
+  schema FormSchema @relation(fields: [schemaId], references: [id], onDelete: Cascade)
+
+  @@index([schemaId, displayOrder])
+  @@map("form_fields")
+}
+
+// =============================================================================
+// AUDIT & LOGGING
+// =============================================================================
+
+/// Audit log for sensitive actions (no secrets stored)
+model AuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  action       String   @db.VarChar(100)
+  resourceType String   @map("resource_type") @db.VarChar(50)
+  resourceId   String?  @map("resource_id") @db.Uuid
+  metadata     Json?    // No secrets - sanitized data only
+  ipAddress    String?  @map("ip_address") @db.VarChar(45)
+  userAgent    String?  @map("user_agent") @db.VarChar(500)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([action])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+// =============================================================================
+// EMAIL CAMPAIGNS
+// =============================================================================
+
+/// Mass email campaigns
+model EmailCampaign {
+  id              String         @id @default(uuid()) @db.Uuid
+  createdById     String         @map("created_by_id") @db.Uuid
+  subject         String         @db.VarChar(200)
+  template        String         // HTML with {{first_name}} placeholders
+  status          CampaignStatus @default(DRAFT)
+  totalRecipients Int            @default(0) @map("total_recipients")
+  sentCount       Int            @default(0) @map("sent_count")
+  scheduledAt     DateTime?      @map("scheduled_at")
+  sentAt          DateTime?      @map("sent_at")
+
+  // Relations
+  createdBy  User                @relation(fields: [createdById], references: [id])
+  recipients CampaignRecipient[]
+
+  @@index([status])
+  @@map("email_campaigns")
+}
+
+/// Campaign recipient tracking
+model CampaignRecipient {
+  id           String  @id @default(uuid()) @db.Uuid
+  campaignId   String  @map("campaign_id") @db.Uuid
+  userId       String  @map("user_id") @db.Uuid
+  sent         Boolean @default(false)
+  opened       Boolean @default(false)
+  unsubscribed Boolean @default(false)
+
+  // Relations
+  campaign EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User          @relation(fields: [userId], references: [id])
+
+  @@unique([campaignId, userId])
+  @@map("campaign_recipients")
+}
+
+/// User email unsubscribe list
+model Unsubscribe {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("unsubscribes")
+}
+
+// =============================================================================
+// SYSTEM CONFIGURATION
+// =============================================================================
+
+/// Key-value system config (membership toggle, etc.)
+model SystemConfig {
+  key       String   @id @db.VarChar(100)
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_config")
+}
+
+/// Predefined skip reasons
+model SkipReasonOption {
+  id          String  @id @default(uuid()) @db.Uuid
+  code        String  @unique @db.VarChar(50)
+  label       String  @db.VarChar(100)
+  displayOrder Int    @map("display_order")
+  isActive    Boolean @default(true) @map("is_active")
+
+  @@map("skip_reason_options")
+}
