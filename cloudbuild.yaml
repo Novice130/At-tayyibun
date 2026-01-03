@@ -1,0 +1,23 @@
+steps:
+  # Build API Image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'apps/api/Dockerfile', '-t', 'gcr.io/$PROJECT_ID/at-tayyibun-api:latest', '.']
+  
+  # Build Web Image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'apps/web/Dockerfile', '-t', 'gcr.io/$PROJECT_ID/at-tayyibun-web:latest', '.']
+
+  # Push API Image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/at-tayyibun-api:latest']
+
+  # Push Web Image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/at-tayyibun-web:latest']
+
+  # (Optional) Apply Terraform - usually done separately or via a specific builder image
+  # leaving out for now to keep build simple.
+
+images:
+  - 'gcr.io/$PROJECT_ID/at-tayyibun-api:latest'
+  - 'gcr.io/$PROJECT_ID/at-tayyibun-web:latest'

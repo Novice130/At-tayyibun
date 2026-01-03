@@ -1,0 +1,28 @@
+{
+  "name": "at-tayyibun",
+  "version": "1.0.0",
+  "private": true,
+  "description": "At-Tayyibun - A privacy-first, halal-oriented matrimony platform for Muslims in the United States",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean",
+    "db:generate": "turbo run db:generate --filter=@at-tayyibun/api",
+    "db:migrate": "turbo run db:migrate --filter=@at-tayyibun/api",
+    "db:push": "turbo run db:push --filter=@at-tayyibun/api"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "typescript": "^5.3.3"
+  },
+  "packageManager": "npm@10.2.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

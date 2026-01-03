@@ -1,0 +1,466 @@
+// ==============================================
+// At-Tayyibun Database Schema
+// ==============================================
+// A privacy-first matrimony platform for Muslims
+// in the United States
+// ==============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum MembershipTier {
+  FREE
+  SILVER
+  GOLD
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  DENIED
+  EXPIRED
+}
+
+enum AllowedShareType {
+  ALL          // photo + phone + email
+  PHONE_EMAIL  // phone + email only
+  NONE         // denied
+}
+
+enum PhotoType {
+  AI_AVATAR
+  REAL_PHOTO
+}
+
+// ============================================
+// USERS & AUTHENTICATION
+// ============================================
+
+model User {
+  id                  String         @id @default(uuid()) @db.Uuid
+  publicId            String         @unique @default(cuid()) @map("public_id")
+  firebaseUid         String         @unique @map("firebase_uid")
+  email               String         @unique
+  phone               String         @unique
+  role                UserRole       @default(USER)
+  membershipTier      MembershipTier @default(FREE) @map("membership_tier")
+  membershipExpiresAt DateTime?      @map("membership_expires_at")
+  rankBoost           Int            @default(0) @map("rank_boost")
+  lastBoostAt         DateTime?      @map("last_boost_at")
+  isActive            Boolean        @default(true) @map("is_active")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  profile              Profile?
+  photos               Photo[]
+  sentRequests         InfoRequest[]      @relation("RequesterRequests")
+  receivedRequests     InfoRequest[]      @relation("TargetRequests")
+  skipReasonsGiven     SkipReason[]       @relation("RequesterSkips")
+  skipReasonsReceived  SkipReason[]       @relation("TargetSkips")
+  sentMessages         Message[]          @relation("SenderMessages")
+  receivedMessages     Message[]          @relation("ReceiverMessages")
+  conversations        Conversation[]     @relation("ConversationParticipants")
+  auditLogs            AuditLog[]
+  emailUnsubscribes    EmailUnsubscribe[]
+  addedAdmins          User[]             @relation("AdminAddedBy")
+  addedByAdmin         User?              @relation("AdminAddedBy", fields: [addedByAdminId], references: [id])
+  addedByAdminId       String?            @db.Uuid @map("added_by_admin_id")
+
+  @@index([publicId])
+  @@index([email])
+  @@index([phone])
+  @@index([membershipTier])
+  @@index([rankBoost])
+  @@map("users")
+}
+
+// ============================================
+// PROFILES
+// ============================================
+
+model Profile {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @db.Uuid @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // PUBLIC fields (visible to all authenticated users)
+  firstName   String   @map("first_name")
+  gender      Gender
+  ethnicity   String
+  city        String
+  state       String
+  ageRangeMin Int      @map("age_range_min")
+  ageRangeMax Int      @map("age_range_max")
+
+  // PRIVATE fields (encrypted before storage, AES-256-GCM)
+  // These are stored as encrypted strings
+  dateOfBirth String   @map("date_of_birth")      // Encrypted ISO date
+  lastName    String   @map("last_name")          // Encrypted
+  biodata     String                               // Encrypted JSON blob
+
+  // Dynamic fields from admin-editable form schema
+  customFields Json    @default("{}") @map("custom_fields") // Encrypted JSON
+
+  isComplete  Boolean  @default(false) @map("is_complete")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([ethnicity])
+  @@index([gender])
+  @@index([ageRangeMin, ageRangeMax])
+  @@index([city, state])
+  @@map("profiles")
+}
+
+// ============================================
+// PHOTOS
+// ============================================
+
+model Photo {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @db.Uuid @map("user_id")
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type            PhotoType
+  gcsPathOriginal String?   @map("gcs_path_original")  // Original upload (private)
+  gcsPathDisplay  String    @map("gcs_path_display")   // Optimized for display
+  gcsPathThumb    String    @map("gcs_path_thumb")     // Thumbnail
+
+  isApproved      Boolean   @default(false) @map("is_approved")
+  isPublic        Boolean   @default(false) @map("is_public")  // Only AI avatars can be public
+  isPrimary       Boolean   @default(false) @map("is_primary")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId, type])
+  @@index([userId, isPrimary])
+  @@map("photos")
+}
+
+// ============================================
+// INFO REQUESTS (Consent-based sharing)
+// ============================================
+
+model InfoRequest {
+  id             String           @id @default(uuid()) @db.Uuid
+  requesterId    String           @db.Uuid @map("requester_id")
+  requester      User             @relation("RequesterRequests", fields: [requesterId], references: [id])
+  targetId       String           @db.Uuid @map("target_id")
+  target         User             @relation("TargetRequests", fields: [targetId], references: [id])
+
+  status         RequestStatus    @default(PENDING)
+  allowedShares  AllowedShareType? @map("allowed_shares")
+
+  requestedPhoto Boolean          @default(true) @map("requested_photo")
+  requestedPhone Boolean          @default(true) @map("requested_phone")
+  requestedEmail Boolean          @default(true) @map("requested_email")
+
+  expiresAt      DateTime         @map("expires_at")
+  respondedAt    DateTime?        @map("responded_at")
+  emailSentAt    DateTime?        @map("email_sent_at")
+
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  // Tokens for email delivery
+  tokens         SignedUrlToken[]
+
+  @@index([requesterId, status])
+  @@index([targetId, status])
+  @@index([expiresAt, status])
+  @@map("info_requests")
+}
+
+// ============================================
+// SKIP REASONS ("Move on" action)
+// ============================================
+
+model SkipReason {
+  id          String   @id @default(uuid()) @db.Uuid
+  requesterId String   @db.Uuid @map("requester_id")
+  requester   User     @relation("RequesterSkips", fields: [requesterId], references: [id])
+  targetId    String   @db.Uuid @map("target_id")
+  target      User     @relation("TargetSkips", fields: [targetId], references: [id])
+
+  reasonCode  String   @map("reason_code")  // 'NOT_INTERESTED', 'LOCATION', 'AGE', 'OTHER'
+  customText  String?  @map("custom_text")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([requesterId, targetId])
+  @@index([targetId])
+  @@map("skip_reasons")
+}
+
+// ============================================
+// MESSAGING
+// ============================================
+
+model Conversation {
+  id           String    @id @default(uuid()) @db.Uuid
+  participants User[]    @relation("ConversationParticipants")
+  messages     Message[]
+  lastMessageAt DateTime? @map("last_message_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(uuid()) @db.Uuid
+  conversationId String       @db.Uuid @map("conversation_id")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String       @db.Uuid @map("sender_id")
+  sender         User         @relation("SenderMessages", fields: [senderId], references: [id])
+  receiverId     String       @db.Uuid @map("receiver_id")
+  receiver       User         @relation("ReceiverMessages", fields: [receiverId], references: [id])
+
+  content        String       // Encrypted content
+  isRead         Boolean      @default(false) @map("is_read")
+
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt])
+  @@index([receiverId, isRead])
+  @@map("messages")
+}
+
+// ============================================
+// ADS & COUPONS
+// ============================================
+
+model Ad {
+  id           String   @id @default(uuid()) @db.Uuid
+  partnerId    String   @map("partner_id")
+  partnerName  String   @map("partner_name")
+
+  imageUrl     String   @map("image_url")
+  clickUrl     String   @map("click_url")
+  altText      String   @map("alt_text")
+
+  // Frequency rules per membership tier
+  showToFree   Boolean  @default(true) @map("show_to_free")
+  showToSilver Boolean  @default(true) @map("show_to_silver")
+  showToGold   Boolean  @default(false) @map("show_to_gold")
+
+  priority     Int      @default(0)
+  impressions  Int      @default(0)
+  clicks       Int      @default(0)
+
+  isActive     Boolean  @default(true) @map("is_active")
+  startsAt     DateTime @map("starts_at")
+  endsAt       DateTime @map("ends_at")
+
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, startsAt, endsAt])
+  @@index([priority])
+  @@map("ads")
+}
+
+model Coupon {
+  id             String   @id @default(uuid()) @db.Uuid
+  partnerId      String   @map("partner_id")
+  partnerName    String   @map("partner_name")
+
+  code           String
+  description    String
+  partnerUrl     String   @map("partner_url")
+  trackingParams String?  @map("tracking_params")
+
+  discountType   String   @map("discount_type")   // 'PERCENT', 'FIXED'
+  discountValue  Decimal  @map("discount_value") @db.Decimal(10, 2)
+
+  usageLimit     Int?     @map("usage_limit")
+  usedCount      Int      @default(0) @map("used_count")
+
+  isActive       Boolean  @default(true) @map("is_active")
+  startsAt       DateTime @map("starts_at")
+  expiresAt      DateTime @map("expires_at")
+
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, startsAt, expiresAt])
+  @@index([code])
+  @@map("coupons")
+}
+
+// ============================================
+// SITE CONFIGURATION
+// ============================================
+
+model SiteConfig {
+  id                 String  @id @default("default")
+  membershipEnabled  Boolean @default(false) @map("membership_enabled")
+  silverPrice        Decimal @default(9.99) @map("silver_price") @db.Decimal(10, 2)
+  goldPrice          Decimal @default(19.99) @map("gold_price") @db.Decimal(10, 2)
+
+  // Ad frequency: show ad every N profiles
+  adFrequencyFree    Int     @default(5) @map("ad_frequency_free")
+  adFrequencySilver  Int     @default(15) @map("ad_frequency_silver")
+  adFrequencyGold    Int     @default(0) @map("ad_frequency_gold")  // 0 = no ads
+
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("site_config")
+}
+
+// Admin-editable signup/profile form schema
+model FormSchema {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique  // 'signup', 'profile'
+  schema    Json                // JSON Schema for dynamic form fields
+  version   Int      @default(1)
+  isActive  Boolean  @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("form_schemas")
+}
+
+// ============================================
+// EMAIL CAMPAIGNS
+// ============================================
+
+model EmailCampaign {
+  id           String          @id @default(uuid()) @db.Uuid
+  name         String
+  subject      String
+  bodyTemplate String          @map("body_template")  // Supports {first_name}, etc.
+
+  targetGender Gender?         @map("target_gender")
+  targetTier   MembershipTier? @map("target_tier")
+
+  sentCount    Int             @default(0) @map("sent_count")
+  openCount    Int             @default(0) @map("open_count")
+  clickCount   Int             @default(0) @map("click_count")
+
+  scheduledAt  DateTime?       @map("scheduled_at")
+  sentAt       DateTime?       @map("sent_at")
+
+  createdById  String          @db.Uuid @map("created_by_id")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  recipients   EmailRecipient[]
+
+  @@map("email_campaigns")
+}
+
+model EmailRecipient {
+  id         String        @id @default(uuid()) @db.Uuid
+  campaignId String        @db.Uuid @map("campaign_id")
+  campaign   EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId     String        @db.Uuid @map("user_id")
+  email      String
+
+  sentAt     DateTime?     @map("sent_at")
+  openedAt   DateTime?     @map("opened_at")
+  clickedAt  DateTime?     @map("clicked_at")
+  bouncedAt  DateTime?     @map("bounced_at")
+
+  @@unique([campaignId, userId])
+  @@map("email_recipients")
+}
+
+model EmailUnsubscribe {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  reason    String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("email_unsubscribes")
+}
+
+// ============================================
+// AUDIT LOGS
+// ============================================
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @db.Uuid @map("user_id")
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  action     String   // 'REQUEST_SENT', 'REQUEST_APPROVED', 'ADMIN_CHANGE', etc.
+  entityType String   @map("entity_type")  // 'InfoRequest', 'User', 'Profile'
+  entityId   String?  @map("entity_id")
+
+  // IMPORTANT: Never log secrets, plaintext biodata, or message content
+  metadata   Json     @default("{}")
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================
+// SIGNED URL TOKENS (One-time photo access)
+// ============================================
+
+model SignedUrlToken {
+  id           String      @id @default(uuid()) @db.Uuid
+  token        String      @unique
+  requestId    String      @db.Uuid @map("request_id")
+  request      InfoRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  resourceType String      @map("resource_type")  // 'PHOTO'
+  gcsPath      String      @map("gcs_path")
+
+  isUsed       Boolean     @default(false) @map("is_used")
+  usedAt       DateTime?   @map("used_at")
+  expiresAt    DateTime    @map("expires_at")
+
+  createdAt    DateTime    @default(now()) @map("created_at")
+
+  @@index([token])
+  @@index([expiresAt, isUsed])
+  @@map("signed_url_tokens")
+}
+
+// ============================================
+// ACTIVE REQUEST TRACKING
+// ============================================
+// This table enforces one active request per requester
+model ActiveRequest {
+  id          String   @id @default(uuid()) @db.Uuid
+  requesterId String   @unique @db.Uuid @map("requester_id")
+  requestId   String   @unique @db.Uuid @map("request_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("active_requests")
+}
