@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as admin from 'firebase-admin';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import * as admin from "firebase-admin";
 
 export interface DecodedFirebaseToken {
   uid: string;
@@ -19,33 +19,68 @@ export interface DecodedFirebaseToken {
  */
 @Injectable()
 export class FirebaseAuthService {
-  private app: admin.app.App;
+  private app: admin.app.App | null = null;
+  private readonly logger = new Logger(FirebaseAuthService.name);
+  private isInitialized = false;
 
   constructor(private configService: ConfigService) {
-    const firebaseConfig = this.configService.get('security.firebase');
+    this.initializeFirebase();
+  }
 
-    if (!admin.apps.length) {
-      this.app = admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: firebaseConfig.projectId,
-          privateKey: firebaseConfig.privateKey,
-          clientEmail: firebaseConfig.clientEmail,
-        }),
-      });
-    } else {
-      this.app = admin.apps[0]!;
+  private initializeFirebase(): void {
+    try {
+      const firebaseConfig = this.configService.get("security.firebase");
+
+      // Check if Firebase credentials are properly configured
+      if (
+        !firebaseConfig?.projectId ||
+        firebaseConfig.projectId === "your-project-id"
+      ) {
+        this.logger.warn(
+          "Firebase credentials not configured. Authentication will be disabled."
+        );
+        return;
+      }
+
+      if (!admin.apps.length) {
+        this.app = admin.initializeApp({
+          credential: admin.credential.cert({
+            projectId: firebaseConfig.projectId,
+            privateKey: firebaseConfig.privateKey?.replace(/\\n/g, "\n"),
+            clientEmail: firebaseConfig.clientEmail,
+          }),
+        });
+        this.isInitialized = true;
+        this.logger.log("Firebase Admin SDK initialized successfully");
+      } else {
+        this.app = admin.apps[0]!;
+        this.isInitialized = true;
+      }
+    } catch (error) {
+      this.logger.error("Failed to initialize Firebase Admin SDK:", error);
+      this.logger.warn("Continuing without Firebase authentication...");
     }
+  }
+
+  /**
+   * Check if Firebase is properly initialized
+   */
+  isFirebaseInitialized(): boolean {
+    return this.isInitialized && this.app !== null;
   }
 
   /**
    * Verify a Firebase ID token
    */
   async verifyToken(token: string): Promise<DecodedFirebaseToken> {
+    if (!this.isFirebaseInitialized()) {
+      throw new Error("Firebase authentication is not configured");
+    }
     try {
-      const decodedToken = await this.app.auth().verifyIdToken(token);
+      const decodedToken = await this.app!.auth().verifyIdToken(token);
       return decodedToken as DecodedFirebaseToken;
     } catch (error) {
-      throw new Error('Invalid or expired Firebase token');
+      throw new Error("Invalid or expired Firebase token");
     }
   }
 
@@ -53,8 +88,11 @@ export class FirebaseAuthService {
    * Get Firebase user by UID
    */
   async getUser(uid: string): Promise<admin.auth.UserRecord | null> {
+    if (!this.isFirebaseInitialized()) {
+      return null;
+    }
     try {
-      return await this.app.auth().getUser(uid);
+      return await this.app!.auth().getUser(uid);
     } catch (error) {
       return null;
     }
@@ -68,8 +106,11 @@ export class FirebaseAuthService {
     password: string;
     phoneNumber?: string;
     displayName?: string;
-  }): Promise<admin.auth.UserRecord> {
-    return this.app.auth().createUser({
+  }): Promise<admin.auth.UserRecord | null> {
+    if (!this.isFirebaseInitialized()) {
+      throw new Error("Firebase authentication is not configured");
+    }
+    return this.app!.auth().createUser({
       email: data.email,
       password: data.password,
       phoneNumber: data.phoneNumber,
@@ -81,29 +122,44 @@ export class FirebaseAuthService {
   /**
    * Update a Firebase user
    */
-  async updateUser(uid: string, data: Partial<admin.auth.UpdateRequest>): Promise<admin.auth.UserRecord> {
-    return this.app.auth().updateUser(uid, data);
+  async updateUser(
+    uid: string,
+    data: Partial<admin.auth.UpdateRequest>
+  ): Promise<admin.auth.UserRecord | null> {
+    if (!this.isFirebaseInitialized()) {
+      throw new Error("Firebase authentication is not configured");
+    }
+    return this.app!.auth().updateUser(uid, data);
   }
 
   /**
    * Delete a Firebase user
    */
   async deleteUser(uid: string): Promise<void> {
-    await this.app.auth().deleteUser(uid);
+    if (!this.isFirebaseInitialized()) {
+      throw new Error("Firebase authentication is not configured");
+    }
+    await this.app!.auth().deleteUser(uid);
   }
 
   /**
    * Set custom claims on a user (for RBAC)
    */
   async setCustomClaims(uid: string, claims: object): Promise<void> {
-    await this.app.auth().setCustomUserClaims(uid, claims);
+    if (!this.isFirebaseInitialized()) {
+      throw new Error("Firebase authentication is not configured");
+    }
+    await this.app!.auth().setCustomUserClaims(uid, claims);
   }
 
   /**
    * Generate a custom token for a user
    */
   async createCustomToken(uid: string, claims?: object): Promise<string> {
-    return this.app.auth().createCustomToken(uid, claims);
+    if (!this.isFirebaseInitialized()) {
+      throw new Error("Firebase authentication is not configured");
+    }
+    return this.app!.auth().createCustomToken(uid, claims);
   }
 
   /**
@@ -112,6 +168,8 @@ export class FirebaseAuthService {
   async generatePhoneVerificationCode(phoneNumber: string): Promise<string> {
     // In production, Firebase handles this client-side
     // This is a placeholder for server-side verification flow
-    throw new Error('Phone verification should be handled client-side with Firebase');
+    throw new Error(
+      "Phone verification should be handled client-side with Firebase"
+    );
   }
 }
