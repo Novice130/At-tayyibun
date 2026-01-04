@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY apps/api/package*.json ./apps/api/
 COPY packages/shared/package*.json ./packages/shared/
-RUN npm ci --workspace=@at-tayyibun/api --workspace=@at-tayyibun/shared
+RUN npm install --workspace=@at-tayyibun/api --workspace=@at-tayyibun/shared
 
 # Copy source code
 COPY apps/api ./apps/api
@@ -33,7 +33,7 @@ USER nestjs
 
 # Copy built files
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
-COPY --from=builder --chown=nestjs:nodejs /app/apps/api/node_modules ./node_modules
+COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/prisma ./prisma
 
 EXPOSE 3001
