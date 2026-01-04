@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { User, onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/lib/auth';
+import { useState, useEffect } from "react";
+import { User, onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/auth";
 
 interface AuthState {
   user: User | null;
@@ -18,17 +18,28 @@ export function useAuth(): AuthState {
   });
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      (user) => {
-        setState({ user, loading: false, error: null });
-      },
-      (error) => {
-        setState({ user: null, loading: false, error });
-      }
-    );
+    // Only run on client side
+    if (typeof window === "undefined") {
+      setState({ user: null, loading: false, error: null });
+      return;
+    }
 
-    return () => unsubscribe();
+    try {
+      const authInstance = auth();
+      const unsubscribe = onAuthStateChanged(
+        authInstance,
+        (user) => {
+          setState({ user, loading: false, error: null });
+        },
+        (error) => {
+          setState({ user: null, loading: false, error });
+        }
+      );
+
+      return () => unsubscribe();
+    } catch (error) {
+      setState({ user: null, loading: false, error: error as Error });
+    }
   }, []);
 
   return state;
