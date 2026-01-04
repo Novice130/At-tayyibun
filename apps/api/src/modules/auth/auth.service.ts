@@ -1,11 +1,15 @@
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../common/prisma/prisma.service';
-import { RedisService } from '../../common/redis/redis.service';
-import { FirebaseAuthService } from './firebase-auth.service';
-import { SignupDto } from './dto/signup.dto';
-import { User, Profile } from '@prisma/client';
-import { nanoid } from 'nanoid';
+import {
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { PrismaService } from "../../common/prisma/prisma.service";
+import { RedisService } from "../../common/redis/redis.service";
+import { FirebaseAuthService } from "./firebase-auth.service";
+import { SignupDto } from "./dto/signup.dto";
+import { User, Profile } from "@prisma/client";
+import { nanoid } from "nanoid";
 
 @Injectable()
 export class AuthService {
@@ -13,7 +17,7 @@ export class AuthService {
     private prisma: PrismaService,
     private redis: RedisService,
     private firebaseAuth: FirebaseAuthService,
-    private configService: ConfigService,
+    private configService: ConfigService
   ) {}
 
   /**
@@ -25,7 +29,7 @@ export class AuthService {
       where: { email: dto.email },
     });
     if (existingEmail) {
-      throw new ConflictException('Email already registered');
+      throw new ConflictException("Email already registered");
     }
 
     // Check if phone already exists
@@ -33,7 +37,7 @@ export class AuthService {
       where: { phone: dto.phone },
     });
     if (existingPhone) {
-      throw new ConflictException('Phone number already registered');
+      throw new ConflictException("Phone number already registered");
     }
 
     // Create Firebase user
@@ -47,7 +51,7 @@ export class AuthService {
     // Create user in database
     const user = await this.prisma.user.create({
       data: {
-        firebaseUid: firebaseUser.uid,
+        firebaseUid: firebaseUser?.uid || `local_${nanoid(12)}`,
         email: dto.email,
         phone: dto.phone,
         publicId: nanoid(12),
@@ -56,7 +60,7 @@ export class AuthService {
 
     return {
       user,
-      message: 'Registration successful. Please verify your phone number.',
+      message: "Registration successful. Please verify your phone number.",
     };
   }
 
@@ -73,10 +77,7 @@ export class AuthService {
   /**
    * Link OAuth provider to existing user
    */
-  async linkOAuthProvider(
-    userId: string,
-    provider: string,
-  ): Promise<User> {
+  async linkOAuthProvider(userId: string, provider: string): Promise<User> {
     // This would be implemented with Firebase's linkWithCredential on client side
     // Server just records the linked provider
     return this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
@@ -85,7 +86,11 @@ export class AuthService {
   /**
    * Handle OAuth signup/login
    */
-  async handleOAuthUser(firebaseUid: string, email: string, phone?: string): Promise<User & { profile: Profile | null }> {
+  async handleOAuthUser(
+    firebaseUid: string,
+    email: string,
+    phone?: string
+  ): Promise<User & { profile: Profile | null }> {
     // Check if user exists
     let user = await this.prisma.user.findUnique({
       where: { firebaseUid },
@@ -101,7 +106,9 @@ export class AuthService {
       where: { email },
     });
     if (existingEmail) {
-      throw new ConflictException('Email already registered with another account');
+      throw new ConflictException(
+        "Email already registered with another account"
+      );
     }
 
     // Create new user from OAuth
@@ -129,7 +136,7 @@ export class AuthService {
   /**
    * Check rate limit for auth endpoints
    */
-  async checkRateLimit(ip: string, type: 'login' | 'signup'): Promise<boolean> {
+  async checkRateLimit(ip: string, type: "login" | "signup"): Promise<boolean> {
     const limits = this.configService.get(`security.rateLimits.${type}`);
     const key = `ratelimit:${type}:${ip}`;
     return this.redis.checkRateLimit(key, limits.max, limits.windowMs / 1000);

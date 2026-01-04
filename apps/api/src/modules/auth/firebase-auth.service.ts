@@ -108,7 +108,8 @@ export class FirebaseAuthService {
     displayName?: string;
   }): Promise<admin.auth.UserRecord | null> {
     if (!this.isFirebaseInitialized()) {
-      throw new Error("Firebase authentication is not configured");
+      this.logger.warn('Firebase not configured - skipping Firebase user creation');
+      return null;
     }
     return this.app!.auth().createUser({
       email: data.email,
@@ -127,7 +128,8 @@ export class FirebaseAuthService {
     data: Partial<admin.auth.UpdateRequest>
   ): Promise<admin.auth.UserRecord | null> {
     if (!this.isFirebaseInitialized()) {
-      throw new Error("Firebase authentication is not configured");
+      this.logger.warn('Firebase not configured - skipping user update');
+      return null;
     }
     return this.app!.auth().updateUser(uid, data);
   }
@@ -137,7 +139,8 @@ export class FirebaseAuthService {
    */
   async deleteUser(uid: string): Promise<void> {
     if (!this.isFirebaseInitialized()) {
-      throw new Error("Firebase authentication is not configured");
+      this.logger.warn('Firebase not configured - skipping user deletion');
+      return;
     }
     await this.app!.auth().deleteUser(uid);
   }
@@ -147,7 +150,8 @@ export class FirebaseAuthService {
    */
   async setCustomClaims(uid: string, claims: object): Promise<void> {
     if (!this.isFirebaseInitialized()) {
-      throw new Error("Firebase authentication is not configured");
+      this.logger.warn('Firebase not configured - skipping custom claims');
+      return;
     }
     await this.app!.auth().setCustomUserClaims(uid, claims);
   }
@@ -155,9 +159,10 @@ export class FirebaseAuthService {
   /**
    * Generate a custom token for a user
    */
-  async createCustomToken(uid: string, claims?: object): Promise<string> {
+  async createCustomToken(uid: string, claims?: object): Promise<string | null> {
     if (!this.isFirebaseInitialized()) {
-      throw new Error("Firebase authentication is not configured");
+      this.logger.warn('Firebase not configured - cannot create custom token');
+      return null;
     }
     return this.app!.auth().createCustomToken(uid, claims);
   }
