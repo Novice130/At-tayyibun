@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY apps/web/package*.json ./apps/web/
 COPY packages/shared/package*.json ./packages/shared/
-RUN npm ci --workspace=@at-tayyibun/web --workspace=@at-tayyibun/shared
+RUN npm install --workspace=@at-tayyibun/web --workspace=@at-tayyibun/shared
 
 # Copy source code
 COPY apps/web ./apps/web
@@ -27,12 +27,16 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
+
+# Create public directory
+RUN mkdir -p ./apps/web/public
+
 USER nextjs
 
 # Copy standalone build
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public/. ./apps/web/public/
 
 EXPOSE 3000
 
