@@ -50,3 +50,6 @@ export class VerifyPhoneDto {
   @MaxLength(6)
   code: string;
 }
+
+// Two-Factor Authentication DTOs
+export * from './two-factor.dto';

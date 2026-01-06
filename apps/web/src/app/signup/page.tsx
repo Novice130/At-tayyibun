@@ -4,11 +4,14 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Heart, Eye, EyeOff, Mail, Lock, User, Phone } from 'lucide-react';
+import { api } from '@/lib/api';
 
 export default function SignupPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
   const [formData, setFormData] = useState({
     firstName: '',
     email: '',
@@ -20,17 +23,47 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError('');
 
     try {
-      // TODO: Call API
-      console.log('Signup:', formData);
-      router.push('/app/browse');
-    } catch (error) {
-      console.error('Signup error:', error);
+      await api.post('/auth/signup', formData);
+      setSuccess(true);
+    } catch (err: any) {
+      console.error('Signup error:', err);
+      setError(err.message || 'Failed to create account. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Mail className="w-10 h-10 text-green-500" />
+          </div>
+          <h1 className="font-heading text-3xl font-bold mb-4">Verify Your Email</h1>
+          <p className="text-gray-300 mb-8">
+            We've sent a verification link to <strong>{formData.email}</strong>. 
+            Please check your inbox (and spam folder) to complete your registration.
+          </p>
+          
+          <div className="bg-surface border border-white/10 rounded-lg p-4 mb-8 text-left">
+            <h3 className="font-bold text-gold-400 mb-1 text-sm">DEVELOPER NOTE:</h3>
+            <p className="text-sm text-gray-400">
+              Since email sending is currently simulated, please check your 
+              <strong> API Terminal Console</strong> for the verification link.
+            </p>
+          </div>
+
+          <Link href="/login" className="btn-secondary inline-block">
+            Back to Login
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex">
@@ -47,6 +80,12 @@ export default function SignupPage() {
             <h1 className="font-heading text-2xl font-bold mb-2">Create Your Account</h1>
             <p className="text-gray-400">Begin your journey to finding a righteous spouse</p>
           </div>
+
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg mb-6 text-sm">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* First Name */}

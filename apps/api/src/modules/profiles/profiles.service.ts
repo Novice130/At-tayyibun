@@ -1,16 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { EncryptionService } from '../../services/encryption.service';
-import { AvatarService } from '../../services/avatar.service';
-import { Gender } from '@prisma/client';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../../prisma/prisma.service";
+import { EncryptionService } from "../../services/encryption.service";
+import { AvatarService } from "../../services/avatar.service";
+import { Gender } from "@prisma/client";
 
 export interface BrowseFilters {
   ethnicity?: string;
   gender?: Gender;
   minAge?: number;
   maxAge?: number;
-  sortBy?: 'age' | 'createdAt' | 'rankBoost';
-  order?: 'asc' | 'desc';
+  sortBy?: "age" | "createdAt" | "rankBoost";
+  order?: "asc" | "desc";
   page?: number;
   limit?: number;
 }
@@ -20,7 +20,7 @@ export class ProfilesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryptionService: EncryptionService,
-    private readonly avatarService: AvatarService,
+    private readonly avatarService: AvatarService
   ) {}
 
   /**
@@ -33,8 +33,8 @@ export class ProfilesService {
       gender,
       minAge,
       maxAge,
-      sortBy = 'rankBoost',
-      order = 'desc',
+      sortBy = "rankBoost",
+      order = "desc",
       page = 1,
       limit = 20,
     } = filters;
@@ -55,12 +55,20 @@ export class ProfilesService {
     if (minAge || maxAge) {
       const today = new Date();
       if (maxAge) {
-        const minDob = new Date(today.getFullYear() - maxAge - 1, today.getMonth(), today.getDate());
-        where.dob = { ...(where.dob as object || {}), gte: minDob };
+        const minDob = new Date(
+          today.getFullYear() - maxAge - 1,
+          today.getMonth(),
+          today.getDate()
+        );
+        where.dob = { ...((where.dob as object) || {}), gte: minDob };
       }
       if (minAge) {
-        const maxDob = new Date(today.getFullYear() - minAge, today.getMonth(), today.getDate());
-        where.dob = { ...(where.dob as object || {}), lte: maxDob };
+        const maxDob = new Date(
+          today.getFullYear() - minAge,
+          today.getMonth(),
+          today.getDate()
+        );
+        where.dob = { ...((where.dob as object) || {}), lte: maxDob };
       }
     }
 
@@ -78,9 +86,9 @@ export class ProfilesService {
         },
       },
       orderBy: {
-        ...(sortBy === 'rankBoost' ? { user: { rankBoost: order } } : {}),
-        ...(sortBy === 'age' ? { dob: order === 'asc' ? 'desc' : 'asc' } : {}),
-        ...(sortBy === 'createdAt' ? { user: { createdAt: order } } : {}),
+        ...(sortBy === "rankBoost" ? { user: { rankBoost: order } } : {}),
+        ...(sortBy === "age" ? { dob: order === "asc" ? "desc" : "asc" } : {}),
+        ...(sortBy === "createdAt" ? { user: { createdAt: order } } : {}),
       },
       skip: (page - 1) * limit,
       take: limit,
@@ -98,8 +106,16 @@ export class ProfilesService {
       ethnicity: profile.ethnicity,
       city: profile.city,
       state: profile.state,
-      avatarUrl: this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
-      bio: profile.publicFields?.['bio'] || null,
+      avatarUrl: this.avatarService.getAvatarDisplay(
+        profile.userId,
+        profile.gender
+      ),
+      bio:
+        profile.publicFields &&
+        typeof profile.publicFields === "object" &&
+        "bio" in profile.publicFields
+          ? (profile.publicFields as any)["bio"]
+          : null,
       membershipTier: profile.user.membershipTier,
     }));
 
@@ -126,7 +142,7 @@ export class ProfilesService {
     });
 
     if (!user || !user.profile) {
-      throw new NotFoundException('Profile not found');
+      throw new NotFoundException("Profile not found");
     }
 
     const profile = user.profile;
@@ -140,8 +156,16 @@ export class ProfilesService {
       ethnicity: profile.ethnicity,
       city: profile.city,
       state: profile.state,
-      avatarUrl: this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
-      bio: profile.publicFields?.['bio'] || null,
+      avatarUrl: this.avatarService.getAvatarDisplay(
+        profile.userId,
+        profile.gender
+      ),
+      bio:
+        profile.publicFields &&
+        typeof profile.publicFields === "object" &&
+        "bio" in profile.publicFields
+          ? (profile.publicFields as any)["bio"]
+          : null,
       profileComplete: profile.profileComplete,
     };
 
@@ -174,20 +198,20 @@ export class ProfilesService {
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     const profile = user.profile;
 
     // Decrypt sensitive fields
-    let lastName = '';
+    let lastName = "";
     let biodata = {};
 
     if (profile?.lastNameEnc) {
       try {
         lastName = this.encryptionService.decrypt(profile.lastNameEnc);
       } catch {
-        lastName = '';
+        lastName = "";
       }
     }
 
@@ -218,7 +242,9 @@ export class ProfilesService {
             ethnicity: profile.ethnicity,
             city: profile.city,
             state: profile.state,
-            bio: profile.bioEnc ? this.encryptionService.decrypt(profile.bioEnc) : null,
+            bio: profile.bioEnc
+              ? this.encryptionService.decrypt(profile.bioEnc)
+              : null,
             biodata,
             profileComplete: profile.profileComplete,
           }
@@ -235,45 +261,53 @@ export class ProfilesService {
   /**
    * Update current user's profile
    */
-  async updateMyProfile(userId: string, data: {
-    firstName?: string;
-    lastName?: string;
-    dob?: Date;
-    gender?: Gender;
-    ethnicity?: string;
-    city?: string;
-    state?: string;
-    bio?: string;
-    biodata?: Record<string, unknown>;
-  }) {
+  async updateMyProfile(
+    userId: string,
+    data: {
+      firstName?: string;
+      lastName?: string;
+      dob?: Date;
+      gender?: Gender;
+      ethnicity?: string;
+      city?: string;
+      state?: string;
+      bio?: string;
+      biodata?: Record<string, unknown>;
+    }
+  ) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { profile: true },
     });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException("User not found");
     }
 
     // Encrypt sensitive fields
     const updateData: Record<string, unknown> = {};
 
     if (data.firstName) updateData.firstName = data.firstName;
-    if (data.lastName) updateData.lastNameEnc = this.encryptionService.encrypt(data.lastName);
+    if (data.lastName)
+      updateData.lastNameEnc = this.encryptionService.encrypt(data.lastName);
     if (data.dob) updateData.dob = data.dob;
     if (data.gender) updateData.gender = data.gender;
     if (data.ethnicity) updateData.ethnicity = data.ethnicity;
     if (data.city) updateData.city = data.city;
     if (data.state) updateData.state = data.state;
     if (data.bio) updateData.bioEnc = this.encryptionService.encrypt(data.bio);
-    if (data.biodata) updateData.biodataJsonEnc = this.encryptionService.encryptJson(data.biodata);
+    if (data.biodata)
+      updateData.biodataJsonEnc = this.encryptionService.encryptJson(
+        data.biodata
+      );
 
     // Check if profile is complete
     const isComplete = !!(
-      data.firstName || user.profile?.firstName &&
-      data.lastName || user.profile?.lastNameEnc &&
-      data.dob || user.profile?.dob &&
-      data.ethnicity || user.profile?.ethnicity
+      data.firstName ||
+      (user.profile?.firstName && data.lastName) ||
+      (user.profile?.lastNameEnc && data.dob) ||
+      (user.profile?.dob && data.ethnicity) ||
+      user.profile?.ethnicity
     );
 
     updateData.profileComplete = isComplete;

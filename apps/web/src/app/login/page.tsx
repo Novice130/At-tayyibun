@@ -21,7 +21,7 @@ export default function LoginPage() {
     try {
       // TODO: Call API
       console.log('Login:', formData);
-      router.push('/app/browse');
+      router.push('/browse');
     } catch (error) {
       console.error('Login error:', error);
     } finally {

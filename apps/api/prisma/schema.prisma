@@ -73,6 +73,17 @@ model User {
   rankBoost           Int             @default(0) @map("rank_boost")
   rankBoostedAt       DateTime?       @map("rank_boosted_at")
   lastLoginAt         DateTime?       @map("last_login_at")
+  
+  // Two-Factor Authentication
+  twoFactorSecret     String?         @map("two_factor_secret")      // Encrypted TOTP secret
+  twoFactorEnabled    Boolean         @default(false) @map("two_factor_enabled")
+  twoFactorBackupCodes String[]       @map("two_factor_backup_codes") // Hashed backup codes
+  
+  // Email Verification
+  emailVerificationToken  String?     @unique @map("email_verification_token")
+  emailVerificationExpiry DateTime?   @map("email_verification_expiry")
+  emailVerifiedAt         DateTime?   @map("email_verified_at")
+  
   createdAt           DateTime        @default(now()) @map("created_at")
   updatedAt           DateTime        @updatedAt @map("updated_at")
 

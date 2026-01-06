@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import type { Prisma } from "@prisma/client";
 
 export interface AuditLogData {
   userId?: string;
@@ -24,7 +25,9 @@ export class AuditService {
    */
   async log(data: AuditLogData): Promise<void> {
     // Sanitize metadata - remove any sensitive fields
-    const sanitizedMetadata = data.metadata ? this.sanitizeMetadata(data.metadata) : undefined;
+    const sanitizedMetadata = data.metadata
+      ? (this.sanitizeMetadata(data.metadata) as Prisma.InputJsonValue)
+      : undefined;
 
     await this.prisma.auditLog.create({
       data: {
@@ -42,34 +45,46 @@ export class AuditService {
   /**
    * Sanitize metadata to remove sensitive fields
    */
-  private sanitizeMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
+  private sanitizeMetadata(
+    metadata: Record<string, unknown>
+  ): Record<string, unknown> {
     const sensitiveFields = [
-      'password',
-      'passwordHash',
-      'token',
-      'secret',
-      'key',
-      'biodata',
-      'bio',
-      'lastName',
-      'phone',
-      'email',
-      'content',
-      'message',
+      "password",
+      "passwordHash",
+      "token",
+      "secret",
+      "key",
+      "biodata",
+      "bio",
+      "lastName",
+      "phone",
+      "email",
+      "content",
+      "message",
     ];
 
     const sanitized: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(metadata)) {
       // Skip sensitive fields
-      if (sensitiveFields.some((field) => key.toLowerCase().includes(field.toLowerCase()))) {
-        sanitized[key] = '[REDACTED]';
+      if (
+        sensitiveFields.some((field) =>
+          key.toLowerCase().includes(field.toLowerCase())
+        )
+      ) {
+        sanitized[key] = "[REDACTED]";
         continue;
       }
 
       // Recursively sanitize nested objects
-      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-        sanitized[key] = this.sanitizeMetadata(value as Record<string, unknown>);
+      if (
+        typeof value === "object" &&
+        value !== null &&
+        !Array.isArray(value)
+      ) {
+        sanitized[key] = this.sanitizeMetadata(
+          value as Record<string, unknown>
+        );
       } else {
         sanitized[key] = value;
       }
@@ -81,11 +96,15 @@ export class AuditService {
   /**
    * Log user login
    */
-  async logLogin(userId: string, ipAddress?: string, userAgent?: string): Promise<void> {
+  async logLogin(
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string
+  ): Promise<void> {
     await this.log({
       userId,
-      action: 'LOGIN',
-      resourceType: 'auth',
+      action: "LOGIN",
+      resourceType: "auth",
       ipAddress,
       userAgent,
     });
@@ -96,15 +115,19 @@ export class AuditService {
    */
   async logInfoRequest(
     userId: string,
-    action: 'REQUEST_SENT' | 'REQUEST_APPROVED' | 'REQUEST_DENIED' | 'REQUEST_EXPIRED',
+    action:
+      | "REQUEST_SENT"
+      | "REQUEST_APPROVED"
+      | "REQUEST_DENIED"
+      | "REQUEST_EXPIRED",
     targetUserId: string,
     requestId: string,
-    allowedShares?: string[],
+    allowedShares?: string[]
   ): Promise<void> {
     await this.log({
       userId,
       action,
-      resourceType: 'info_request',
+      resourceType: "info_request",
       resourceId: requestId,
       metadata: {
         targetUserId,
@@ -121,7 +144,7 @@ export class AuditService {
     action: string,
     resourceType: string,
     resourceId?: string,
-    metadata?: Record<string, unknown>,
+    metadata?: Record<string, unknown>
   ): Promise<void> {
     await this.log({
       userId: adminId,
@@ -138,8 +161,8 @@ export class AuditService {
   async logDataExport(userId: string, exportType: string): Promise<void> {
     await this.log({
       userId,
-      action: 'DATA_EXPORT',
-      resourceType: 'user_data',
+      action: "DATA_EXPORT",
+      resourceType: "user_data",
       metadata: { exportType },
     });
   }
@@ -150,8 +173,8 @@ export class AuditService {
   async logAccountDeletion(userId: string, deletedBy: string): Promise<void> {
     await this.log({
       userId,
-      action: 'ACCOUNT_DELETED',
-      resourceType: 'user',
+      action: "ACCOUNT_DELETED",
+      resourceType: "user",
       resourceId: userId,
       metadata: { deletedBy },
     });
