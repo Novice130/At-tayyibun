@@ -1,0 +1,72 @@
+# ============================================================
+# At-Tayyibun - NestJS API (Production)
+# ============================================================
+# Multi-stage build optimized for pnpm monorepo
+
+# --- Stage 1: Install dependencies ---
+FROM node:20-alpine AS deps
+RUN apk add --no-cache libc6-compat python3 make g++
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+WORKDIR /app
+
+# Copy workspace config files
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY apps/api/package.json ./apps/api/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY apps/api/prisma ./apps/api/prisma
+
+# Install ALL dependencies (need devDeps for build)
+RUN pnpm install --frozen-lockfile
+
+# Generate Prisma client
+RUN cd apps/api && npx prisma generate
+
+# --- Stage 2: Build the NestJS app ---
+FROM node:20-alpine AS builder
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
+COPY . .
+
+# Build the API
+RUN cd apps/api && pnpm build
+
+# --- Stage 3: Production runner ---
+FROM node:20-alpine AS runner
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nestjs
+
+# Copy built output and production dependencies
+COPY --from=builder /app/apps/api/dist ./dist
+COPY --from=builder /app/apps/api/package.json ./package.json
+COPY --from=builder /app/apps/api/prisma ./prisma
+
+# Copy node_modules (production deps)
+COPY --from=deps /app/apps/api/node_modules ./node_modules
+COPY --from=deps /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=deps /app/node_modules/@prisma ./node_modules/@prisma
+
+# Copy hoisted dependencies from root
+COPY --from=deps /app/node_modules ./root_modules
+# Merge: symlink any missing packages from root into local
+RUN for dir in root_modules/*/; do \
+      pkg=$(basename "$dir"); \
+      if [ ! -d "node_modules/$pkg" ] && [ ! -L "node_modules/$pkg" ]; then \
+        ln -s "/app/root_modules/$pkg" "node_modules/$pkg"; \
+      fi; \
+    done
+
+USER nestjs
+
+EXPOSE 3001
+ENV API_PORT=3001
+
+CMD ["node", "dist/main"]

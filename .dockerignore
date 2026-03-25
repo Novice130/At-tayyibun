@@ -1,0 +1,6 @@
+# Temp files
+temp_*/
+test-*.ts
+*.bak
+homepage_screenshot.png
+login_screenshot.png
