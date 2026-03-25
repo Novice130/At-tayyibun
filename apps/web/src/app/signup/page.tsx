@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Heart, Eye, EyeOff, Mail, Lock, User, Phone } from 'lucide-react';
-import { api } from '@/lib/api';
+import { signUp } from '@/lib/auth-client';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -26,8 +26,18 @@ export default function SignupPage() {
     setError('');
 
     try {
-      await api.post('/auth/signup', formData);
+      const { data, error: authError } = await signUp.email({
+        email: formData.email,
+        password: formData.password,
+        name: formData.firstName,
+      });
+      
+      if (authError) {
+        throw new Error(authError.message);
+      }
+      
       setSuccess(true);
+      setTimeout(() => router.push('/browse'), 2000);
     } catch (err: any) {
       console.error('Signup error:', err);
       setError(err.message || 'Failed to create account. Please try again.');

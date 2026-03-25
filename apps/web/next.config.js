@@ -20,12 +20,14 @@ const nextConfig = {
   // Obfuscation is handled by production minification
   swcMinify: true,
   async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://127.0.0.1:3001/api/:path*',
-      },
-    ];
+    return {
+      fallback: [
+        {
+          source: '/api/:path*',
+          destination: 'http://127.0.0.1:3001/api/:path*',
+        },
+      ],
+    };
   },
 };
 

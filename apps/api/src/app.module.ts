@@ -27,7 +27,7 @@ import { AvatarService } from "./services/avatar.service";
 import { AuditService } from "./services/audit.service";
 
 // Guards & Interceptors
-import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
+import { BetterAuthGuard } from "./common/guards/better-auth.guard";
 import { AuditLogInterceptor } from "./common/interceptors/audit-log.interceptor";
 import { ThrottlerGuard } from "@nestjs/throttler";
 
@@ -85,7 +85,7 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     // Global guards (deny-by-default)
     {
       provide: APP_GUARD,
-      useClass: JwtAuthGuard,
+      useClass: BetterAuthGuard,
     },
     {
       provide: APP_GUARD,

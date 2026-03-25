@@ -149,7 +149,7 @@ export class RequestsService {
       }
 
       if (allowedShares.includes('phone')) {
-        sharedInfo.phone = request.target.phone;
+        sharedInfo.phone = request.target.phone || undefined;
       }
 
       if (allowedShares.includes('email')) {
@@ -291,7 +291,7 @@ export class RequestsService {
     }
 
     if (request.allowedShares.includes('phone')) {
-      result.phone = request.target.phone;
+      result.phone = request.target.phone || undefined;
     }
 
     if (request.allowedShares.includes('email')) {

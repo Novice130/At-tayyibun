@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Heart, Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { signIn } from '@/lib/auth-client';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,11 +20,20 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // TODO: Call API
-      console.log('Login:', formData);
+      const { data, error: authError } = await signIn.email({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (authError) {
+        throw new Error(authError.message);
+      }
+      
       router.push('/browse');
-    } catch (error) {
-      console.error('Login error:', error);
+    } catch (err: any) {
+      console.error('Login error:', err);
+      // Currently using console.error for UI errors since error state wasn't established
+      alert(err.message || 'Failed to sign in. Please try again.');
     } finally {
       setIsLoading(false);
     }

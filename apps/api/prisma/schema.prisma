@@ -63,7 +63,10 @@ model User {
   id                  String          @id @default(uuid()) @db.Uuid
   publicId            String          @unique @map("public_id") @db.VarChar(16)
   email               String          @unique @db.VarChar(255)
-  phone               String          @unique @db.VarChar(20)
+  phone               String?         @unique @db.VarChar(20) // Made optional for OAuth users
+  name                String?         // Added for BetterAuth
+  image               String?         // Added for BetterAuth
+  emailVerified       Boolean         @default(false) // Added for BetterAuth
   passwordHash        String?         @map("password_hash")
   role                Role            @default(USER)
   membershipTier      MembershipTier  @default(FREE) @map("membership_tier")
@@ -100,6 +103,10 @@ model User {
   createdCampaigns    EmailCampaign[]
   campaignRecipients  CampaignRecipient[]
   unsubscribe         Unsubscribe?
+
+  // BetterAuth required relationships
+  sessions            Session[]
+  accounts            Account[]
 
   @@index([publicId])
   @@index([membershipTier])
@@ -435,4 +442,52 @@ model SkipReasonOption {
   isActive    Boolean @default(true) @map("is_active")
 
   @@map("skip_reason_options")
+}
+
+// =============================================================================
+// BETTER-AUTH MODELS
+// =============================================================================
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(uuid()) @db.Uuid
+  accountId             String
+  providerId            String
+  userId                String    @db.Uuid
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id @default(uuid()) @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+
+  @@map("verification")
 }
