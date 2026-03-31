@@ -37,6 +37,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Build the web app
 RUN cd apps/web && pnpm build
 
+# Normalize Prisma client paths from pnpm's nested .pnpm/ structure
+# pnpm stores packages at node_modules/.pnpm/@prisma+client@*/node_modules/...
+# We copy them to a flat /prisma_client/ directory for the runner stage
+RUN mkdir -p /prisma_client/.prisma /prisma_client/@prisma && \
+    cp -r node_modules/.pnpm/@prisma+client*/node_modules/.prisma/* /prisma_client/.prisma/ && \
+    cp -r node_modules/.pnpm/@prisma+client*/node_modules/@prisma/* /prisma_client/@prisma/
+
 # --- Stage 3: Production runner ---
 FROM node:20-alpine AS runner
 RUN apk add --no-cache libc6-compat
@@ -56,9 +63,9 @@ COPY --from=builder /app/apps/web/node_modules ./node_modules
 COPY --from=builder /app/apps/web/package.json ./package.json
 COPY --from=builder /app/apps/web/next.config.js ./next.config.js
 
-# Copy Prisma client (needed by BetterAuth at runtime)
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Copy Prisma client from normalized location (needed by BetterAuth at runtime)
+COPY --from=builder /prisma_client/.prisma ./node_modules/.prisma
+COPY --from=builder /prisma_client/@prisma ./node_modules/@prisma
 
 USER nextjs
 
