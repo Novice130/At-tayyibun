@@ -21,6 +21,14 @@ RUN pnpm install --frozen-lockfile
 # Generate Prisma client (needed by BetterAuth at build time)
 RUN cd apps/api && npx prisma generate
 
+# Extract Prisma client to a known flat path
+# pnpm nests it under .pnpm/@prisma+client@X/node_modules/ which is hard to copy later
+RUN mkdir -p /prisma_output && \
+    PRISMA_DIR=$(find node_modules/.pnpm -path "*/@prisma+client@*/node_modules/.prisma" -type d | head -1) && \
+    PRISMA_PKG=$(find node_modules/.pnpm -path "*/@prisma+client@*/node_modules/@prisma" -type d | head -1) && \
+    cp -r "$PRISMA_DIR" /prisma_output/.prisma && \
+    cp -r "$PRISMA_PKG" /prisma_output/@prisma
+
 # --- Stage 2: Build the Next.js app ---
 FROM node:20-alpine AS builder
 RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
@@ -36,13 +44,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build the web app
 RUN cd apps/web && pnpm build
-
-# Normalize Prisma client paths from pnpm's nested .pnpm/ structure
-# pnpm stores packages at node_modules/.pnpm/@prisma+client@*/node_modules/...
-# We copy them to a flat /prisma_client/ directory for the runner stage
-RUN mkdir -p /prisma_client/.prisma /prisma_client/@prisma && \
-    cp -r node_modules/.pnpm/@prisma+client*/node_modules/.prisma/* /prisma_client/.prisma/ && \
-    cp -r node_modules/.pnpm/@prisma+client*/node_modules/@prisma/* /prisma_client/@prisma/
 
 # --- Stage 3: Production runner ---
 FROM node:20-alpine AS runner
@@ -63,9 +64,9 @@ COPY --from=builder /app/apps/web/node_modules ./node_modules
 COPY --from=builder /app/apps/web/package.json ./package.json
 COPY --from=builder /app/apps/web/next.config.js ./next.config.js
 
-# Copy Prisma client from normalized location (needed by BetterAuth at runtime)
-COPY --from=builder /prisma_client/.prisma ./node_modules/.prisma
-COPY --from=builder /prisma_client/@prisma ./node_modules/@prisma
+# Copy Prisma client from the deps stage's flat output (needed by BetterAuth at runtime)
+COPY --from=deps /prisma_output/.prisma ./node_modules/.prisma
+COPY --from=deps /prisma_output/@prisma ./node_modules/@prisma
 
 USER nextjs
 

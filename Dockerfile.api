@@ -21,10 +21,12 @@ RUN pnpm install --frozen-lockfile
 # Generate Prisma client
 RUN cd apps/api && npx prisma generate
 
-# Normalize Prisma client paths from pnpm's nested .pnpm/ structure
-RUN mkdir -p /prisma_client/.prisma /prisma_client/@prisma && \
-    cp -r node_modules/.pnpm/@prisma+client*/node_modules/.prisma/* /prisma_client/.prisma/ && \
-    cp -r node_modules/.pnpm/@prisma+client*/node_modules/@prisma/* /prisma_client/@prisma/
+# Extract Prisma client to a known flat path
+RUN mkdir -p /prisma_output && \
+    PRISMA_DIR=$(find node_modules/.pnpm -path "*/@prisma+client@*/node_modules/.prisma" -type d | head -1) && \
+    PRISMA_PKG=$(find node_modules/.pnpm -path "*/@prisma+client@*/node_modules/@prisma" -type d | head -1) && \
+    cp -r "$PRISMA_DIR" /prisma_output/.prisma && \
+    cp -r "$PRISMA_PKG" /prisma_output/@prisma
 
 # --- Stage 2: Build the NestJS app ---
 FROM node:20-alpine AS builder
@@ -56,9 +58,9 @@ COPY --from=builder /app/apps/api/prisma ./prisma
 
 # Copy node_modules (production deps)
 COPY --from=deps /app/apps/api/node_modules ./node_modules
-# Copy Prisma client from normalized location
-COPY --from=deps /prisma_client/.prisma ./node_modules/.prisma
-COPY --from=deps /prisma_client/@prisma ./node_modules/@prisma
+# Copy Prisma client from the deps stage's flat output
+COPY --from=deps /prisma_output/.prisma ./node_modules/.prisma
+COPY --from=deps /prisma_output/@prisma ./node_modules/@prisma
 
 # Copy hoisted dependencies from root
 COPY --from=deps /app/node_modules ./root_modules
