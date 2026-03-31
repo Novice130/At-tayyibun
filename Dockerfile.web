@@ -10,24 +10,17 @@ RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 WORKDIR /app
 
 # Copy workspace config files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/api/package.json ./apps/api/package.json
 COPY apps/api/prisma ./apps/api/prisma
 
 # Install ALL dependencies (need devDeps for build)
+# .npmrc sets node-linker=hoisted so node_modules is flat (no .pnpm nesting)
 RUN pnpm install --frozen-lockfile
 
 # Generate Prisma client (needed by BetterAuth at build time)
 RUN cd apps/api && npx prisma generate
-
-# Extract Prisma client to a known flat path
-# pnpm nests it under .pnpm/@prisma+client@X/node_modules/ which is hard to copy later
-RUN mkdir -p /prisma_output && \
-    PRISMA_DIR=$(find node_modules/.pnpm -path "*/@prisma+client@*/node_modules/.prisma" -type d | head -1) && \
-    PRISMA_PKG=$(find node_modules/.pnpm -path "*/@prisma+client@*/node_modules/@prisma" -type d | head -1) && \
-    cp -r "$PRISMA_DIR" /prisma_output/.prisma && \
-    cp -r "$PRISMA_PKG" /prisma_output/@prisma
 
 # --- Stage 2: Build the Next.js app ---
 FROM node:20-alpine AS builder
@@ -64,9 +57,10 @@ COPY --from=builder /app/apps/web/node_modules ./node_modules
 COPY --from=builder /app/apps/web/package.json ./package.json
 COPY --from=builder /app/apps/web/next.config.js ./next.config.js
 
-# Copy Prisma client from the deps stage's flat output (needed by BetterAuth at runtime)
-COPY --from=deps /prisma_output/.prisma ./node_modules/.prisma
-COPY --from=deps /prisma_output/@prisma ./node_modules/@prisma
+# Copy Prisma client (needed by BetterAuth at runtime)
+# With node-linker=hoisted in .npmrc, these exist at top-level paths
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 USER nextjs
 
