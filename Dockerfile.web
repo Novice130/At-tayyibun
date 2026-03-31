@@ -1,20 +1,21 @@
 # ============================================================
 # At-Tayyibun - Next.js Frontend (Production)
 # ============================================================
-# Multi-stage build optimized for pnpm monorepo & Next.js standalone mode
-
-# Stage 1: Install dependencies
 FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 WORKDIR /app
 
+# Copy ALL workspace config files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
+# Copy ALL package.json files from the whole monorepo
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/api/package.json ./apps/api/package.json
 COPY apps/api/prisma ./apps/api/prisma
 
+# Install dependencies (only need dependencies for build)
 RUN pnpm install --frozen-lockfile
+# Generate Prisma client
 RUN cd apps/api && npx prisma generate
 
 # Stage 2: Build the application
@@ -50,5 +51,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Note: In standalone mode, we run the server directly
 CMD ["node", "apps/web/server.js"]
