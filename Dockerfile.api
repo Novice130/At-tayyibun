@@ -51,4 +51,4 @@ USER nestjs
 EXPOSE 3001
 ENV API_PORT=3001
 
-CMD ["node", "dist/main"]
+CMD ["sh", "-c", "echo 'API container starting...' && echo 'Node:' $(node -v) && echo 'Files:' && ls dist/ && echo 'Prisma:' && ls node_modules/.prisma/client/index.js 2>&1 && echo 'Env keys:' && env | cut -d= -f1 | sort && echo 'Launching NestJS...' && node dist/main"]
