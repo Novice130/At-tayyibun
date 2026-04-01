@@ -17,6 +17,7 @@ const generateId = (length: number = 12) => {
 };
 
 export const auth = betterAuth({
+    basePath: "/auth",
     database: prismaAdapter(prisma, {
         provider: "postgresql",
     }),

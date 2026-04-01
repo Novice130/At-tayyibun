@@ -14,18 +14,17 @@ const nextConfig = {
       },
     ],
   },
-  // Production optimizations
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
   },
-  // Obfuscation is handled by production minification
   swcMinify: true,
   async rewrites() {
+    const apiUrl = process.env.INTERNAL_API_URL || 'http://127.0.0.1:3001';
     return {
       fallback: [
         {
           source: '/api/:path*',
-          destination: 'http://127.0.0.1:3001/api/:path*',
+          destination: `${apiUrl}/api/:path*`,
         },
       ],
     };
