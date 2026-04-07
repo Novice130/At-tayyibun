@@ -14,12 +14,16 @@ export class EncryptionService {
   constructor(private readonly configService: ConfigService) {
     const key = this.configService.get<string>('ENCRYPTION_KEY');
     if (!key) {
-      throw new Error('ENCRYPTION_KEY environment variable is required');
+      const msg = '❌ CRITICAL ERROR: ENCRYPTION_KEY environment variable is required.';
+      console.error(msg);
+      throw new Error(msg);
     }
     this.keyBuffer = Buffer.from(key, 'hex');
 
     if (this.keyBuffer.length !== 32) {
-      throw new Error('ENCRYPTION_KEY must be a 32-byte hex string (64 characters)');
+      const msg = `❌ CRITICAL ERROR: ENCRYPTION_KEY must be a 32-byte hex string (64 characters). Found ${this.keyBuffer.length} bytes from the provided hex string.`;
+      console.error(msg);
+      throw new Error(msg);
     }
   }
 
