@@ -77,6 +77,11 @@
 - **Root Cause:** The Next.js frontend pages (`/browse`, `/profile`) and API wrapper (`api.ts`) were still relying on legacy `localStorage.getItem('accessToken')` checks instead of listening for the new HTTP-only session cookies established by BetterAuth.
 - **Fix applied:** Stripped out legacy `localStorage` checks. Upgraded `/browse` and `/profile` to gracefully use BetterAuth's `useSession()` hook. Injected `credentials: 'include'` into `api.ts` requests.
 
+### BUG 4: Local `npm run dev` script fails with "cannot find binary path" (FIXED)
+- **Symptom:** Running `npm run dev` crashes Turbo with `Unable to find package manager binary`.
+- **Root Cause:** Bumping Next.js and the tech stack also updated the `packageManager` declaration in `package.json` to `pnpm@9`. Because `corepack` lacked permissions locally, Turbo couldn't resolve the `pnpm` binary.
+- **Fix applied:** Installed `pnpm` explicitly as a root local `devDependency`. Now running `npm run dev` correctly resolves `node_modules/.bin/pnpm` and correctly hydrates the Next.js and NestJS servers. Node_modules successfully restored.
+
 ---
 
 ## Dokploy Config

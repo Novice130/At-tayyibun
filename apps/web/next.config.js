@@ -17,7 +17,6 @@ const nextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
   },
-  swcMinify: true,
   async rewrites() {
     const apiUrl = process.env.INTERNAL_API_URL || 'http://127.0.0.1:3001';
     return {
