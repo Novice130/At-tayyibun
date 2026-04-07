@@ -109,8 +109,14 @@ export default function ProfilePage() {
           <div className="space-y-6">
             {/* Header Card */}
             <div className="card p-8 flex flex-col md:flex-row items-center gap-6">
-              <div className="w-24 h-24 bg-gradient-gold rounded-full flex items-center justify-center text-black font-bold text-3xl">
-                {user?.profile?.firstName?.[0] || <User className="w-12 h-12" />}
+              <div className="w-24 h-24 bg-gradient-gold rounded-full flex items-center justify-center text-black font-bold text-3xl overflow-hidden shadow-xl border border-white/10">
+                {session?.user?.image ? (
+                  <img src={session.user.image} alt="Profile Avatar" className="w-full h-full object-cover" />
+                ) : user?.profile?.firstName?.[0] ? (
+                  user.profile.firstName[0]
+                ) : (
+                  <User className="w-12 h-12" />
+                )}
               </div>
               <div className="flex-1 text-center md:text-left">
                 <h1 className="font-heading text-3xl font-bold mb-2 flex items-center justify-center md:justify-start gap-2">

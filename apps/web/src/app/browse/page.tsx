@@ -80,13 +80,16 @@ export default function BrowsePage() {
               <Link href="/requests" className="text-gray-400 hover:text-white transition">Requests</Link>
               <Link href="/messages" className="text-gray-400 hover:text-white transition relative">
                 <MessageSquare className="w-5 h-5" />
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-gold-500 rounded-full text-xs text-black flex items-center justify-center">2</span>
               </Link>
               <button className="p-2 text-gray-400 hover:text-white transition">
                 <Bell className="w-5 h-5" />
               </button>
-              <Link href="/profile" className="p-2 text-gray-400 hover:text-white transition">
-                <User className="w-5 h-5" />
+              <Link href="/profile" className="p-2 text-gray-400 hover:text-white transition rounded-full overflow-hidden border border-transparent hover:border-gold-500/50">
+                {session?.user?.image ? (
+                  <img src={session.user.image} alt="Profile" className="w-6 h-6 rounded-full object-cover" />
+                ) : (
+                  <User className="w-5 h-5" />
+                )}
               </Link>
               <button onClick={handleLogout} className="p-2 text-red-400 hover:text-red-300 transition" title="Logout">
                 <LogOut className="w-5 h-5" />
