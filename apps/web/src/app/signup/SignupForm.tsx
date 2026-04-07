@@ -2,9 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Heart, Eye, EyeOff, Mail, Lock, User, Phone } from 'lucide-react';
+import { Heart, Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft } from 'lucide-react';
 import { signUp } from '@/lib/auth-client';
+
+const MALE_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/male/male-${i + 1}.jpg`);
+const FEMALE_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/female/female-${i + 1}.jpg`);
 
 export default function SignupForm() {
   const router = useRouter();
@@ -12,16 +16,31 @@ export default function SignupForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [step, setStep] = useState<'form' | 'avatar'>('form');
   const [formData, setFormData] = useState({
     firstName: '',
     email: '',
     phone: '',
     password: '',
     gender: '',
+    avatar: '',
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleFormNext = (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    if (!formData.gender) {
+      setError('Please select your gender.');
+      return;
+    }
+    setStep('avatar');
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.avatar) {
+      setError('Please choose an avatar.');
+      return;
+    }
     setIsLoading(true);
     setError('');
 
@@ -30,6 +49,7 @@ export default function SignupForm() {
         email: formData.email,
         password: formData.password,
         name: formData.firstName,
+        image: formData.avatar,
       });
 
       if (authError) {
@@ -53,28 +73,93 @@ export default function SignupForm() {
           <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <Mail className="w-10 h-10 text-green-500" />
           </div>
-          <h1 className="font-heading text-3xl font-bold mb-4">Verify Your Email</h1>
+          <h1 className="font-heading text-3xl font-bold mb-4">Account Created!</h1>
           <p className="text-gray-300 mb-8">
-            We've sent a verification link to <strong>{formData.email}</strong>.
-            Please check your inbox (and spam folder) to complete your registration.
+            Welcome, <strong>{formData.firstName}</strong>! Redirecting you to browse profiles...
           </p>
-
-          <div className="bg-surface border border-white/10 rounded-lg p-4 mb-8 text-left">
-            <h3 className="font-bold text-gold-400 mb-1 text-sm">DEVELOPER NOTE:</h3>
-            <p className="text-sm text-gray-400">
-              Since email sending is currently simulated, please check your
-              <strong> API Terminal Console</strong> for the verification link.
-            </p>
-          </div>
-
-          <Link href="/login" className="btn-secondary inline-block">
-            Back to Login
+          <Link href="/browse" className="btn-primary inline-block">
+            Go to Browse
           </Link>
         </div>
       </div>
     );
   }
 
+  // --- Avatar Selection Step ---
+  if (step === 'avatar') {
+    const avatars = formData.gender === 'MALE' ? MALE_AVATARS : FEMALE_AVATARS;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-2xl">
+          <div className="card p-8">
+            <button
+              type="button"
+              onClick={() => setStep('form')}
+              className="flex items-center gap-1 text-gray-400 hover:text-white mb-6 text-sm"
+            >
+              <ChevronLeft className="w-4 h-4" /> Back
+            </button>
+
+            <div className="text-center mb-6">
+              <h1 className="font-heading text-2xl font-bold mb-2">Choose Your Avatar</h1>
+              <p className="text-gray-400">
+                Pick an avatar that represents you. This will be visible on your profile.
+              </p>
+            </div>
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg mb-6 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-4 mb-8">
+              {avatars.map((src) => (
+                <button
+                  key={src}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, avatar: src })}
+                  className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
+                    formData.avatar === src
+                      ? 'border-gold-500 ring-2 ring-gold-500/40 scale-105'
+                      : 'border-white/10 hover:border-white/30'
+                  }`}
+                >
+                  <Image
+                    src={src}
+                    alt="Avatar option"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 640px) 30vw, 20vw"
+                  />
+                  {formData.avatar === src && (
+                    <div className="absolute inset-0 bg-gold-500/20 flex items-center justify-center">
+                      <div className="w-8 h-8 bg-gold-500 rounded-full flex items-center justify-center">
+                        <svg className="w-5 h-5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isLoading || !formData.avatar}
+              className="btn-primary w-full py-4 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? 'Creating Account...' : 'Create Account'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- Main Form Step ---
   return (
     <div className="min-h-screen flex">
       {/* Left side - Form */}
@@ -97,7 +182,7 @@ export default function SignupForm() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleFormNext} className="space-y-5">
             {/* First Name */}
             <div>
               <label className="block text-sm font-medium mb-2">First Name</label>
@@ -153,7 +238,7 @@ export default function SignupForm() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, gender: 'MALE' })}
+                  onClick={() => setFormData({ ...formData, gender: 'MALE', avatar: '' })}
                   className={`p-3 rounded-lg border transition ${
                     formData.gender === 'MALE'
                       ? 'border-gold-500 bg-gold-500/10 text-gold-400'
@@ -164,7 +249,7 @@ export default function SignupForm() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, gender: 'FEMALE' })}
+                  onClick={() => setFormData({ ...formData, gender: 'FEMALE', avatar: '' })}
                   className={`p-3 rounded-lg border transition ${
                     formData.gender === 'FEMALE'
                       ? 'border-gold-500 bg-gold-500/10 text-gold-400'
@@ -203,13 +288,13 @@ export default function SignupForm() {
               </p>
             </div>
 
-            {/* Submit */}
+            {/* Next: Choose Avatar */}
             <button
               type="submit"
-              disabled={isLoading || !formData.gender}
+              disabled={!formData.gender}
               className="btn-primary w-full py-4 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Creating Account...' : 'Create Account'}
+              Next: Choose Avatar
             </button>
           </form>
 
