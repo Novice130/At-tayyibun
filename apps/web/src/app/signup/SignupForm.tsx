@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Heart, Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft } from 'lucide-react';
 import { signUp } from '@/lib/auth-client';
@@ -125,12 +124,10 @@ export default function SignupForm() {
                       : 'border-white/10 hover:border-white/30'
                   }`}
                 >
-                  <Image
+                  <img
                     src={src}
                     alt="Avatar option"
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 640px) 30vw, 20vw"
+                    className="absolute inset-0 w-full h-full object-cover"
                   />
                   {formData.avatar === src && (
                     <div className="absolute inset-0 bg-gold-500/20 flex items-center justify-center">
