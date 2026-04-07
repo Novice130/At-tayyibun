@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { User, MapPin, Calendar, Shield, ArrowLeft, LogOut, Loader, Heart } from 'lucide-react';
+import { ArrowLeft, LogOut, Loader, Heart, User, MapPin, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useSession, signOut } from '@/lib/auth-client';
 
 interface UserProfile {
   id: string;
@@ -30,9 +31,19 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const { data: session, isPending } = useSession();
+
   useEffect(() => {
-    fetchProfile();
-  }, []);
+    if (!isPending && !session) {
+      router.push('/login');
+    }
+  }, [session, isPending, router]);
+
+  useEffect(() => {
+    if (session) {
+      fetchProfile();
+    }
+  }, [session]);
 
   const fetchProfile = async () => {
     try {
@@ -40,7 +51,6 @@ export default function ProfilePage() {
       setUser(data);
     } catch (err) {
       console.error('Failed to fetch profile:', err);
-      // If unauthorized, redirect to login
       if ((err as any).statusCode === 401) {
         router.push('/login');
       } else {
@@ -51,12 +61,12 @@ export default function ProfilePage() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
+  const handleLogout = async () => {
+    await signOut();
     router.push('/login');
   };
 
-  if (loading) {
+  if (isPending || !session || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader className="w-8 h-8 text-gold-500 animate-spin" />

@@ -68,10 +68,14 @@
   2. ~~Temporarily disable EncryptionService to isolate if it's the crash source~~
   3. Added explicit `try/catch` to `main.ts` and logged explicit error output in `EncryptionService` constructor. Await deploy and check Dokploy logs. If it logs `ENCRYPTION_KEY must be a 32-byte hex string`, the key in Dokploy needs to be updated.
 
-### BUG 2: Signup page client-side exception (LIKELY FIXED — needs verification)
-- **Symptom:** "Application error: a client-side exception has occurred" on attayyibun.com/signup
-- **Fix applied:** Replaced `next/image` with plain `<img>` tags, fixed `removeConsole` config. Committed and pushed (990ca9e). Awaiting deploy.
-- **Verify:** Visit attayyibun.com/signup after deploy completes. The form and avatar selection should render. Account creation will still fail until Bug 1 is fixed.
+### BUG 2: Signup page client-side exception (FIXED & COMMITTED)
+- **Symptom:** "Application error: a client-side exception has occurred" on attayyibun.com/signup showing `BetterAuthError: Invalid base URL: /auth`.
+- **Root Cause & Fix:** The `auth-client.ts` file provided a relative `"/auth"` string to the `baseURL` property. BetterAuth's URL parser requires an absolute URL. Updated `auth-client.ts` to dynamically assemble an absolute URL using `window.location.origin` or `process.env.NEXT_PUBLIC_WEB_URL`.
+
+### BUG 3: Infinite Redirect Loop on Successful Login / Signup (FIXED)
+- **Symptom:** After creating a profile, the user redirects to `/browse` but then is immediately thrown backwards into `/login`.
+- **Root Cause:** The Next.js frontend pages (`/browse`, `/profile`) and API wrapper (`api.ts`) were still relying on legacy `localStorage.getItem('accessToken')` checks instead of listening for the new HTTP-only session cookies established by BetterAuth.
+- **Fix applied:** Stripped out legacy `localStorage` checks. Upgraded `/browse` and `/profile` to gracefully use BetterAuth's `useSession()` hook. Injected `credentials: 'include'` into `api.ts` requests.
 
 ---
 

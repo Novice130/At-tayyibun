@@ -7,16 +7,14 @@ const API_URL = '/api';
 console.log('API_URL configured as:', API_URL);
 
 async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
-  const token = localStorage.getItem('accessToken');
-  
   const headers = {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
 
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
+    credentials: 'include',
     headers,
   });
 

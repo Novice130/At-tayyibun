@@ -8,27 +8,26 @@ import { Heart, User, LogOut, Menu, X, MessageSquare, Bell, Loader } from 'lucid
 import { ProfileCard } from '@/components/profile/ProfileCard';
 import { FilterBar } from '@/components/filters/FilterBar';
 import { api } from '@/lib/api';
+import { useSession, signOut } from '@/lib/auth-client';
 
 export default function BrowsePage() {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { data: session, isPending } = useSession();
 
   useEffect(() => {
-    checkAuth();
-    fetchProfiles();
-  }, []);
-
-  const checkAuth = () => {
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
+    if (!isPending && !session) {
       router.push('/login');
-    } else {
-        setIsAuthenticated(true);
     }
-  };
+  }, [session, isPending, router]);
+
+  useEffect(() => {
+    if (session) {
+      fetchProfiles();
+    }
+  }, [session]);
 
   const fetchProfiles = async (filters: any = {}) => {
     setLoading(true);
@@ -51,12 +50,12 @@ export default function BrowsePage() {
     fetchProfiles(apiFilters);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
+  const handleLogout = async () => {
+    await signOut();
     router.push('/login');
   };
 
-  if (!isAuthenticated) return null;
+  if (isPending || !session) return null;
 
   return (
     <div className="min-h-screen bg-background">
