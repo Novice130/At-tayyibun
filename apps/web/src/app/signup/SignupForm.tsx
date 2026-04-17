@@ -333,11 +333,11 @@ export default function SignupForm() {
                   type="button"
                   onClick={() => setFormData({ ...formData, avatar: src })}
                   className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
+                    formData.avatar === src
                       ? 'border-gold-500 ring-2 ring-gold-500/40 scale-105'
                       : 'hover:border-gold-500/30'
                   }`}
                   style={{ borderColor: formData.avatar === src ? undefined : 'var(--color-border)' }}
-                  }`}
                 >
                   <img
                     src={src}
@@ -471,11 +471,11 @@ export default function SignupForm() {
                   type="button"
                   onClick={() => setFormData({ ...formData, gender: 'MALE', avatar: '' })}
                   className={`p-3 rounded-lg border transition ${
+                    formData.gender === 'MALE'
                       ? 'border-gold-500 bg-gold-500/10 text-gold-400'
                       : ''
                   }`}
                   style={formData.gender !== 'MALE' ? { borderColor: 'var(--color-border)', color: 'var(--color-text)' } : {}}
-                  }`}
                 >
                   Brother
                 </button>
@@ -483,11 +483,11 @@ export default function SignupForm() {
                   type="button"
                   onClick={() => setFormData({ ...formData, gender: 'FEMALE', avatar: '' })}
                   className={`p-3 rounded-lg border transition ${
+                    formData.gender === 'FEMALE'
                       ? 'border-gold-500 bg-gold-500/10 text-gold-400'
                       : ''
                   }`}
                   style={formData.gender !== 'FEMALE' ? { borderColor: 'var(--color-border)', color: 'var(--color-text)' } : {}}
-                  }`}
                 >
                   Sister
                 </button>
