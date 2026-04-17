@@ -4,17 +4,28 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Heart, User, LogOut, Menu, X, MessageSquare, Bell, Loader } from 'lucide-react';
+import { User, LogOut, Menu, X, MessageSquare, Bell, Loader, Lock } from 'lucide-react';
 import { ProfileCard } from '@/components/profile/ProfileCard';
 import { FilterBar } from '@/components/filters/FilterBar';
 import { api } from '@/lib/api';
 import { useSession, signOut } from '@/lib/auth-client';
+
+interface ActiveRequest {
+  id: string;
+  status: string;
+  targetId: string;
+  target: {
+    publicId: string;
+    profile: { firstName: string } | null;
+  };
+}
 
 export default function BrowsePage() {
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeRequest, setActiveRequest] = useState<ActiveRequest | null>(null);
   const { data: session, isPending } = useSession();
 
   useEffect(() => {
@@ -26,6 +37,7 @@ export default function BrowsePage() {
   useEffect(() => {
     if (session) {
       fetchProfiles();
+      fetchActiveRequest();
     }
   }, [session]);
 
@@ -33,11 +45,20 @@ export default function BrowsePage() {
     setLoading(true);
     try {
       const data = await api.get('/profiles?' + new URLSearchParams(filters));
-      setProfiles(data.items || []);
+      setProfiles(data.data || data.items || []);
     } catch (error) {
       console.error('Failed to fetch profiles:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchActiveRequest = async () => {
+    try {
+      const data = await api.get('/requests/active');
+      setActiveRequest(data);
+    } catch {
+      setActiveRequest(null);
     }
   };
 
@@ -46,7 +67,6 @@ export default function BrowsePage() {
     if (filters.ethnicity) apiFilters.ethnicity = filters.ethnicity;
     if (filters.minAge) apiFilters.minAge = filters.minAge.toString();
     if (filters.maxAge) apiFilters.maxAge = filters.maxAge.toString();
-    
     fetchProfiles(apiFilters);
   };
 
@@ -56,6 +76,8 @@ export default function BrowsePage() {
   };
 
   if (isPending || !session) return null;
+
+  const hasActiveRequest = !!activeRequest;
 
   return (
     <div className="min-h-screen bg-background">
@@ -97,7 +119,7 @@ export default function BrowsePage() {
             </div>
 
             {/* Mobile menu button */}
-            <button 
+            <button
               className="md:hidden p-2"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
@@ -131,23 +153,43 @@ export default function BrowsePage() {
           <p className="text-gray-400">Find your righteous spouse</p>
         </div>
 
+        {/* Active request banner */}
+        {hasActiveRequest && (
+          <div className="mb-6 p-4 rounded-xl bg-gold-500/10 border border-gold-500/20 flex items-center gap-3">
+            <Lock className="w-5 h-5 text-gold-500 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm text-gold-300">
+                You have a pending request for <strong>{activeRequest?.target?.profile?.firstName}</strong>.
+                You can browse profiles but cannot send new requests until they respond.
+              </p>
+            </div>
+            <Link href="/requests" className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0">
+              View Requests
+            </Link>
+          </div>
+        )}
+
         <FilterBar onFilter={handleFilter} />
 
         {/* Profiles grid */}
         {loading ? (
-           <div className="flex justify-center py-20">
-             <Loader className="w-10 h-10 text-gold-500 animate-spin" />
-           </div>
+          <div className="flex justify-center py-20">
+            <Loader className="w-10 h-10 text-gold-500 animate-spin" />
+          </div>
         ) : profiles.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {profiles.map((profile) => (
-              <ProfileCard key={profile.publicId} {...profile} />
+              <ProfileCard
+                key={profile.publicId}
+                {...profile}
+                locked={hasActiveRequest && activeRequest?.target?.publicId !== profile.publicId}
+              />
             ))}
           </div>
         ) : (
           <div className="text-center py-16">
             <p className="text-gray-400">No profiles match your filters</p>
-            <button 
+            <button
               onClick={() => fetchProfiles()}
               className="btn-secondary mt-4"
             >

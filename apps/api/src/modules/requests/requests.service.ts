@@ -11,7 +11,7 @@ import { EmailService } from '../../services/email.service';
 import { StorageService } from '../../services/storage.service';
 import { EncryptionService } from '../../services/encryption.service';
 import { RequestStatus } from '@prisma/client';
-import { CreateRequestDto, RespondRequestDto } from './dto';
+import { RespondRequestDto } from './dto';
 
 @Injectable()
 export class RequestsService {
@@ -31,6 +31,7 @@ export class RequestsService {
     // Find target user by public ID
     const target = await this.prisma.user.findUnique({
       where: { publicId: targetPublicId },
+      include: { profile: true },
     });
 
     if (!target) {
@@ -53,9 +54,9 @@ export class RequestsService {
       throw new ConflictException('You already have a pending request. Please wait for a response or let it expire.');
     }
 
-    // Create the request with 24-hour expiry
+    // Create the request with 72-hour expiry
     const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24);
+    expiresAt.setHours(expiresAt.getHours() + 72);
 
     const request = await this.prisma.infoRequest.create({
       data: {
@@ -67,6 +68,27 @@ export class RequestsService {
       },
     });
 
+    // Get requester info for email
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+      include: { profile: true },
+    });
+
+    // Send email notification to target
+    if (requester?.profile && target.profile) {
+      try {
+        await this.emailService.sendContactRequestEmail(
+          target.email,
+          target.profile.firstName,
+          requester.profile.firstName,
+          requester.profile.ethnicity,
+          [requester.profile.city, requester.profile.state].filter(Boolean).join(', '),
+        );
+      } catch (error) {
+        console.error('Failed to send contact request email:', error);
+      }
+    }
+
     // Log the request
     await this.auditService.logInfoRequest(
       requesterId,
@@ -76,6 +98,32 @@ export class RequestsService {
     );
 
     return { id: request.id };
+  }
+
+  /**
+   * Check if the current user has a pending request (locks them from requesting others)
+   */
+  async getActiveRequest(userId: string) {
+    const pendingRequest = await this.prisma.infoRequest.findFirst({
+      where: {
+        requesterId: userId,
+        status: RequestStatus.PENDING,
+      },
+      include: {
+        target: {
+          select: {
+            publicId: true,
+            profile: {
+              select: {
+                firstName: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return pendingRequest;
   }
 
   /**
@@ -111,7 +159,6 @@ export class RequestsService {
     }
 
     if (new Date() > request.expiresAt) {
-      // Mark as expired
       await this.prisma.infoRequest.update({
         where: { id: requestId },
         data: { status: RequestStatus.EXPIRED },
@@ -119,16 +166,14 @@ export class RequestsService {
       throw new BadRequestException('This request has expired');
     }
 
-    // Process the response
     if (dto.approved) {
-      // Generate one-time token for photo access
       const oneTimeToken = this.encryptionService.generateToken(32);
 
       await this.prisma.infoRequest.update({
         where: { id: requestId },
         data: {
           status: RequestStatus.APPROVED,
-          allowedShares: dto.shareItems || ['photo', 'phone', 'email'],
+          allowedShares: dto.shareItems || ['phone', 'email'],
           respondedAt: new Date(),
           oneTimeToken,
         },
@@ -136,10 +181,9 @@ export class RequestsService {
 
       // Prepare shared info
       const sharedInfo: { photo?: string; phone?: string; email?: string } = {};
-      const allowedShares = dto.shareItems || ['photo', 'phone', 'email'];
+      const allowedShares = dto.shareItems || ['phone', 'email'];
 
       if (allowedShares.includes('photo')) {
-        // Get primary photo and generate signed URL
         const primaryPhoto = request.target.photos.find(p => p.isPrimary);
         if (primaryPhoto && primaryPhoto.gcsDisplayPath) {
           sharedInfo.photo = await this.storageService.getOneTimeSignedUrl(
@@ -156,15 +200,18 @@ export class RequestsService {
         sharedInfo.email = request.target.email;
       }
 
-      // Send email to requester
-      await this.emailService.sendSharedInfoEmail(
-        request.requester.email,
-        request.requester.profile?.firstName || 'User',
-        request.target.profile?.firstName || 'A user',
-        sharedInfo,
-      );
+      // Send email to requester with shared info
+      try {
+        await this.emailService.sendSharedInfoEmail(
+          request.requester.email,
+          request.requester.profile?.firstName || 'User',
+          request.target.profile?.firstName || 'A user',
+          sharedInfo,
+        );
+      } catch (error) {
+        console.error('Failed to send shared info email:', error);
+      }
 
-      // Log approval
       await this.auditService.logInfoRequest(
         userId,
         'REQUEST_APPROVED',
@@ -182,7 +229,16 @@ export class RequestsService {
         },
       });
 
-      // Log denial
+      // Send denial notification email
+      try {
+        await this.emailService.sendRequestDeniedEmail(
+          request.requester.email,
+          request.requester.profile?.firstName || 'User',
+        );
+      } catch (error) {
+        console.error('Failed to send denial email:', error);
+      }
+
       await this.auditService.logInfoRequest(
         userId,
         'REQUEST_DENIED',
@@ -209,6 +265,8 @@ export class RequestsService {
                 firstName: true,
                 gender: true,
                 ethnicity: true,
+                city: true,
+                state: true,
               },
             },
           },
@@ -233,6 +291,8 @@ export class RequestsService {
                 firstName: true,
                 gender: true,
                 ethnicity: true,
+                city: true,
+                state: true,
               },
             },
           },
@@ -270,18 +330,12 @@ export class RequestsService {
       throw new BadRequestException('This link has already been used');
     }
 
-    // Mark token as used
     await this.prisma.infoRequest.update({
       where: { id: request.id },
       data: { tokenUsedAt: new Date() },
     });
 
-    // Build response based on allowed shares
-    const result: {
-      photoUrl?: string;
-      phone?: string;
-      email?: string;
-    } = {};
+    const result: { photoUrl?: string; phone?: string; email?: string } = {};
 
     if (request.allowedShares.includes('photo')) {
       const photo = request.target.photos[0];

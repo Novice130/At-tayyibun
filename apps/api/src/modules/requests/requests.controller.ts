@@ -5,10 +5,8 @@ import {
   Put,
   Param,
   Body,
-  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { Request } from 'express';
 import { RequestsService } from './requests.service';
 import { CreateRequestDto, RespondRequestDto } from './dto';
 import { CurrentUser, Public } from '../../common/decorators';
@@ -21,7 +19,7 @@ export class RequestsController {
   constructor(private readonly requestsService: RequestsService) {}
 
   @Post()
-  @Throttle({ short: { limit: 10, ttl: 3600000 } }) // 10 requests per hour
+  @Throttle({ short: { limit: 10, ttl: 3600000 } })
   @ApiOperation({ summary: 'Request info from a user' })
   @ApiResponse({ status: 201, description: 'Request created' })
   @ApiResponse({ status: 409, description: 'Already have a pending request' })
@@ -30,6 +28,13 @@ export class RequestsController {
     @CurrentUser('id') userId: string,
   ) {
     return this.requestsService.createRequest(userId, dto.targetPublicId);
+  }
+
+  @Get('active')
+  @ApiOperation({ summary: 'Get current pending request (if any)' })
+  @ApiResponse({ status: 200, description: 'Active pending request or null' })
+  async getActiveRequest(@CurrentUser('id') userId: string) {
+    return this.requestsService.getActiveRequest(userId);
   }
 
   @Get('incoming')

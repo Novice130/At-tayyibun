@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { MapPin, Heart } from 'lucide-react';
+import { MapPin, Heart, Lock } from 'lucide-react';
 
 interface ProfileCardProps {
   publicId: string;
@@ -13,6 +13,7 @@ interface ProfileCardProps {
   state?: string;
   avatarUrl: string;
   membershipTier?: 'FREE' | 'SILVER' | 'GOLD';
+  locked?: boolean;
 }
 
 export function ProfileCard({
@@ -24,6 +25,7 @@ export function ProfileCard({
   state,
   avatarUrl,
   membershipTier = 'FREE',
+  locked = false,
 }: ProfileCardProps) {
   const tierBadge = {
     FREE: null,
@@ -31,19 +33,24 @@ export function ProfileCard({
     GOLD: <span className="badge-gold">Gold</span>,
   };
 
-  return (
-    <Link href={`/profiles/${publicId}`} className="profile-card block">
+  const content = (
+    <>
       <div className="relative aspect-square rounded-xl overflow-hidden mb-3">
         <Image
           src={avatarUrl}
           alt={`${firstName}'s avatar`}
           fill
-          className="object-cover"
-          unoptimized // DiceBear URLs
+          className={`object-cover ${locked ? 'opacity-60' : ''}`}
+          unoptimized
         />
         {membershipTier !== 'FREE' && (
           <div className="absolute top-2 right-2">
             {tierBadge[membershipTier]}
+          </div>
+        )}
+        {locked && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+            <Lock className="w-8 h-8 text-white/60" />
           </div>
         )}
       </div>
@@ -51,15 +58,16 @@ export function ProfileCard({
       <div className="space-y-1">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-lg">{firstName}, {age}</h3>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              // TODO: Add to favorites
-            }}
-            className="p-2 hover:bg-white/5 rounded-full transition"
-          >
-            <Heart className="w-5 h-5 text-gray-400 hover:text-gold-500" />
-          </button>
+          {!locked && (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+              }}
+              className="p-2 hover:bg-white/5 rounded-full transition"
+            >
+              <Heart className="w-5 h-5 text-gray-400 hover:text-gold-500" />
+            </button>
+          )}
         </div>
 
         <p className="text-sm text-gold-400">{ethnicity}</p>
@@ -71,6 +79,20 @@ export function ProfileCard({
           </p>
         )}
       </div>
+    </>
+  );
+
+  if (locked) {
+    return (
+      <div className="profile-card block cursor-not-allowed" title="You have a pending request. Wait for a response before viewing another profile.">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Link href={`/profiles/${publicId}`} className="profile-card block">
+      {content}
     </Link>
   );
 }

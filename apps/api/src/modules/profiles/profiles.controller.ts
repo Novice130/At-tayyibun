@@ -19,7 +19,7 @@ export class ProfilesController {
   constructor(private readonly profilesService: ProfilesService) {}
 
   @Get()
-  @Throttle({ medium: { limit: 60, ttl: 60000 } }) // 60 per minute
+  @Throttle({ medium: { limit: 60, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: "Browse profiles with filters" })
   @ApiQuery({ name: "ethnicity", required: false })
@@ -54,20 +54,10 @@ export class ProfilesController {
       sortBy,
       order,
       page: page || 1,
-      limit: Math.min(limit || 20, 50), // Max 50 per page
+      limit: Math.min(limit || 20, 50),
     };
 
     return this.profilesService.browseProfiles(filters, userId);
-  }
-
-  @Public()
-  @Get(":publicId")
-  @ApiOperation({ summary: "Get a profile by public ID" })
-  @ApiResponse({ status: 200, description: "Profile details" })
-  @ApiResponse({ status: 404, description: "Profile not found" })
-  async getProfile(@Param("publicId") publicId: string, @Req() req: Request) {
-    const isAuthenticated = !!req.user;
-    return this.profilesService.getProfileByPublicId(publicId, isAuthenticated);
   }
 
   @Get("me")
@@ -89,8 +79,17 @@ export class ProfilesController {
     @Body() dto: UpdateProfileDto,
     @CurrentUser("id") userId: string
   ) {
-    // Convert dob to Date if it's a string
     const data = { ...dto, dob: dto.dob ? new Date(dto.dob) : undefined };
     return this.profilesService.updateMyProfile(userId, data);
+  }
+
+  @Public()
+  @Get(":publicId")
+  @ApiOperation({ summary: "Get a profile by public ID" })
+  @ApiResponse({ status: 200, description: "Profile details" })
+  @ApiResponse({ status: 404, description: "Profile not found" })
+  async getProfile(@Param("publicId") publicId: string, @Req() req: Request) {
+    const isAuthenticated = !!req.user;
+    return this.profilesService.getProfileByPublicId(publicId, isAuthenticated);
   }
 }

@@ -1,6 +1,27 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Heart, Shield, Users, Clock, ChevronRight } from 'lucide-react';
+import { Heart, Shield, Users, Clock, ChevronRight, Star, Quote } from 'lucide-react';
+
+const successStories = [
+  {
+    names: 'Abdullah & Mariam',
+    location: 'New York, NY',
+    quote: 'We connected through At-Tayyibun and our families were involved from day one. Alhamdulillah, we had our nikah within 6 months. The privacy-first approach gave us confidence throughout the process.',
+    year: '2025',
+  },
+  {
+    names: 'Yusuf & Aisha',
+    location: 'Houston, TX',
+    quote: 'My mother created my profile as my guardian. She felt comfortable knowing the platform was designed with Islamic values. We are now happily married with our families\' blessings.',
+    year: '2025',
+  },
+  {
+    names: 'Omar & Fatima',
+    location: 'Chicago, IL',
+    quote: 'What stood out was how respectful the process was. No endless chatting - just a contact request, family involvement, and a halal path to marriage. Jazakallahu Khairan to the At-Tayyibun team.',
+    year: '2024',
+  },
+];
 
 export default function HomePage() {
   return (
@@ -55,9 +76,18 @@ export default function HomePage() {
 
         <div className="relative z-10 max-w-4xl mx-auto px-4 text-center">
           <div className="animate-fade-in">
-            <span className="inline-block px-4 py-2 bg-gold-500/10 text-gold-400 rounded-full text-sm mb-6">
-              🕌 A Halal Path to Marriage
-            </span>
+            {/* Quran Ayah */}
+            <div className="mb-8 max-w-2xl mx-auto">
+              <p className="text-gold-400 text-xl sm:text-2xl font-heading leading-relaxed mb-3" dir="rtl" lang="ar">
+                &#1575;&#1604;&#1591;&#1617;&#1614;&#1610;&#1617;&#1616;&#1576;&#1614;&#1575;&#1578;&#1615; &#1604;&#1616;&#1604;&#1591;&#1617;&#1614;&#1610;&#1617;&#1616;&#1576;&#1616;&#1610;&#1606;&#1614; &#1608;&#1614;&#1575;&#1604;&#1591;&#1617;&#1614;&#1610;&#1617;&#1616;&#1576;&#1615;&#1608;&#1606;&#1614; &#1604;&#1616;&#1604;&#1591;&#1617;&#1614;&#1610;&#1617;&#1616;&#1576;&#1614;&#1575;&#1578;&#1616;
+              </p>
+              <p className="text-gray-300 text-sm sm:text-base italic">
+                &ldquo;Good women are for good men, and good men are for good women.&rdquo;
+              </p>
+              <p className="text-gray-500 text-xs mt-1">
+                — Surah An-Nur (24:26)
+              </p>
+            </div>
 
             <h1 className="font-heading text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
               Find Your{' '}
@@ -67,8 +97,9 @@ export default function HomePage() {
             </h1>
 
             <p className="text-gray-400 text-lg sm:text-xl mb-8 max-w-2xl mx-auto">
-              At-Tayyibun is a privacy-first matrimony platform designed for Muslims 
-              in the United States. Your photos stay private, your data stays protected.
+              At-Tayyibun is a privacy-first matrimony platform designed for Muslims
+              in the United States. Parents and guardians create profiles and connect
+              on behalf of their families.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -76,7 +107,7 @@ export default function HomePage() {
                 Start Your Journey
                 <ChevronRight className="w-5 h-5 ml-2" />
               </Link>
-              <Link href="/profiles" className="btn-secondary px-8 py-4 text-lg">
+              <Link href="/browse" className="btn-secondary px-8 py-4 text-lg">
                 Browse Profiles
               </Link>
             </div>
@@ -90,11 +121,11 @@ export default function HomePage() {
             </div>
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-gold-500" />
-              <span>Phone Verified</span>
+              <span>Family Involvement</span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-gold-500" />
-              <span>24h Info Sharing</span>
+              <span>Guardian-Led Connections</span>
             </div>
           </div>
         </div>
@@ -113,38 +144,35 @@ export default function HomePage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {/* Feature 1 */}
             <div className="card p-6 text-center">
               <div className="w-16 h-16 bg-gold-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Shield className="w-8 h-8 text-gold-500" />
               </div>
               <h3 className="font-heading text-xl font-semibold mb-3">Privacy Protected</h3>
               <p className="text-gray-400">
-                Your real photos are private by default. Only you decide who sees them, 
+                Your real photos are private by default. Only you decide who sees them,
                 with time-limited, expiring links.
               </p>
             </div>
 
-            {/* Feature 2 */}
             <div className="card p-6 text-center">
               <div className="w-16 h-16 bg-gold-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Users className="w-8 h-8 text-gold-500" />
               </div>
-              <h3 className="font-heading text-xl font-semibold mb-3">Verified Users</h3>
+              <h3 className="font-heading text-xl font-semibold mb-3">Guardian-Led Process</h3>
               <p className="text-gray-400">
-                Every user must verify their phone number. One account per person, 
-                ensuring authentic connections.
+                Parents, guardians, or siblings create profiles and manage connections.
+                Family involvement from the very first step.
               </p>
             </div>
 
-            {/* Feature 3 */}
             <div className="card p-6 text-center">
               <div className="w-16 h-16 bg-gold-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Heart className="w-8 h-8 text-gold-500" />
               </div>
               <h3 className="font-heading text-xl font-semibold mb-3">Halal-Oriented</h3>
               <p className="text-gray-400">
-                Designed for nikah, not dating. Respectful communication focused 
+                Designed for nikah, not dating. Respectful communication focused
                 on serious marriage intentions.
               </p>
             </div>
@@ -152,14 +180,48 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* Success Stories Section */}
       <section className="py-24">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="font-heading text-3xl sm:text-4xl font-bold mb-4">
+              <span className="text-gradient-gold">Success Stories</span>
+            </h2>
+            <p className="text-gray-400 max-w-2xl mx-auto">
+              Alhamdulillah, families have found blessed unions through At-Tayyibun.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {successStories.map((story) => (
+              <div key={story.names} className="card p-6 relative">
+                <Quote className="w-8 h-8 text-gold-500/20 absolute top-4 right-4" />
+                <div className="flex items-center gap-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-4 h-4 text-gold-500 fill-gold-500" />
+                  ))}
+                </div>
+                <p className="text-gray-300 text-sm leading-relaxed mb-6">
+                  &ldquo;{story.quote}&rdquo;
+                </p>
+                <div className="border-t border-white/10 pt-4">
+                  <p className="font-semibold text-gold-400">{story.names}</p>
+                  <p className="text-xs text-gray-500">{story.location} &middot; Married {story.year}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-24 bg-surface">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h2 className="font-heading text-3xl sm:text-4xl font-bold mb-6">
             Begin Your Search Today
           </h2>
           <p className="text-gray-400 mb-8 max-w-xl mx-auto">
-            Join thousands of Muslims across the United States who have found 
+            Join families across the United States who have found
             their path to a blessed marriage through At-Tayyibun.
           </p>
           <Link href="/signup" className="btn-primary px-8 py-4 text-lg inline-flex">
@@ -192,7 +254,7 @@ export default function HomePage() {
             </div>
 
             <p className="text-sm text-gray-500">
-              © {new Date().getFullYear()} At-Tayyibun. All rights reserved.
+              &copy; {new Date().getFullYear()} At-Tayyibun. All rights reserved.
             </p>
           </div>
         </div>

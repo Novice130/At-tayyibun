@@ -1,0 +1,259 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import Image from 'next/image';
+import { ArrowLeft, MapPin, User, Heart, Shield, Loader, Lock, Send, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { api } from '@/lib/api';
+import { useSession } from '@/lib/auth-client';
+
+interface ProfileData {
+  publicId: string;
+  firstName: string;
+  age: number;
+  gender: string;
+  ethnicity: string;
+  city?: string;
+  state?: string;
+  avatarUrl: string;
+  bio?: string;
+  membershipTier?: string;
+  profileComplete?: boolean;
+  isFullView?: boolean;
+}
+
+interface ActiveRequest {
+  id: string;
+  status: string;
+  target: {
+    publicId: string;
+    profile: { firstName: string } | null;
+  };
+}
+
+export default function ProfileDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const publicId = params.publicId as string;
+
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [activeRequest, setActiveRequest] = useState<ActiveRequest | null>(null);
+  const [requesting, setRequesting] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
+
+  const { data: session, isPending } = useSession();
+
+  useEffect(() => {
+    if (!isPending && !session) {
+      router.push('/login');
+    }
+  }, [session, isPending, router]);
+
+  useEffect(() => {
+    if (session && publicId) {
+      fetchProfile();
+      fetchActiveRequest();
+    }
+  }, [session, publicId]);
+
+  const fetchProfile = async () => {
+    try {
+      const data = await api.get(`/profiles/${publicId}`);
+      setProfile(data);
+    } catch (err) {
+      console.error('Failed to fetch profile:', err);
+      setError('Profile not found');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchActiveRequest = async () => {
+    try {
+      const data = await api.get('/requests/active');
+      setActiveRequest(data);
+    } catch {
+      // No active request
+      setActiveRequest(null);
+    }
+  };
+
+  const handleRequestContact = async () => {
+    setRequesting(true);
+    try {
+      await api.post('/requests', { targetPublicId: publicId });
+      setRequestSent(true);
+      await fetchActiveRequest();
+    } catch (err: any) {
+      if (err.statusCode === 409) {
+        alert('You already have a pending request. Wait for a response before requesting another.');
+      } else {
+        alert(err.message || 'Failed to send request');
+      }
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  // Check if this profile is the one we have a pending request for
+  const hasPendingRequestForThis = activeRequest?.target?.publicId === publicId && activeRequest?.status === 'PENDING';
+  const hasAnyPendingRequest = !!activeRequest;
+
+  if (isPending || !session || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader className="w-8 h-8 text-gold-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !profile) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="card p-12 text-center">
+          <p className="text-red-400 mb-4">{error || 'Profile not found'}</p>
+          <Link href="/browse" className="btn-primary inline-block">Back to Browse</Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background pb-12">
+      {/* Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <Link href="/browse" className="flex items-center gap-2">
+              <Image
+                src="/logo.png"
+                alt="At-Tayyibun Logo"
+                width={36}
+                height={36}
+                className="rounded-full"
+              />
+              <span className="font-heading font-bold text-gradient-gold hidden sm:block">At-Tayyibun</span>
+            </Link>
+            <Link href="/browse" className="btn-secondary text-sm flex items-center gap-2">
+              <ArrowLeft className="w-4 h-4" /> Back to Browse
+            </Link>
+          </div>
+        </div>
+      </nav>
+
+      <main className="max-w-3xl mx-auto px-4 pt-24">
+        <div className="space-y-6">
+          {/* Profile Header */}
+          <div className="card p-8">
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-gold-500/30 shadow-xl flex-shrink-0">
+                <Image
+                  src={profile.avatarUrl}
+                  alt={`${profile.firstName}'s avatar`}
+                  fill
+                  className="object-cover"
+                  unoptimized
+                />
+              </div>
+              <div className="flex-1 text-center md:text-left">
+                <h1 className="font-heading text-3xl font-bold mb-2">
+                  {profile.firstName}, {profile.age}
+                </h1>
+                <div className="flex flex-wrap justify-center md:justify-start gap-4 text-gray-400">
+                  <span className="flex items-center gap-1">
+                    <User className="w-4 h-4" />
+                    {profile.gender === 'MALE' ? 'Brother' : 'Sister'}
+                  </span>
+                  <span className="text-gold-400">{profile.ethnicity}</span>
+                  {(profile.city || profile.state) && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-4 h-4" />
+                      {[profile.city, profile.state].filter(Boolean).join(', ')}
+                    </span>
+                  )}
+                </div>
+                {profile.membershipTier && profile.membershipTier !== 'FREE' && (
+                  <div className="mt-2">
+                    <span className={profile.membershipTier === 'GOLD' ? 'badge-gold' : 'badge-silver'}>
+                      {profile.membershipTier} Member
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Bio Section */}
+          {profile.bio && (
+            <div className="card p-8">
+              <h2 className="font-heading text-xl font-bold mb-4">About</h2>
+              <p className="text-gray-300 leading-relaxed">{profile.bio}</p>
+            </div>
+          )}
+
+          {/* Contact Request Section */}
+          <div className="card p-8">
+            <h2 className="font-heading text-xl font-bold mb-4 flex items-center gap-2">
+              <Lock className="w-5 h-5 text-gold-500" />
+              Contact Information
+            </h2>
+
+            {requestSent || hasPendingRequestForThis ? (
+              <div className="text-center py-6">
+                <div className="w-16 h-16 bg-gold-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Clock className="w-8 h-8 text-gold-500" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Request Sent!</h3>
+                <p className="text-gray-400 max-w-sm mx-auto">
+                  Your contact request has been sent to {profile.firstName}. You&apos;ll receive an email when they respond.
+                </p>
+                <p className="text-gray-500 text-sm mt-3">
+                  While waiting, you can still browse profiles but cannot send another request.
+                </p>
+              </div>
+            ) : hasAnyPendingRequest ? (
+              <div className="text-center py-6">
+                <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Lock className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">Request Locked</h3>
+                <p className="text-gray-400 max-w-sm mx-auto">
+                  You already have a pending request for <strong>{activeRequest?.target?.profile?.firstName}</strong>.
+                  Wait for their response before requesting another profile&apos;s contact information.
+                </p>
+                <Link href="/requests" className="btn-secondary inline-block mt-4">
+                  View My Requests
+                </Link>
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <p className="text-gray-400 mb-6 max-w-sm mx-auto">
+                  Contact details are private. Send a request and {profile.firstName} will decide
+                  whether to share their phone number and email with you.
+                </p>
+                <button
+                  onClick={handleRequestContact}
+                  disabled={requesting}
+                  className="btn-primary py-3 px-8 text-lg flex items-center gap-2 mx-auto"
+                >
+                  {requesting ? (
+                    <Loader className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Send className="w-5 h-5" />
+                  )}
+                  Request Contact Info
+                </button>
+                <p className="text-gray-500 text-xs mt-4">
+                  You can only have one active request at a time.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

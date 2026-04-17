@@ -48,6 +48,21 @@ enum RequestStatus {
   EXPIRED
 }
 
+enum CreatorRole {
+  SELF
+  BROTHER
+  SISTER
+  GUARDIAN
+}
+
+enum GuardianContactType {
+  MOTHER
+  FATHER
+  RELATIVE
+  GUARDIAN
+  OTHER
+}
+
 enum CampaignStatus {
   DRAFT
   SENDING
@@ -130,6 +145,14 @@ model Profile {
   publicFields    Json?    @map("public_fields") // Non-sensitive display fields
   aiAvatarId      String?  @map("ai_avatar_id") @db.Uuid
   profileComplete Boolean  @default(false) @map("profile_complete")
+
+  // Who created this profile (parent/guardian/sibling/self)
+  creatorRole         CreatorRole          @default(SELF) @map("creator_role")
+  // Guardian/parent contact info (this is what gets shared, not the candidate's)
+  guardianContactType GuardianContactType? @map("guardian_contact_type")
+  guardianName        String?              @map("guardian_name") @db.VarChar(100)
+  guardianPhoneEnc    String?              @map("guardian_phone_enc") // Encrypted
+  guardianEmailEnc    String?              @map("guardian_email_enc") // Encrypted
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   // Relations
@@ -185,8 +208,8 @@ model InfoRequest {
   requester User @relation("RequestsSent", fields: [requesterId], references: [id])
   target    User @relation("RequestsReceived", fields: [targetId], references: [id])
 
-  // Ensure only one PENDING request per requester
-  @@unique([requesterId, status], name: "one_active_request_per_user")
+  // One pending request per requester enforced at application level
+  @@index([requesterId, status])
   @@index([targetId, status])
   @@index([expiresAt])
   @@map("info_requests")

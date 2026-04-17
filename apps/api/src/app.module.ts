@@ -64,9 +64,9 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     // Feature modules
     AuthModule,
     UsersModule,
-    // ProfilesModule,
+    ProfilesModule,
+    RequestsModule,
     // PhotosModule,
-    // RequestsModule,
     // MessagesModule,
     // AdsModule,
     // CouponsModule,
