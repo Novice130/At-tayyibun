@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Heart, Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, Users } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, Users } from 'lucide-react';
+import Image from 'next/image';
 import { signUp } from '@/lib/auth-client';
 
 const MALE_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/male/male-${i + 1}.jpg`);
@@ -121,7 +122,7 @@ export default function SignupForm() {
       <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: 'var(--color-bg)' }}>
         <div className="max-w-md w-full text-center">
           <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Mail className="w-10 h-10 text-green-500" />
+            <Mail className="w-10 h-10 text-green-500" aria-hidden="true" />
           </div>
           <h1 className="font-heading text-3xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Account Created!</h1>
           <p className="mb-8" style={{ color: 'var(--color-text-secondary)' }}>
@@ -142,9 +143,7 @@ export default function SignupForm() {
         <div className="w-full max-w-lg">
           <div className="text-center mb-8">
             <Link href="/" className="inline-flex items-center gap-2 mb-6">
-              <div className="w-10 h-10 bg-gradient-gold rounded-full flex items-center justify-center">
-                <Heart className="w-5 h-5 text-black" />
-              </div>
+              <Image src="/logo.png" alt="At-Tayyibun" width={40} height={40} className="rounded-full" priority />
               <span className="font-heading font-bold text-xl text-gradient-gold">At-Tayyibun</span>
             </Link>
             <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>I am creating this profile as...</h1>
@@ -386,9 +385,7 @@ export default function SignupForm() {
               <ChevronLeft className="w-4 h-4" /> Change role
             </button>
             <Link href="/" className="inline-flex items-center gap-2 mb-6">
-              <div className="w-10 h-10 bg-gradient-gold rounded-full flex items-center justify-center">
-                <Heart className="w-5 h-5 text-black" />
-              </div>
+              <Image src="/logo.png" alt="At-Tayyibun" width={40} height={40} className="rounded-full" priority />
               <span className="font-heading font-bold text-xl text-gradient-gold">At-Tayyibun</span>
             </Link>
             <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>
@@ -542,15 +539,20 @@ export default function SignupForm() {
       {/* Right side - Info (hidden on mobile) */}
       <div className="hidden lg:flex flex-1 bg-gradient-purple items-center justify-center p-12">
         <div className="max-w-md text-center">
-          <div className="w-24 h-24 bg-gold-500/20 rounded-full flex items-center justify-center mx-auto mb-8">
-            <Heart className="w-12 h-12 text-gold-400" />
-          </div>
-          <h2 className="font-heading text-3xl font-bold mb-4">
+          <Image
+            src="/logo.png"
+            alt="At-Tayyibun"
+            width={96}
+            height={96}
+            className="mx-auto mb-8 drop-shadow-[0_0_24px_rgba(212,175,55,0.35)]"
+            priority
+          />
+          <h2 className="font-heading text-3xl font-bold mb-4 text-white">
             {formData.creatorRole === 'SELF'
               ? 'Your Journey to a Blessed Marriage'
               : 'Help Your Family Find a Blessed Match'}
           </h2>
-          <p style={{ color: 'var(--color-text-secondary)' }}>
+          <p className="text-white/75">
             {formData.creatorRole === 'SELF'
               ? 'At-Tayyibun provides a respectful, privacy-conscious environment for Muslims seeking marriage. Your data is encrypted, your photos are protected, and your privacy is our priority.'
               : 'At-Tayyibun welcomes parents, guardians, and siblings to create profiles. We share only the guardian\'s contact information to ensure family involvement from the start.'}
