@@ -118,13 +118,13 @@ export default function SignupForm() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: 'var(--color-bg)' }}>
         <div className="max-w-md w-full text-center">
           <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <Mail className="w-10 h-10 text-green-500" />
           </div>
-          <h1 className="font-heading text-3xl font-bold mb-4">Account Created!</h1>
-          <p className="text-gray-300 mb-8">
+          <h1 className="font-heading text-3xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Account Created!</h1>
+          <p className="mb-8" style={{ color: 'var(--color-text-secondary)' }}>
             Welcome! Redirecting you to browse profiles...
           </p>
           <Link href="/browse" className="btn-primary inline-block">
@@ -147,8 +147,8 @@ export default function SignupForm() {
               </div>
               <span className="font-heading font-bold text-xl text-gradient-gold">At-Tayyibun</span>
             </Link>
-            <h1 className="font-heading text-2xl font-bold mb-2">I am creating this profile as...</h1>
-            <p className="text-gray-400">
+            <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>I am creating this profile as...</h1>
+            <p style={{ color: 'var(--color-text-secondary)' }}>
               Parents, guardians, and siblings are welcome to create profiles on behalf of their family member.
             </p>
           </div>
@@ -168,8 +168,8 @@ export default function SignupForm() {
                   )}
                 </div>
                 <div>
-                  <p className="font-semibold">{label}</p>
-                  <p className="text-sm text-gray-400">
+                  <p className="font-semibold" style={{ color: 'var(--color-text)' }}>{label}</p>
+                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                     {role === 'SELF'
                       ? 'I am looking for a spouse for myself'
                       : `I am creating this profile for my ${role === 'GUARDIAN' ? 'ward' : role === 'BROTHER' ? 'sibling (sister)' : 'sibling (brother)'}`}
@@ -179,7 +179,7 @@ export default function SignupForm() {
             ))}
           </div>
 
-          <p className="text-center text-sm text-gray-400 mt-8">
+          <p className="text-center text-sm mt-8" style={{ color: 'var(--color-text-secondary)' }}>
             Already have an account?{' '}
             <Link href="/login" className="text-gold-400 hover:text-gold-300">
               Sign in
@@ -199,14 +199,14 @@ export default function SignupForm() {
             <button
               type="button"
               onClick={() => setStep('form')}
-              className="flex items-center gap-1 text-gray-400 hover:text-white mb-6 text-sm"
+              className="flex items-center gap-1 mb-6 text-sm transition" style={{ color: 'var(--color-text-secondary)' }}
             >
               <ChevronLeft className="w-4 h-4" /> Back
             </button>
 
             <div className="text-center mb-6">
-              <h1 className="font-heading text-2xl font-bold mb-2">Guardian / Parent Contact</h1>
-              <p className="text-gray-400 text-sm">
+              <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>Guardian / Parent Contact</h1>
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                 This contact information will be shared with interested parties.
                 We only share the guardian/parent&apos;s phone number, never the candidate&apos;s direct contact.
               </p>
@@ -308,14 +308,14 @@ export default function SignupForm() {
             <button
               type="button"
               onClick={() => setStep(formData.creatorRole !== 'SELF' ? 'guardian' : 'form')}
-              className="flex items-center gap-1 text-gray-400 hover:text-white mb-6 text-sm"
+              className="flex items-center gap-1 mb-6 text-sm transition" style={{ color: 'var(--color-text-secondary)' }}
             >
               <ChevronLeft className="w-4 h-4" /> Back
             </button>
 
             <div className="text-center mb-6">
-              <h1 className="font-heading text-2xl font-bold mb-2">Choose an Avatar</h1>
-              <p className="text-gray-400">
+              <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>Choose an Avatar</h1>
+              <p style={{ color: 'var(--color-text-secondary)' }}>
                 Pick a cartoon avatar for the profile. Real photos are never displayed publicly.
               </p>
             </div>
@@ -333,9 +333,10 @@ export default function SignupForm() {
                   type="button"
                   onClick={() => setFormData({ ...formData, avatar: src })}
                   className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
-                    formData.avatar === src
                       ? 'border-gold-500 ring-2 ring-gold-500/40 scale-105'
-                      : 'border-white/10 hover:border-white/30'
+                      : 'hover:border-gold-500/30'
+                  }`}
+                  style={{ borderColor: formData.avatar === src ? undefined : 'var(--color-border)' }}
                   }`}
                 >
                   <img
@@ -380,7 +381,7 @@ export default function SignupForm() {
             <button
               type="button"
               onClick={() => setStep('role')}
-              className="flex items-center gap-1 text-gray-400 hover:text-white mb-4 text-sm mx-auto"
+              className="flex items-center gap-1 mb-4 text-sm mx-auto transition" style={{ color: 'var(--color-text-secondary)' }}
             >
               <ChevronLeft className="w-4 h-4" /> Change role
             </button>
@@ -390,12 +391,12 @@ export default function SignupForm() {
               </div>
               <span className="font-heading font-bold text-xl text-gradient-gold">At-Tayyibun</span>
             </Link>
-            <h1 className="font-heading text-2xl font-bold mb-2">
+            <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>
               {formData.creatorRole === 'SELF'
                 ? 'Create Your Account'
                 : 'Create a Profile'}
             </h1>
-            <p className="text-gray-400">
+            <p style={{ color: 'var(--color-text-secondary)' }}>
               {formData.creatorRole === 'SELF'
                 ? 'Begin your journey to finding a righteous spouse'
                 : `Creating as: ${creatorRoleLabels[formData.creatorRole as CreatorRole]}`}
@@ -470,9 +471,10 @@ export default function SignupForm() {
                   type="button"
                   onClick={() => setFormData({ ...formData, gender: 'MALE', avatar: '' })}
                   className={`p-3 rounded-lg border transition ${
-                    formData.gender === 'MALE'
                       ? 'border-gold-500 bg-gold-500/10 text-gold-400'
-                      : 'border-white/10 hover:border-white/20'
+                      : ''
+                  }`}
+                  style={formData.gender !== 'MALE' ? { borderColor: 'var(--color-border)', color: 'var(--color-text)' } : {}}
                   }`}
                 >
                   Brother
@@ -481,9 +483,10 @@ export default function SignupForm() {
                   type="button"
                   onClick={() => setFormData({ ...formData, gender: 'FEMALE', avatar: '' })}
                   className={`p-3 rounded-lg border transition ${
-                    formData.gender === 'FEMALE'
                       ? 'border-gold-500 bg-gold-500/10 text-gold-400'
-                      : 'border-white/10 hover:border-white/20'
+                      : ''
+                  }`}
+                  style={formData.gender !== 'FEMALE' ? { borderColor: 'var(--color-border)', color: 'var(--color-text)' } : {}}
                   }`}
                 >
                   Sister
@@ -527,7 +530,7 @@ export default function SignupForm() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-400 mt-8">
+          <p className="text-center text-sm mt-8" style={{ color: 'var(--color-text-secondary)' }}>
             Already have an account?{' '}
             <Link href="/login" className="text-gold-400 hover:text-gold-300">
               Sign in
@@ -547,7 +550,7 @@ export default function SignupForm() {
               ? 'Your Journey to a Blessed Marriage'
               : 'Help Your Family Find a Blessed Match'}
           </h2>
-          <p className="text-gray-300">
+          <p style={{ color: 'var(--color-text-secondary)' }}>
             {formData.creatorRole === 'SELF'
               ? 'At-Tayyibun provides a respectful, privacy-conscious environment for Muslims seeking marriage. Your data is encrypted, your photos are protected, and your privacy is our priority.'
               : 'At-Tayyibun welcomes parents, guardians, and siblings to create profiles. We share only the guardian\'s contact information to ensure family involvement from the start.'}

@@ -49,8 +49,8 @@ export default function LoginForm() {
               </div>
               <span className="font-heading font-bold text-xl text-gradient-gold">At-Tayyibun</span>
             </Link>
-            <h1 className="font-heading text-2xl font-bold mb-2">Welcome Back</h1>
-            <p className="text-gray-400">Sign in to continue your search</p>
+            <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>Welcome Back</h1>
+            <p style={{ color: 'var(--color-text-secondary)' }}>Sign in to continue your search</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -112,10 +112,10 @@ export default function LoginForm() {
           <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10"></div>
+                <div className="w-full" style={{ borderTop: '1px solid var(--color-border)' }}></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-surface text-gray-500">Or continue with</span>
+                <span className="px-2" style={{ backgroundColor: 'var(--color-surface)', color: 'var(--color-text-muted)' }}>Or continue with</span>
               </div>
             </div>
 
@@ -138,7 +138,7 @@ export default function LoginForm() {
             </div>
           </div>
 
-          <p className="text-center text-sm text-gray-400 mt-8">
+          <p className="text-center text-sm mt-8" style={{ color: 'var(--color-text-secondary)' }}>
             Don&apos;t have an account?{' '}
             <Link href="/signup" className="text-gold-400 hover:text-gold-300">
               Sign up

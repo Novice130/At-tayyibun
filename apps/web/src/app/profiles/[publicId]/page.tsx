@@ -112,7 +112,7 @@ export default function ProfileDetailPage() {
 
   if (error || !profile) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
         <div className="card p-12 text-center">
           <p className="text-red-400 mb-4">{error || 'Profile not found'}</p>
           <Link href="/browse" className="btn-primary inline-block">Back to Browse</Link>
@@ -122,9 +122,9 @@ export default function ProfileDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-12">
+    <div className="min-h-screen pb-12" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10">
+      <nav className="fixed top-0 left-0 right-0 z-50 glass">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <Link href="/browse" className="flex items-center gap-2">
@@ -162,7 +162,7 @@ export default function ProfileDetailPage() {
                 <h1 className="font-heading text-3xl font-bold mb-2">
                   {profile.firstName}, {profile.age}
                 </h1>
-                <div className="flex flex-wrap justify-center md:justify-start gap-4 text-gray-400">
+                <div className="flex flex-wrap justify-center md:justify-start gap-4" style={{ color: 'var(--color-text-secondary)' }}>
                   <span className="flex items-center gap-1">
                     <User className="w-4 h-4" />
                     {profile.gender === 'MALE' ? 'Brother' : 'Sister'}
@@ -190,7 +190,7 @@ export default function ProfileDetailPage() {
           {profile.bio && (
             <div className="card p-8">
               <h2 className="font-heading text-xl font-bold mb-4">About</h2>
-              <p className="text-gray-300 leading-relaxed">{profile.bio}</p>
+              <p className="leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>{profile.bio}</p>
             </div>
           )}
 
@@ -207,20 +207,20 @@ export default function ProfileDetailPage() {
                   <Clock className="w-8 h-8 text-gold-500" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">Request Sent!</h3>
-                <p className="text-gray-400 max-w-sm mx-auto">
+                <p className="max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
                   Your contact request has been sent to {profile.firstName}. You&apos;ll receive an email when they respond.
                 </p>
-                <p className="text-gray-500 text-sm mt-3">
+                <p className="text-sm mt-3" style={{ color: 'var(--color-text-muted)' }}>
                   While waiting, you can still browse profiles but cannot send another request.
                 </p>
               </div>
             ) : hasAnyPendingRequest ? (
               <div className="text-center py-6">
-                <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Lock className="w-8 h-8 text-gray-400" />
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'var(--color-gold-100)' }}>
+                  <Lock className="w-8 h-8" style={{ color: 'var(--color-text-muted)' }} />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">Request Locked</h3>
-                <p className="text-gray-400 max-w-sm mx-auto">
+                <p className="max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
                   You already have a pending request for <strong>{activeRequest?.target?.profile?.firstName}</strong>.
                   Wait for their response before requesting another profile&apos;s contact information.
                 </p>
@@ -230,7 +230,7 @@ export default function ProfileDetailPage() {
               </div>
             ) : (
               <div className="text-center py-6">
-                <p className="text-gray-400 mb-6 max-w-sm mx-auto">
+                <p className="mb-6 max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
                   Contact details are private. Send a request and {profile.firstName} will decide
                   whether to share their phone number and email with you.
                 </p>
@@ -246,7 +246,7 @@ export default function ProfileDetailPage() {
                   )}
                   Request Contact Info
                 </button>
-                <p className="text-gray-500 text-xs mt-4">
+                <p className="text-xs mt-4" style={{ color: 'var(--color-text-muted)' }}>
                   You can only have one active request at a time.
                 </p>
               </div>

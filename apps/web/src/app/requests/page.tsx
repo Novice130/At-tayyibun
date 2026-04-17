@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useSession, signOut } from '@/lib/auth-client';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface RequestProfile {
   publicId: string;
@@ -120,9 +121,9 @@ export default function RequestsPage() {
   const pendingIncoming = incoming.filter(r => r.status === 'PENDING');
 
   return (
-    <div className="min-h-screen bg-background pb-12">
+    <div className="min-h-screen pb-12" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10">
+      <nav className="fixed top-0 left-0 right-0 z-50 glass">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <Link href="/browse" className="flex items-center gap-2">
@@ -136,6 +137,7 @@ export default function RequestsPage() {
               <span className="font-heading font-bold text-gradient-gold hidden sm:block">At-Tayyibun</span>
             </Link>
             <div className="flex items-center gap-4">
+              <ThemeToggle />
               <Link href="/browse" className="btn-secondary text-sm flex items-center gap-2">
                 <ArrowLeft className="w-4 h-4" /> Browse
               </Link>
@@ -149,7 +151,7 @@ export default function RequestsPage() {
 
       <main className="max-w-3xl mx-auto px-4 pt-24">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="font-heading text-2xl font-bold">Connection Requests</h1>
+          <h1 className="font-heading text-2xl font-bold" style={{ color: 'var(--color-text)' }}>Connection Requests</h1>
           {pendingIncoming.length > 0 && (
             <span className="bg-gold-500 text-black text-xs font-bold px-2.5 py-1 rounded-full">
               {pendingIncoming.length} new
@@ -158,14 +160,15 @@ export default function RequestsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-surface rounded-lg p-1">
+        <div className="flex gap-1 mb-6 rounded-lg p-1" style={{ backgroundColor: 'var(--color-surface)' }}>
           <button
             onClick={() => setTab('incoming')}
             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-medium transition ${
               tab === 'incoming'
-                ? 'bg-white/10 text-white'
-                : 'text-gray-400 hover:text-white'
+                ? 'shadow-sm'
+                : ''
             }`}
+            style={tab === 'incoming' ? { backgroundColor: 'var(--color-bg)', color: 'var(--color-text)' } : { color: 'var(--color-text-muted)' }}
           >
             <Inbox className="w-4 h-4" />
             Incoming ({incoming.length})
@@ -174,9 +177,10 @@ export default function RequestsPage() {
             onClick={() => setTab('outgoing')}
             className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-md text-sm font-medium transition ${
               tab === 'outgoing'
-                ? 'bg-white/10 text-white'
-                : 'text-gray-400 hover:text-white'
+                ? 'shadow-sm'
+                : ''
             }`}
+            style={tab === 'outgoing' ? { backgroundColor: 'var(--color-bg)', color: 'var(--color-text)' } : { color: 'var(--color-text-muted)' }}
           >
             <Send className="w-4 h-4" />
             Outgoing ({outgoing.length})
@@ -190,11 +194,11 @@ export default function RequestsPage() {
         ) : tab === 'incoming' ? (
           incoming.length === 0 ? (
             <div className="card p-12 text-center">
-              <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-gray-400" />
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'var(--color-gold-100)' }}>
+                <Users className="w-8 h-8" style={{ color: 'var(--color-text-muted)' }} />
               </div>
-              <h2 className="text-xl font-semibold mb-2">No incoming requests</h2>
-              <p className="text-gray-400 mb-6 max-w-sm mx-auto">
+              <h2 className="text-xl font-semibold mb-2" style={{ color: 'var(--color-text)' }}>No incoming requests</h2>
+              <p className="mb-6 max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
                 When someone wants to connect with you, their request will appear here.
               </p>
             </div>
@@ -219,7 +223,7 @@ export default function RequestsPage() {
                           </Link>
                           <StatusBadge status={req.status} />
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-sm text-gray-400">
+                        <div className="flex items-center gap-3 mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                           <span>{profile?.ethnicity}</span>
                           {(profile?.city || profile?.state) && (
                             <span className="flex items-center gap-1">
@@ -264,11 +268,11 @@ export default function RequestsPage() {
         ) : (
           outgoing.length === 0 ? (
             <div className="card p-12 text-center">
-              <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Send className="w-8 h-8 text-gray-400" />
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'var(--color-gold-100)' }}>
+                <Send className="w-8 h-8" style={{ color: 'var(--color-text-muted)' }} />
               </div>
-              <h2 className="text-xl font-semibold mb-2">No outgoing requests</h2>
-              <p className="text-gray-400 mb-6 max-w-sm mx-auto">
+              <h2 className="text-xl font-semibold mb-2" style={{ color: 'var(--color-text)' }}>No outgoing requests</h2>
+              <p className="mb-6 max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
                 Browse profiles and send a contact request to get started.
               </p>
               <Link href="/browse" className="btn-primary inline-block">
@@ -296,7 +300,7 @@ export default function RequestsPage() {
                           </Link>
                           <StatusBadge status={req.status} />
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-sm text-gray-400">
+                        <div className="flex items-center gap-3 mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                           <span>{profile?.ethnicity}</span>
                           {(profile?.city || profile?.state) && (
                             <span className="flex items-center gap-1">

@@ -76,7 +76,8 @@ export function FilterBar({ onFilter }: FilterBarProps) {
             setFilters(newFilters);
             onFilter(newFilters);
           }}
-          className="bg-surface border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-gold-500 focus:outline-none"
+          className="rounded-lg px-3 py-2 text-sm focus:outline-none"
+          style={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
         >
           <option value="rankBoost-desc">Featured</option>
           <option value="age-asc">Age: Young to Old</option>

@@ -1,148 +1,265 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --color-primary: 212 175 55;
-    --color-secondary: 74 14 78;
-    --color-background: 15 15 26;
-    --color-surface: 26 26 46;
+  /* ==============================
+     LIGHT THEME (default)
+     Warm cream / editorial luxury
+     ============================== */
+  :root,
+  .light {
+    --color-bg: #FAF8F5;
+    --color-surface: #FFFFFF;
+    --color-surface-hover: #F5F2ED;
+    --color-text: #1a1a2e;
+    --color-text-secondary: #6b6b7b;
+    --color-text-muted: #9b9bab;
+    --color-border: #E8E4DD;
+    --color-border-hover: #D4AF37;
+    --color-gold-500: #D4AF37;
+    --color-gold-600: #8B7500;
+    --color-gold-400: #E8C547;
+    --color-gold-100: #F8F4ED;
+    --color-nav-bg: rgba(250, 248, 245, 0.92);
+    --color-card-shadow: rgba(0, 0, 0, 0.06);
+    --color-glass-bg: rgba(250, 248, 245, 0.85);
+  }
+
+  /* ==============================
+     DARK THEME
+     Original dark navy + gold
+     ============================== */
+  .dark {
+    --color-bg: #0f0f1a;
+    --color-surface: #1a1a2e;
+    --color-surface-hover: #252540;
+    --color-text: #ffffff;
+    --color-text-secondary: #a0a0b8;
+    --color-text-muted: #6b6b80;
+    --color-border: rgba(255, 255, 255, 0.1);
+    --color-border-hover: rgba(212, 175, 55, 0.5);
+    --color-gold-500: #D4AF37;
+    --color-gold-600: #B8971E;
+    --color-gold-400: #E8C547;
+    --color-gold-100: rgba(212, 175, 55, 0.1);
+    --color-nav-bg: rgba(15, 15, 26, 0.85);
+    --color-card-shadow: rgba(0, 0, 0, 0.3);
+    --color-glass-bg: rgba(255, 255, 255, 0.05);
   }
 
   body {
-    @apply bg-background text-white antialiased;
+    background-color: var(--color-bg);
+    color: var(--color-text);
     font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Outfit', 'Inter', system-ui, sans-serif;
   }
+
+  .font-serif {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
 }
 
 @layer components {
-  /* Button variants */
+  /* ======== Buttons ======== */
   .btn {
     @apply inline-flex items-center justify-center px-6 py-3 rounded-lg font-medium transition-all duration-300;
-    @apply focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2;
+    focus-ring-offset-color: var(--color-bg);
   }
 
   .btn-primary {
-    @apply btn bg-gradient-gold text-black;
-    @apply hover:shadow-gold hover:scale-[1.02];
-    @apply focus:ring-gold-500;
+    @apply btn text-black font-semibold;
+    background: linear-gradient(135deg, var(--color-gold-500), var(--color-gold-600));
+  }
+  .btn-primary:hover {
+    box-shadow: 0 4px 20px rgba(212, 175, 55, 0.4);
+    transform: scale(1.02);
   }
 
   .btn-secondary {
-    @apply btn bg-surface border border-gold-500/30 text-white;
-    @apply hover:border-gold-500 hover:bg-gold-500/10;
-    @apply focus:ring-gold-500;
+    @apply btn font-medium;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+  }
+  .btn-secondary:hover {
+    border-color: var(--color-gold-500);
+    background: var(--color-gold-100);
   }
 
   .btn-ghost {
-    @apply btn bg-transparent text-white;
-    @apply hover:bg-white/5;
+    @apply btn;
+    background: transparent;
+    color: var(--color-text);
+  }
+  .btn-ghost:hover {
+    background: var(--color-surface-hover);
   }
 
-  /* Card styles */
+  /* ======== Cards ======== */
   .card {
-    @apply bg-surface rounded-2xl border border-white/10;
-    @apply transition-all duration-300;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 3px var(--color-card-shadow);
   }
 
   .card-hover {
-    @apply card hover:border-gold-500/30 hover:shadow-glow;
+    @apply card cursor-pointer;
+  }
+  .card-hover:hover {
+    border-color: var(--color-border-hover);
+    box-shadow: 0 4px 16px var(--color-card-shadow);
+    transform: translateY(-2px);
   }
 
-  /* Input styles */
+  /* ======== Inputs ======== */
   .input {
-    @apply w-full px-4 py-3 bg-background border border-white/10 rounded-lg;
-    @apply text-white placeholder:text-gray-500;
-    @apply focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500;
-    @apply transition-all duration-200;
+    @apply w-full px-4 py-3 rounded-lg transition-all duration-200;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+  }
+  .input::placeholder {
+    color: var(--color-text-muted);
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--color-gold-500);
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
   }
 
   .input-error {
-    @apply border-red-500 focus:border-red-500 focus:ring-red-500;
+    border-color: #ef4444;
+  }
+  .input-error:focus {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
   }
 
-  /* Glass morphism effect */
+  /* ======== Glass ======== */
   .glass {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+    background: var(--color-glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--color-border);
   }
 
-  /* Profile card */
+  /* ======== Profile Card ======== */
   .profile-card {
-    @apply card-hover p-4 cursor-pointer;
-    @apply hover:transform hover:-translate-y-1;
+    @apply card-hover p-4;
   }
 
-  /* Badge styles */
+  /* ======== Badges ======== */
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
-
   .badge-gold {
-    @apply badge bg-gold-500/20 text-gold-400;
+    @apply badge;
+    background: rgba(212, 175, 55, 0.15);
+    color: var(--color-gold-600);
   }
-
+  .dark .badge-gold {
+    color: var(--color-gold-400);
+  }
   .badge-silver {
-    @apply badge bg-gray-500/20 text-gray-400;
+    @apply badge;
+    background: rgba(107, 107, 123, 0.15);
+    color: var(--color-text-secondary);
   }
-
   .badge-free {
-    @apply badge bg-purple-500/20 text-purple-400;
+    @apply badge;
+    background: rgba(139, 92, 246, 0.15);
+    color: #8b5cf6;
   }
 
-  /* Modal backdrop */
+  /* ======== Modal ======== */
   .modal-backdrop {
-    @apply fixed inset-0 bg-black/70 backdrop-blur-sm z-50;
-    @apply flex items-center justify-center p-4;
+    @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
   }
 
-  /* Scrollbar styling */
+  /* ======== Scrollbar ======== */
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: rgba(212, 175, 55, 0.3) transparent;
   }
-
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background: rgba(212, 175, 55, 0.3);
     border-radius: 3px;
   }
-
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: rgba(212, 175, 55, 0.5);
   }
 }
 
 @layer utilities {
-  /* Text gradient */
+  /* Text gradient gold */
   .text-gradient-gold {
-    @apply bg-gradient-gold bg-clip-text text-transparent;
+    background: linear-gradient(135deg, var(--color-gold-500), var(--color-gold-600));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Background helpers */
+  .bg-theme { background-color: var(--color-bg); }
+  .bg-surface { background-color: var(--color-surface); }
+  .bg-surface-hover { background-color: var(--color-surface-hover); }
+  .text-primary { color: var(--color-text); }
+  .text-secondary { color: var(--color-text-secondary); }
+  .text-muted { color: var(--color-text-muted); }
+  .border-theme { border-color: var(--color-border); }
+  .bg-gold-100 { background-color: var(--color-gold-100); }
+
+  /* Dark-only gradient backgrounds */
+  .bg-gradient-dark {
+    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+  }
+  .bg-gradient-glow {
+    background: radial-gradient(ellipse at center, rgba(212, 175, 55, 0.08) 0%, transparent 70%);
+  }
+  .bg-gradient-purple {
+    background: linear-gradient(135deg, #1a1a2e 0%, #4a0e4e 100%);
+  }
+  .bg-gradient-gold {
+    background: linear-gradient(135deg, #D4AF37, #8B7500);
   }
 
   /* Glow effects */
   .glow-gold {
     box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
   }
-
-  /* Safe area for mobile */
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
+  .shadow-gold {
+    box-shadow: 0 4px 20px rgba(212, 175, 55, 0.3);
+  }
+  .shadow-glow {
+    box-shadow: 0 4px 20px rgba(212, 175, 55, 0.15);
   }
 
-  .safe-top {
-    padding-top: env(safe-area-inset-top);
+  /* Safe area for mobile */
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-top { padding-top: env(safe-area-inset-top); }
+
+  /* Animations */
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 }

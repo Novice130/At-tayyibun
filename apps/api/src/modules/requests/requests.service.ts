@@ -179,9 +179,10 @@ export class RequestsService {
         },
       });
 
-      // Prepare shared info
+      // Prepare shared info — share guardian/parent contact when available, not user's direct contact
       const sharedInfo: { photo?: string; phone?: string; email?: string } = {};
       const allowedShares = dto.shareItems || ['phone', 'email'];
+      const profile = request.target.profile;
 
       if (allowedShares.includes('photo')) {
         const primaryPhoto = request.target.photos.find(p => p.isPrimary);
@@ -193,11 +194,29 @@ export class RequestsService {
       }
 
       if (allowedShares.includes('phone')) {
-        sharedInfo.phone = request.target.phone || undefined;
+        // Share guardian phone if profile was created by guardian/sibling, else user's phone
+        if (profile?.guardianPhoneEnc && profile.creatorRole !== 'SELF') {
+          try {
+            sharedInfo.phone = this.encryptionService.decrypt(profile.guardianPhoneEnc);
+          } catch {
+            sharedInfo.phone = request.target.phone || undefined;
+          }
+        } else {
+          sharedInfo.phone = request.target.phone || undefined;
+        }
       }
 
       if (allowedShares.includes('email')) {
-        sharedInfo.email = request.target.email;
+        // Share guardian email if available, else user's email
+        if (profile?.guardianEmailEnc && profile.creatorRole !== 'SELF') {
+          try {
+            sharedInfo.email = this.encryptionService.decrypt(profile.guardianEmailEnc);
+          } catch {
+            sharedInfo.email = request.target.email;
+          }
+        } else {
+          sharedInfo.email = request.target.email;
+        }
       }
 
       // Send email to requester with shared info

@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { User, LogOut, Menu, X, MessageSquare, Bell, Loader, Lock } from 'lucide-react';
 import { ProfileCard } from '@/components/profile/ProfileCard';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { FilterBar } from '@/components/filters/FilterBar';
 import { api } from '@/lib/api';
 import { useSession, signOut } from '@/lib/auth-client';
@@ -80,9 +81,9 @@ export default function BrowsePage() {
   const hasActiveRequest = !!activeRequest;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* App Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10">
+      <nav className="fixed top-0 left-0 right-0 z-50 glass">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <Link href="/" className="flex items-center gap-2">
@@ -98,15 +99,17 @@ export default function BrowsePage() {
 
             {/* Desktop nav */}
             <div className="hidden md:flex items-center gap-6">
-              <Link href="/browse" className="text-white font-medium">Browse</Link>
-              <Link href="/requests" className="text-gray-400 hover:text-white transition">Requests</Link>
-              <Link href="/messages" className="text-gray-400 hover:text-white transition relative">
+              <Link href="/" className="transition" style={{ color: 'var(--color-text-secondary)' }}>Home</Link>
+              <Link href="/browse" className="font-medium" style={{ color: 'var(--color-gold-500)' }}>Browse</Link>
+              <Link href="/requests" className="transition" style={{ color: 'var(--color-text-secondary)' }}>Requests</Link>
+              <Link href="/messages" className="transition relative" style={{ color: 'var(--color-text-secondary)' }}>
                 <MessageSquare className="w-5 h-5" />
               </Link>
-              <button className="p-2 text-gray-400 hover:text-white transition">
+              <button className="p-2 transition" style={{ color: 'var(--color-text-secondary)' }}>
                 <Bell className="w-5 h-5" />
               </button>
-              <Link href="/profile" className="p-2 text-gray-400 hover:text-white transition rounded-full overflow-hidden border border-transparent hover:border-gold-500/50">
+              <ThemeToggle />
+              <Link href="/profile" className="p-2 transition rounded-full overflow-hidden border border-transparent hover:border-gold-500/50" style={{ color: 'var(--color-text-secondary)' }}>
                 {session?.user?.image ? (
                   <img src={session.user.image} alt="Profile" className="w-6 h-6 rounded-full object-cover" />
                 ) : (
@@ -130,13 +133,14 @@ export default function BrowsePage() {
 
         {/* Mobile menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-white/10 bg-surface animate-fade-in">
+          <div className="md:hidden animate-fade-in" style={{ borderTop: '1px solid var(--color-border)', backgroundColor: 'var(--color-surface)' }}>
             <div className="px-4 py-4 space-y-3">
-              <Link href="/browse" className="block py-2 text-white font-medium">Browse</Link>
-              <Link href="/requests" className="block py-2 text-gray-400">Requests</Link>
-              <Link href="/messages" className="block py-2 text-gray-400">Messages</Link>
-              <Link href="/profile" className="block py-2 text-gray-400">My Profile</Link>
-              <hr className="border-white/10" />
+              <Link href="/" className="block py-2" style={{ color: 'var(--color-text-secondary)' }}>Home</Link>
+              <Link href="/browse" className="block py-2 font-medium" style={{ color: 'var(--color-gold-500)' }}>Browse</Link>
+              <Link href="/requests" className="block py-2" style={{ color: 'var(--color-text-secondary)' }}>Requests</Link>
+              <Link href="/messages" className="block py-2" style={{ color: 'var(--color-text-secondary)' }}>Messages</Link>
+              <Link href="/profile" className="block py-2" style={{ color: 'var(--color-text-secondary)' }}>My Profile</Link>
+              <hr style={{ borderColor: 'var(--color-border)' }} />
               <button onClick={handleLogout} className="flex items-center gap-2 py-2 text-red-400 w-full text-left">
                 <LogOut className="w-4 h-4" />
                 Logout
@@ -149,8 +153,8 @@ export default function BrowsePage() {
       {/* Main content */}
       <main className="max-w-7xl mx-auto px-4 pt-24 pb-12">
         <div className="mb-8">
-          <h1 className="font-heading text-2xl font-bold mb-2">Browse Profiles</h1>
-          <p className="text-gray-400">Find your righteous spouse</p>
+          <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>Browse Profiles</h1>
+          <p style={{ color: 'var(--color-text-secondary)' }}>Find your righteous spouse</p>
         </div>
 
         {/* Active request banner */}
@@ -188,7 +192,7 @@ export default function BrowsePage() {
           </div>
         ) : (
           <div className="text-center py-16">
-            <p className="text-gray-400">No profiles match your filters</p>
+            <p style={{ color: 'var(--color-text-secondary)' }}>No profiles match your filters</p>
             <button
               onClick={() => fetchProfiles()}
               className="btn-secondary mt-4"

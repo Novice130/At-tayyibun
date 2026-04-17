@@ -1,6 +1,7 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  darkMode: 'class',
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -9,14 +10,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Primary brand colors
         gold: {
           50: '#FBF8E8',
           100: '#F7F0D1',
           200: '#EFE1A3',
           300: '#E7D275',
           400: '#DFC347',
-          500: '#D4AF37', // Primary gold
+          500: '#D4AF37',
           600: '#B8962F',
           700: '#8B7023',
           800: '#5E4B18',
@@ -28,13 +28,20 @@ const config: Config = {
           200: '#D7A7D7',
           300: '#C37BC3',
           400: '#AF4FAF',
-          500: '#4A0E4E', // Deep purple
+          500: '#4A0E4E',
           600: '#3E0C41',
           700: '#320A35',
           800: '#260728',
           900: '#1A051C',
         },
-        // Semantic colors
+        cream: {
+          50: '#FDFCFA',
+          100: '#FAF8F5',
+          200: '#F5F2ED',
+          300: '#E8E4DD',
+          400: '#D4CCBF',
+          500: '#B8AFA2',
+        },
         primary: '#D4AF37',
         secondary: '#4A0E4E',
         accent: '#8B5CF6',
@@ -47,6 +54,7 @@ const config: Config = {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         heading: ['Outfit', 'Inter', 'system-ui', 'sans-serif'],
+        serif: ['Playfair Display', 'Georgia', 'serif'],
       },
       backgroundImage: {
         'gradient-gold': 'linear-gradient(135deg, #D4AF37 0%, #8B7500 100%)',
@@ -58,6 +66,7 @@ const config: Config = {
         'gold': '0 4px 20px rgba(212, 175, 55, 0.3)',
         'purple': '0 4px 20px rgba(74, 14, 78, 0.3)',
         'glow': '0 0 30px rgba(212, 175, 55, 0.2)',
+        'soft': '0 2px 12px rgba(0, 0, 0, 0.06)',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out',

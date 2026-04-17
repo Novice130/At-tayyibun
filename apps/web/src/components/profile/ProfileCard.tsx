@@ -35,7 +35,7 @@ export function ProfileCard({
 
   const content = (
     <>
-      <div className="relative aspect-square rounded-xl overflow-hidden mb-3">
+      <div className="relative aspect-square rounded-xl overflow-hidden mb-3" style={{ backgroundColor: 'var(--color-surface-hover)' }}>
         <Image
           src={avatarUrl}
           alt={`${firstName}'s avatar`}
@@ -57,23 +57,24 @@ export function ProfileCard({
 
       <div className="space-y-1">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-lg">{firstName}, {age}</h3>
+          <h3 className="font-semibold text-lg" style={{ color: 'var(--color-text)' }}>{firstName}, {age}</h3>
           {!locked && (
             <button
               onClick={(e) => {
                 e.preventDefault();
               }}
-              className="p-2 hover:bg-white/5 rounded-full transition"
+              className="p-2 rounded-full transition"
+              style={{ color: 'var(--color-text-muted)' }}
             >
-              <Heart className="w-5 h-5 text-gray-400 hover:text-gold-500" />
+              <Heart className="w-5 h-5 hover:text-gold-500" />
             </button>
           )}
         </div>
 
-        <p className="text-sm text-gold-400">{ethnicity}</p>
+        <p className="text-sm" style={{ color: 'var(--color-gold-500)' }}>{ethnicity}</p>
 
         {(city || state) && (
-          <p className="text-sm text-gray-500 flex items-center gap-1">
+          <p className="text-sm flex items-center gap-1" style={{ color: 'var(--color-text-muted)' }}>
             <MapPin className="w-4 h-4" />
             {[city, state].filter(Boolean).join(', ')}
           </p>

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { ThemeProvider } from '@/components/ThemeProvider';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000'),
@@ -32,10 +33,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="light" suppressHydrationWarning>
       <head>
         <link rel="icon" type="image/png" href="/logo.png" />
         <link rel="apple-touch-icon" href="/logo.png" />
+        {/* Prevent flash of wrong theme */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                const t = localStorage.getItem('at-tayyibun-theme');
+                if (t) document.documentElement.className = t;
+              } catch(e) {}
+            `,
+          }}
+        />
         {/* JSON-LD Structured Data */}
         <script
           type="application/ld+json"
@@ -45,11 +57,9 @@ export default function RootLayout({
               '@type': 'Organization',
               name: 'At-Tayyibun',
               description: 'Privacy-first Muslim matrimony platform in the United States',
-              url: 'https://at-tayyibun.com',
-              logo: 'https://at-tayyibun.com/logo.png',
-              sameAs: [
-                // TODO: Add social links
-              ],
+              url: 'https://attayyibun.com',
+              logo: 'https://attayyibun.com/logo.png',
+              sameAs: [],
             }),
           }}
         />
@@ -60,18 +70,20 @@ export default function RootLayout({
               '@context': 'https://schema.org',
               '@type': 'WebSite',
               name: 'At-Tayyibun',
-              url: 'https://at-tayyibun.com',
+              url: 'https://attayyibun.com',
               potentialAction: {
                 '@type': 'SearchAction',
-                target: 'https://at-tayyibun.com/search?q={search_term_string}',
+                target: 'https://attayyibun.com/search?q={search_term_string}',
                 'query-input': 'required name=search_term_string',
               },
             }),
           }}
         />
       </head>
-      <body className="min-h-screen bg-background text-white">
-        {children}
+      <body className="min-h-screen" style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)' }}>
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, LogOut, Loader, Heart, User, MapPin, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useSession, signOut } from '@/lib/auth-client';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface UserProfile {
   id: string;
@@ -75,9 +76,9 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-12">
+    <div className="min-h-screen pb-12" style={{ backgroundColor: 'var(--color-bg)' }}>
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/10">
+      <nav className="fixed top-0 left-0 right-0 z-50 glass">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <Link href="/browse" className="flex items-center gap-2">
@@ -91,6 +92,7 @@ export default function ProfilePage() {
               <span className="font-heading font-bold text-gradient-gold hidden sm:block">At-Tayyibun</span>
             </Link>
             <div className="flex items-center gap-4">
+               <ThemeToggle />
                <Link href="/browse" className="btn-secondary text-sm flex items-center gap-2">
                  <ArrowLeft className="w-4 h-4" /> Back to Browse
                </Link>
@@ -123,7 +125,7 @@ export default function ProfilePage() {
                   {user?.profile?.firstName}
                   {user?.isVerified && <Shield className="w-5 h-5 text-green-500" />}
                 </h1>
-                <div className="flex flex-wrap justify-center md:justify-start gap-4 text-gray-400">
+                <div className="flex flex-wrap justify-center md:justify-start gap-4" style={{ color: 'var(--color-text-secondary)' }}>
                   <div className="flex items-center gap-1">
                     <MapPin className="w-4 h-4" />
                     {user?.profile?.city}, {user?.profile?.state}
@@ -146,7 +148,7 @@ export default function ProfilePage() {
             {/* About Section */}
             <div className="card p-8">
               <h2 className="font-heading text-xl font-bold mb-4">About Me</h2>
-              <p className="text-gray-300 leading-relaxed">
+              <p className="leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
                 {user?.profile?.aboutMe || "No bio added yet."}
               </p>
             </div>
@@ -156,15 +158,15 @@ export default function ProfilePage() {
               <h2 className="font-heading text-xl font-bold mb-4">Details</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                 <div>
-                   <label className="text-xs text-gray-500 uppercase">Gender</label>
-                   <p className="font-medium">{user?.profile?.gender}</p>
+                   <label className="text-xs uppercase" style={{ color: 'var(--color-text-muted)' }}>Gender</label>
+                   <p className="font-medium" style={{ color: 'var(--color-text)' }}>{user?.profile?.gender}</p>
                 </div>
                 <div>
-                   <label className="text-xs text-gray-500 uppercase">Ethnicity</label>
-                   <p className="font-medium">{user?.profile?.ethnicity}</p>
+                   <label className="text-xs uppercase" style={{ color: 'var(--color-text-muted)' }}>Ethnicity</label>
+                   <p className="font-medium" style={{ color: 'var(--color-text)' }}>{user?.profile?.ethnicity}</p>
                 </div>
                 <div>
-                   <label className="text-xs text-gray-500 uppercase">Public ID</label>
+                   <label className="text-xs uppercase" style={{ color: 'var(--color-text-muted)' }}>Public ID</label>
                    <p className="font-medium font-mono text-gold-400">{user?.publicId}</p>
                 </div>
               </div>
