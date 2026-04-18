@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { desc, eq, asc } from 'drizzle-orm';
+import { desc, eq, asc, ne } from 'drizzle-orm';
 import { DrizzleService } from '../../../db/drizzle.service';
 import { formSchemas, formFields } from '../../../db/schema';
 import { AuditService } from '../../../services/audit.service';
@@ -30,16 +30,32 @@ export class AdminSchemasService {
   async createSchema(adminId: string, payload: any) {
     const db = this.drizzle.db;
     const newId = randomUUID();
-    
+
+    // Drafts only — activation is a separate atomic step.
     await db.insert(formSchemas).values({
       id: newId,
       name: payload.name,
       version: payload.version || 1,
-      isActive: payload.isActive ?? true,
+      isActive: false,
     });
-    
+
     await this.auditService.logAdminAction(adminId, 'CREATE_SCHEMA', 'schema', newId);
     return { success: true, id: newId };
+  }
+
+  async activateSchema(adminId: string, id: string) {
+    const db = this.drizzle.db;
+    const [target] = await db.select().from(formSchemas).where(eq(formSchemas.id, id));
+    if (!target) throw new NotFoundException('Schema not found');
+    if (target.isActive) return { success: true, alreadyActive: true };
+
+    await db.transaction(async (tx) => {
+      await tx.update(formSchemas).set({ isActive: false }).where(ne(formSchemas.id, id));
+      await tx.update(formSchemas).set({ isActive: true }).where(eq(formSchemas.id, id));
+    });
+
+    await this.auditService.logAdminAction(adminId, 'ACTIVATE_SCHEMA', 'schema', id);
+    return { success: true };
   }
 
   async updateSchema(adminId: string, id: string, payload: any) {
@@ -51,7 +67,6 @@ export class AdminSchemasService {
     await db.update(formSchemas).set({
       name: payload.name ?? existing.name,
       version: payload.version ?? existing.version,
-      isActive: payload.isActive ?? existing.isActive,
     }).where(eq(formSchemas.id, id));
 
     await this.auditService.logAdminAction(adminId, 'UPDATE_SCHEMA', 'schema', id);

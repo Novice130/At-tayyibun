@@ -4,18 +4,53 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 
+type CampaignStatus = "DRAFT" | "SENDING" | "SENT";
+
+type TargetAudience = {
+  roles?: Array<"USER" | "ADMIN" | "SUPER_ADMIN">;
+  membershipTiers?: Array<"FREE" | "SILVER" | "GOLD">;
+};
+
 type Campaign = {
   id: string;
+  name: string | null;
+  subject: string;
+  template: string;
+  status: CampaignStatus;
+  scheduledAt: string | null;
+  sentAt: string | null;
+  totalRecipients: number;
+  sentCount: number;
+  targetAudience: TargetAudience | null;
+};
+
+type Draft = {
+  id?: string;
   name: string;
   subject: string;
-  status: string;
-  scheduledFor: string | null;
-  sentAt: string | null;
-  targetAudience: any;
+  template: string;
+  scheduledAt: string | null;
+  targetAudience: TargetAudience;
 };
+
+const EMPTY_DRAFT: Draft = {
+  name: "",
+  subject: "",
+  template: "",
+  scheduledAt: null,
+  targetAudience: {},
+};
+
+const ROLE_OPTIONS: Array<TargetAudience["roles"] extends Array<infer R> | undefined ? R : never> = [
+  "USER",
+  "ADMIN",
+  "SUPER_ADMIN",
+];
+const TIER_OPTIONS: Array<"FREE" | "SILVER" | "GOLD"> = ["FREE", "SILVER", "GOLD"];
 
 export default function AdminCampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -23,10 +58,7 @@ export default function AdminCampaignsPage() {
   const [error, setError] = useState("");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentCampaign, setCurrentCampaign] = useState<Partial<Campaign>>({
-    status: 'draft',
-    targetAudience: []
-  });
+  const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -37,70 +69,95 @@ export default function AdminCampaignsPage() {
     try {
       setLoading(true);
       const res = await api.get("/admin/campaigns");
-      setCampaigns(res.data.data);
+      setCampaigns(res.data || []);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to load campaigns");
+      setError(err.message || "Failed to load campaigns");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOpenCreateModal = () => {
-    setCurrentCampaign({ status: 'draft', targetAudience: [] });
+  const openCreate = () => {
+    setDraft(EMPTY_DRAFT);
     setIsModalOpen(true);
   };
 
-  const handleCloseModal = () => {
+  const closeModal = () => {
     setIsModalOpen(false);
-    setCurrentCampaign({});
+    setDraft(EMPTY_DRAFT);
+  };
+
+  const toggleRole = (role: "USER" | "ADMIN" | "SUPER_ADMIN") => {
+    const current = new Set(draft.targetAudience.roles ?? []);
+    if (current.has(role)) current.delete(role);
+    else current.add(role);
+    setDraft({
+      ...draft,
+      targetAudience: { ...draft.targetAudience, roles: Array.from(current) },
+    });
+  };
+
+  const toggleTier = (tier: "FREE" | "SILVER" | "GOLD") => {
+    const current = new Set(draft.targetAudience.membershipTiers ?? []);
+    if (current.has(tier)) current.delete(tier);
+    else current.add(tier);
+    setDraft({
+      ...draft,
+      targetAudience: { ...draft.targetAudience, membershipTiers: Array.from(current) },
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setSubmitting(true);
-      await api.post("/admin/campaigns", currentCampaign);
-      handleCloseModal();
+      await api.post("/admin/campaigns", draft);
+      closeModal();
       fetchCampaigns();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Failed to save campaign");
+      alert(err.message || "Failed to save campaign");
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDispatch = async (id: string) => {
-    if (!confirm("Are you sure you want to dispatch this campaign now? This will queue the emails to be sent.")) return;
+    if (!confirm("Dispatch this campaign now? Emails are queued immediately and cannot be recalled.")) return;
     try {
       await api.post(`/admin/campaigns/${id}/dispatch`);
-      alert("Campaign queued for dispatch successfully!");
       fetchCampaigns();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Failed to dispatch campaign");
+      alert(err.message || "Failed to dispatch campaign");
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this campaign?")) return;
+    if (!confirm("Delete this campaign?")) return;
     try {
       await api.delete(`/admin/campaigns/${id}`);
       fetchCampaigns();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Failed to delete campaign");
+      alert(err.message || "Failed to delete campaign");
     }
+  };
+
+  const statusBadge = (s: CampaignStatus) => {
+    if (s === "SENT") return <Badge variant="success">SENT</Badge>;
+    if (s === "SENDING") return <Badge variant="default">SENDING</Badge>;
+    return <Badge variant="warning">DRAFT</Badge>;
   };
 
   if (loading) return <div className="p-8 text-slate-500">Loading campaigns...</div>;
   if (error) return <div className="p-8 text-red-500">{error}</div>;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-8">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Email Campaigns</h1>
-          <p className="text-slate-500 mt-1 text-sm">Manage and dispatch automated email campaigns via BullMQ.</p>
+          <p className="text-slate-500 mt-1 text-sm">Create and dispatch campaigns. Queued for background send via BullMQ.</p>
         </div>
-        <Button onClick={handleOpenCreateModal}>Create Campaign</Button>
+        <Button onClick={openCreate}>Create Campaign</Button>
       </div>
 
       <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
@@ -111,49 +168,45 @@ export default function AdminCampaignsPage() {
                 <th className="p-4 font-medium text-slate-700">Name</th>
                 <th className="p-4 font-medium text-slate-700">Subject</th>
                 <th className="p-4 font-medium text-slate-700">Status</th>
-                <th className="p-4 font-medium text-slate-700">Scheduled / Sent At</th>
+                <th className="p-4 font-medium text-slate-700">Recipients</th>
+                <th className="p-4 font-medium text-slate-700">Scheduled / Sent</th>
                 <th className="p-4 font-medium text-right text-slate-700">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {campaigns.map((camp) => (
-                <tr key={camp.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="p-4 font-semibold text-primary">{camp.name}</td>
-                  <td className="p-4 text-slate-600">{camp.subject}</td>
-                  <td className="p-4">
-                    <Badge variant={
-                      camp.status === 'sent' ? 'success' : 
-                      camp.status === 'sending' ? 'default' : 
-                      'warning'
-                    }>
-                      {camp.status.toUpperCase()}
-                    </Badge>
+              {campaigns.map((c) => (
+                <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-4 font-semibold text-primary">{c.name || "—"}</td>
+                  <td className="p-4 text-slate-600">{c.subject}</td>
+                  <td className="p-4">{statusBadge(c.status)}</td>
+                  <td className="p-4 text-xs text-slate-600">
+                    {c.status === "DRAFT" ? "—" : `${c.sentCount} / ${c.totalRecipients}`}
                   </td>
                   <td className="p-4 text-xs text-slate-500">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 font-medium">
-                        <span className="text-slate-400">Sched:</span> 
-                        {camp.scheduledFor ? format(new Date(camp.scheduledFor), 'MMM d, yyyy HH:mm') : 'N/A'}
+                      <div>
+                        <span className="text-slate-400">Sched:</span>{" "}
+                        {c.scheduledAt ? format(new Date(c.scheduledAt), "MMM d, yyyy HH:mm") : "N/A"}
                       </div>
-                      {camp.sentAt && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-slate-400">Sent:</span> 
-                          {format(new Date(camp.sentAt), 'MMM d, yyyy HH:mm')}
+                      {c.sentAt && (
+                        <div>
+                          <span className="text-slate-400">Sent:</span>{" "}
+                          {format(new Date(c.sentAt), "MMM d, yyyy HH:mm")}
                         </div>
                       )}
                     </div>
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex justify-end gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => handleDispatch(camp.id)}
-                        disabled={camp.status === 'sending' || camp.status === 'sent'}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDispatch(c.id)}
+                        disabled={c.status !== "DRAFT"}
                       >
-                        Dispatch Now
+                        Dispatch
                       </Button>
-                      <Button variant="destructive" size="sm" onClick={() => handleDelete(camp.id)}>
+                      <Button variant="destructive" size="sm" onClick={() => handleDelete(c.id)}>
                         Delete
                       </Button>
                     </div>
@@ -162,8 +215,8 @@ export default function AdminCampaignsPage() {
               ))}
               {campaigns.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="p-12 text-center text-slate-500">
-                    No active campaigns found.
+                  <td colSpan={6} className="p-12 text-center text-slate-500">
+                    No campaigns yet.
                   </td>
                 </tr>
               )}
@@ -174,7 +227,7 @@ export default function AdminCampaignsPage() {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-6 text-slate-900">New Email Campaign</h2>
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
@@ -183,8 +236,8 @@ export default function AdminCampaignsPage() {
                   type="text"
                   required
                   placeholder="Ramadan Special"
-                  value={currentCampaign.name || ""}
-                  onChange={(e) => setCurrentCampaign({ ...currentCampaign, name: e.target.value })}
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                 />
               </div>
 
@@ -193,37 +246,91 @@ export default function AdminCampaignsPage() {
                 <Input
                   type="text"
                   required
-                  placeholder="Don't miss our new update!"
-                  value={currentCampaign.subject || ""}
-                  onChange={(e) => setCurrentCampaign({ ...currentCampaign, subject: e.target.value })}
+                  placeholder="Exciting update inside"
+                  value={draft.subject}
+                  onChange={(e) => setDraft({ ...draft, subject: e.target.value })}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Target Tags (comma separated)</label>
-                <Input
-                  type="text"
-                  placeholder="active_users, newsletter"
-                  value={currentCampaign.targetAudience?.join(', ') || ""}
-                  onChange={(e) => setCurrentCampaign({ ...currentCampaign, targetAudience: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+                <label className="block text-sm font-semibold mb-1.5 text-slate-700">HTML Template</label>
+                <Textarea
+                  required
+                  rows={6}
+                  placeholder="<p>Hello {{name}}...</p>"
+                  value={draft.template}
+                  onChange={(e) => setDraft({ ...draft, template: e.target.value })}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Scheduled For</label>
+                <label className="block text-sm font-semibold mb-2 text-slate-700">Target Roles</label>
+                <div className="flex flex-wrap gap-2">
+                  {ROLE_OPTIONS.map((r) => {
+                    const active = draft.targetAudience.roles?.includes(r) ?? false;
+                    return (
+                      <button
+                        type="button"
+                        key={r}
+                        onClick={() => toggleRole(r!)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                          active
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-slate-400 mt-1">Empty = all roles</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-slate-700">Target Membership Tiers</label>
+                <div className="flex flex-wrap gap-2">
+                  {TIER_OPTIONS.map((t) => {
+                    const active = draft.targetAudience.membershipTiers?.includes(t) ?? false;
+                    return (
+                      <button
+                        type="button"
+                        key={t}
+                        onClick={() => toggleTier(t)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                          active
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-slate-400 mt-1">Empty = all tiers</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Scheduled For (optional)</label>
                 <Input
                   type="datetime-local"
-                  value={currentCampaign.scheduledFor ? new Date(currentCampaign.scheduledFor).toISOString().slice(0, 16) : ""}
-                  onChange={(e) => setCurrentCampaign({ ...currentCampaign, scheduledFor: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                  value={draft.scheduledAt ? new Date(draft.scheduledAt).toISOString().slice(0, 16) : ""}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      scheduledAt: e.target.value ? new Date(e.target.value).toISOString() : null,
+                    })
+                  }
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4">
-                <Button type="button" variant="ghost" onClick={handleCloseModal}>
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button type="button" variant="ghost" onClick={closeModal}>
                   Cancel
                 </Button>
                 <Button type="submit" disabled={submitting} className="min-w-[100px]">
-                  {submitting ? "Saving..." : "Create Campaign"}
+                  {submitting ? "Saving..." : "Create"}
                 </Button>
               </div>
             </form>

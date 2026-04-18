@@ -127,6 +127,32 @@ export class AdminService {
     };
   }
 
+  async updateUser(
+    adminId: string,
+    userId: string,
+    dto: { membershipTier?: 'FREE' | 'SILVER' | 'GOLD'; isVerified?: boolean; name?: string },
+  ) {
+    const db = this.drizzle.db;
+    const [user] = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.id, userId));
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role === 'SUPER_ADMIN') {
+      throw new ForbiddenException('Cannot edit SUPER_ADMIN via this endpoint');
+    }
+
+    const patch: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+    if (dto.membershipTier !== undefined) patch.membershipTier = dto.membershipTier;
+    if (dto.isVerified !== undefined) patch.isVerified = dto.isVerified;
+    if (dto.name !== undefined) patch.name = dto.name;
+
+    if (Object.keys(patch).length === 1) {
+      throw new BadRequestException('No updatable fields provided');
+    }
+
+    await db.update(users).set(patch).where(eq(users.id, userId));
+    await this.auditService.logAdminAction(adminId, 'UPDATE_USER', 'user', userId, dto);
+    return { success: true };
+  }
+
   async setRankBoost(adminId: string, userId: string, boost: number) {
     const db = this.drizzle.db;
     const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId));

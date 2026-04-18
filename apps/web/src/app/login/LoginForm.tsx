@@ -30,6 +30,11 @@ export default function LoginForm() {
         throw new Error(authError.message);
       }
 
+      if ((data as any)?.twoFactorRedirect) {
+        router.push('/admin/security/challenge');
+        return;
+      }
+
       router.push('/browse');
     } catch (err: any) {
       console.error('Login error:', err);

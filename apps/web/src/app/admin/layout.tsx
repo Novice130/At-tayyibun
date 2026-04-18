@@ -32,18 +32,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace('/login');
       return;
     }
-    
-    // MFA Enforcement: If enabled but not verified, redirect to challenge
-    const twoFactorVerified = (session as any)?.session?.twoFactorVerified;
-    const isMfaPage = pathname.startsWith('/admin/security');
-
-    if ((session.user as any)?.twoFactorEnabled && !twoFactorVerified && !isMfaPage) {
-      router.replace('/admin/security/challenge');
-      return;
-    }
 
     if (!isAdmin) {
       router.replace('/browse');
+      return;
+    }
+
+    const twoFactorEnabled = (session.user as any)?.twoFactorEnabled === true;
+    const twoFactorVerified = (session as any)?.session?.twoFactorVerified === true;
+    const isMfaPage = pathname.startsWith('/admin/security');
+
+    // SUPER_ADMIN must enroll MFA before accessing admin surfaces.
+    if (role === 'SUPER_ADMIN' && !twoFactorEnabled && !isMfaPage) {
+      router.replace('/admin/security/setup');
+      return;
+    }
+
+    // If MFA enrolled but not verified this session, force challenge.
+    if (twoFactorEnabled && !twoFactorVerified && !isMfaPage) {
+      router.replace('/admin/security/challenge');
+      return;
     }
   }, [session, isPending, isAdmin, role, pathname, router]);
 

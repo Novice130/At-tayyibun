@@ -40,9 +40,9 @@ export default function AdminCouponsPage() {
     try {
       setLoading(true);
       const res = await api.get("/admin/coupons");
-      setCoupons(res.data.data);
+      setCoupons(res.data || []);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to load coupons");
+      setError(err.message || "Failed to load coupons");
     } finally {
       setLoading(false);
     }
@@ -77,7 +77,7 @@ export default function AdminCouponsPage() {
       handleCloseModal();
       fetchCoupons();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Failed to save coupon");
+      alert(err.message || "Failed to save coupon");
     } finally {
       setSubmitting(false);
     }
@@ -89,7 +89,7 @@ export default function AdminCouponsPage() {
       await api.delete(`/admin/coupons/${id}`);
       fetchCoupons();
     } catch (err: any) {
-      alert(err.response?.data?.message || "Failed to delete coupon");
+      alert(err.message || "Failed to delete coupon");
     }
   };
 

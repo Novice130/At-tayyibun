@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Put, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { AdminSchemasService } from '../services/admin-schemas.service';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
@@ -23,6 +23,12 @@ export class AdminSchemasController {
   @Patch(':id')
   async updateSchema(@CurrentUser() admin: any, @Param('id') id: string, @Body() payload: any) {
     return this.schemasService.updateSchema(admin.id, id, payload);
+  }
+
+  @Put(':id/activate')
+  @Roles('SUPER_ADMIN')
+  async activateSchema(@CurrentUser() admin: any, @Param('id') id: string) {
+    return this.schemasService.activateSchema(admin.id, id);
   }
 
   @Get(':id/fields')

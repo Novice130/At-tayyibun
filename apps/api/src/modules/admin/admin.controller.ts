@@ -59,6 +59,17 @@ export class AdminController {
     return this.adminService.setRankBoost(adminId, userId, dto.boost);
   }
 
+  @Put('users/:id')
+  @ApiOperation({ summary: 'Update user (tier, verification, name)' })
+  @ApiResponse({ status: 200, description: 'User updated' })
+  async updateUser(
+    @Param('id') userId: string,
+    @Body() dto: { membershipTier?: 'FREE' | 'SILVER' | 'GOLD'; isVerified?: boolean; name?: string },
+    @CurrentUser('id') adminId: string,
+  ) {
+    return this.adminService.updateUser(adminId, userId, dto);
+  }
+
   @Post('admins')
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Add admin user (SUPER_ADMIN only)' })

@@ -13,15 +13,16 @@ export class AdminPhotosService {
 
   async getPendingPhotos(page = 1, limit = 20) {
     const db = this.drizzle.db;
-    
+
     const data = await db.select({
       id: photos.id,
-      url: photos.gcsDisplayPath,
       type: photos.type,
+      dataUri: photos.dataUri,
+      gcsDisplayPath: photos.gcsDisplayPath,
       adminApproved: photos.adminApproved,
       createdAt: photos.createdAt,
       uploaderId: photos.userId,
-      uploaderName: profiles.firstName
+      uploaderName: profiles.firstName,
     })
     .from(photos)
     .leftJoin(profiles, eq(photos.userId, profiles.userId))
