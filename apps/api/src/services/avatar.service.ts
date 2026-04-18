@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Gender } from '@prisma/client';
+import { Gender } from '../common/types/role';
 import * as crypto from 'crypto';
 
 /**

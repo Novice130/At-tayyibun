@@ -1,45 +1,40 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { eq } from 'drizzle-orm';
+import { DrizzleService } from '../../db/drizzle.service';
+import { users } from '../../db/schema';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly drizzle: DrizzleService) {}
 
-  async findById(id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      include: { profile: true },
+  private async findWithProfile(where: any) {
+    const user = await this.drizzle.db.query.users.findFirst({
+      where,
+      with: { profiles: true },
     });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    return user;
+    if (!user) throw new NotFoundException('User not found');
+    const { profiles: profileRows, ...rest } = user as any;
+    return {
+      ...rest,
+      profile: Array.isArray(profileRows) ? profileRows[0] ?? null : profileRows ?? null,
+    };
   }
 
-  async findByPublicId(publicId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { publicId },
-      include: { profile: true },
-    });
+  findById(id: string) {
+    return this.findWithProfile(eq(users.id, id));
+  }
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    return user;
+  findByPublicId(publicId: string) {
+    return this.findWithProfile(eq(users.publicId, publicId));
   }
 
   async findByEmail(email: string) {
-    return this.prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
+    const [row] = await this.drizzle.db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
+    return row ?? null;
   }
 
   async findByPhone(phone: string) {
-    return this.prisma.user.findUnique({
-      where: { phone },
-    });
+    const [row] = await this.drizzle.db.select().from(users).where(eq(users.phone, phone)).limit(1);
+    return row ?? null;
   }
 }

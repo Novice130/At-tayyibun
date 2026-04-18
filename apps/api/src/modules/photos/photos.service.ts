@@ -1,157 +1,104 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { and, desc, eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+import { DrizzleService } from '../../db/drizzle.service';
+import { photos } from '../../db/schema';
 import { StorageService } from '../../services/storage.service';
 import { ImageProcessorService } from './image-processor.service';
-import { PhotoType, PhotoVisibility } from '@prisma/client';
+import { PhotoType, PhotoVisibility } from '../../common/types/role';
 
 @Injectable()
 export class PhotosService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly drizzle: DrizzleService,
     private readonly storageService: StorageService,
     private readonly imageProcessor: ImageProcessorService,
   ) {}
 
-  /**
-   * Upload a photo
-   */
-  async uploadPhoto(
-    userId: string,
-    fileBuffer: Buffer,
-    filename: string,
-    type: PhotoType = PhotoType.REAL_PHOTO,
-  ) {
-    // Validate image
+  async uploadPhoto(userId: string, fileBuffer: Buffer, filename: string, type: PhotoType = PhotoType.REAL_PHOTO) {
     const validation = await this.imageProcessor.validateImage(fileBuffer);
-    if (!validation.valid) {
-      throw new BadRequestException(validation.error);
-    }
+    if (!validation.valid) throw new BadRequestException(validation.error);
 
-    // Process image
     const processed = await this.imageProcessor.processImage(fileBuffer);
-
-    // Generate file paths
     const baseName = this.storageService.generateFileName(filename, userId);
     const originalPath = `originals/${baseName}.webp`;
     const thumbnailPath = `thumbnails/${baseName}.webp`;
     const displayPath = `display/${baseName}.webp`;
 
-    // Upload to GCS
     await Promise.all([
       this.storageService.uploadFile(processed.original, originalPath, 'image/webp', 'photos'),
       this.storageService.uploadFile(processed.thumbnail, thumbnailPath, 'image/webp', 'photos'),
       this.storageService.uploadFile(processed.display, displayPath, 'image/webp', 'photos'),
     ]);
 
-    // Check if user has a primary photo
-    const hasPrimary = await this.prisma.photo.findFirst({
-      where: { userId, isPrimary: true },
-    });
+    const db = this.drizzle.db;
+    const [hasPrimary] = await db
+      .select({ id: photos.id })
+      .from(photos)
+      .where(and(eq(photos.userId, userId), eq(photos.isPrimary, true)))
+      .limit(1);
 
-    // Create photo record
-    const photo = await this.prisma.photo.create({
-      data: {
+    const [photo] = await db
+      .insert(photos)
+      .values({
+        id: randomUUID(),
         userId,
-        type,
+        type: type as any,
         gcsOriginalPath: `photos/${originalPath}`,
         gcsThumbnailPath: `photos/${thumbnailPath}`,
         gcsDisplayPath: `photos/${displayPath}`,
         isPrimary: !hasPrimary,
-        visibility: PhotoVisibility.PRIVATE,
-      },
-    });
+        visibility: PhotoVisibility.PRIVATE as any,
+      })
+      .returning();
 
-    return {
-      id: photo.id,
-      type: photo.type,
-      isPrimary: photo.isPrimary,
-      visibility: photo.visibility,
-    };
+    return { id: photo.id, type: photo.type, isPrimary: photo.isPrimary, visibility: photo.visibility };
   }
 
-  /**
-   * Delete a photo
-   */
   async deletePhoto(userId: string, photoId: string) {
-    const photo = await this.prisma.photo.findUnique({
-      where: { id: photoId },
-    });
+    const db = this.drizzle.db;
+    const [photo] = await db.select().from(photos).where(eq(photos.id, photoId)).limit(1);
+    if (!photo) throw new NotFoundException('Photo not found');
+    if (photo.userId !== userId) throw new BadRequestException('You can only delete your own photos');
 
-    if (!photo) {
-      throw new NotFoundException('Photo not found');
-    }
-
-    if (photo.userId !== userId) {
-      throw new BadRequestException('You can only delete your own photos');
-    }
-
-    // Delete from GCS
     await Promise.all([
       photo.gcsOriginalPath && this.storageService.deleteFile(photo.gcsOriginalPath),
       photo.gcsThumbnailPath && this.storageService.deleteFile(photo.gcsThumbnailPath),
       photo.gcsDisplayPath && this.storageService.deleteFile(photo.gcsDisplayPath),
     ]);
 
-    // Delete record
-    await this.prisma.photo.delete({ where: { id: photoId } });
+    await db.delete(photos).where(eq(photos.id, photoId));
 
-    // If was primary, set another as primary
     if (photo.isPrimary) {
-      const nextPhoto = await this.prisma.photo.findFirst({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      if (nextPhoto) {
-        await this.prisma.photo.update({
-          where: { id: nextPhoto.id },
-          data: { isPrimary: true },
-        });
-      }
+      const [next] = await db
+        .select({ id: photos.id })
+        .from(photos)
+        .where(eq(photos.userId, userId))
+        .orderBy(desc(photos.createdAt))
+        .limit(1);
+      if (next) await db.update(photos).set({ isPrimary: true }).where(eq(photos.id, next.id));
     }
 
     return { success: true };
   }
 
-  /**
-   * Set primary photo
-   */
   async setPrimaryPhoto(userId: string, photoId: string) {
-    const photo = await this.prisma.photo.findUnique({
-      where: { id: photoId },
-    });
+    const db = this.drizzle.db;
+    const [photo] = await db.select().from(photos).where(eq(photos.id, photoId)).limit(1);
+    if (!photo || photo.userId !== userId) throw new NotFoundException('Photo not found');
 
-    if (!photo || photo.userId !== userId) {
-      throw new NotFoundException('Photo not found');
-    }
-
-    // Unset current primary
-    await this.prisma.photo.updateMany({
-      where: { userId, isPrimary: true },
-      data: { isPrimary: false },
-    });
-
-    // Set new primary
-    await this.prisma.photo.update({
-      where: { id: photoId },
-      data: { isPrimary: true },
-    });
+    await db
+      .update(photos)
+      .set({ isPrimary: false })
+      .where(and(eq(photos.userId, userId), eq(photos.isPrimary, true)));
+    await db.update(photos).set({ isPrimary: true }).where(eq(photos.id, photoId));
 
     return { success: true };
   }
 
-  /**
-   * Get signed URL for a photo (for approved requests)
-   */
   async getSignedUrl(photoId: string, expiresInMinutes = 60) {
-    const photo = await this.prisma.photo.findUnique({
-      where: { id: photoId },
-    });
-
-    if (!photo || !photo.gcsDisplayPath) {
-      throw new NotFoundException('Photo not found');
-    }
-
+    const [photo] = await this.drizzle.db.select().from(photos).where(eq(photos.id, photoId)).limit(1);
+    if (!photo || !photo.gcsDisplayPath) throw new NotFoundException('Photo not found');
     return this.storageService.getSignedUrl(photo.gcsDisplayPath, expiresInMinutes);
   }
 }

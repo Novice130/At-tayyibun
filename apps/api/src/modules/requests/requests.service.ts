@@ -5,76 +5,72 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { and, desc, eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+import { DrizzleService } from '../../db/drizzle.service';
+import { infoRequests, users, photos } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
 import { StorageService } from '../../services/storage.service';
 import { EncryptionService } from '../../services/encryption.service';
-import { RequestStatus } from '@prisma/client';
+import { RequestStatus } from '../../common/types/role';
 import { RespondRequestDto } from './dto';
 
 @Injectable()
 export class RequestsService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly drizzle: DrizzleService,
     private readonly auditService: AuditService,
     private readonly emailService: EmailService,
     private readonly storageService: StorageService,
     private readonly encryptionService: EncryptionService,
   ) {}
 
-  /**
-   * Create a new info request
-   * Enforces: only one active (PENDING) request per requester
-   */
+  private async getUserWithProfile(where: any) {
+    const user = await this.drizzle.db.query.users.findFirst({
+      where,
+      with: { profiles: true },
+    });
+    if (!user) return null;
+    const profileRows = (user as any).profiles;
+    return {
+      ...user,
+      profile: Array.isArray(profileRows) ? profileRows[0] ?? null : profileRows ?? null,
+    };
+  }
+
   async createRequest(requesterId: string, targetPublicId: string): Promise<{ id: string }> {
-    // Find target user by public ID
-    const target = await this.prisma.user.findUnique({
-      where: { publicId: targetPublicId },
-      include: { profile: true },
-    });
+    const target = await this.getUserWithProfile(eq(users.publicId, targetPublicId));
+    if (!target) throw new NotFoundException('User not found');
+    if (target.id === requesterId) throw new BadRequestException('Cannot request your own information');
 
-    if (!target) {
-      throw new NotFoundException('User not found');
-    }
+    const [existing] = await this.drizzle.db
+      .select({ id: infoRequests.id })
+      .from(infoRequests)
+      .where(and(eq(infoRequests.requesterId, requesterId), eq(infoRequests.status, RequestStatus.PENDING)))
+      .limit(1);
 
-    if (target.id === requesterId) {
-      throw new BadRequestException('Cannot request your own information');
-    }
-
-    // Check for existing pending request from this requester
-    const existingRequest = await this.prisma.infoRequest.findFirst({
-      where: {
-        requesterId,
-        status: RequestStatus.PENDING,
-      },
-    });
-
-    if (existingRequest) {
+    if (existing) {
       throw new ConflictException('You already have a pending request. Please wait for a response or let it expire.');
     }
 
-    // Create the request with 72-hour expiry
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 72);
 
-    const request = await this.prisma.infoRequest.create({
-      data: {
+    const [request] = await this.drizzle.db
+      .insert(infoRequests)
+      .values({
+        id: randomUUID(),
         requesterId,
         targetId: target.id,
-        status: RequestStatus.PENDING,
-        expiresAt,
+        status: RequestStatus.PENDING as any,
+        expiresAt: expiresAt.toISOString(),
         allowedShares: [],
-      },
-    });
+      })
+      .returning();
 
-    // Get requester info for email
-    const requester = await this.prisma.user.findUnique({
-      where: { id: requesterId },
-      include: { profile: true },
-    });
+    const requester = await this.getUserWithProfile(eq(users.id, requesterId));
 
-    // Send email notification to target
     if (requester?.profile && target.profile) {
       try {
         await this.emailService.sendContactRequestEmail(
@@ -89,142 +85,85 @@ export class RequestsService {
       }
     }
 
-    // Log the request
-    await this.auditService.logInfoRequest(
-      requesterId,
-      'REQUEST_SENT',
-      target.id,
-      request.id,
-    );
+    await this.auditService.logInfoRequest(requesterId, 'REQUEST_SENT', target.id, request.id);
 
     return { id: request.id };
   }
 
-  /**
-   * Check if the current user has a pending request (locks them from requesting others)
-   */
   async getActiveRequest(userId: string) {
-    const pendingRequest = await this.prisma.infoRequest.findFirst({
-      where: {
-        requesterId: userId,
-        status: RequestStatus.PENDING,
-      },
-      include: {
-        target: {
-          select: {
-            publicId: true,
-            profile: {
-              select: {
-                firstName: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const db = this.drizzle.db;
+    const [pending] = await db
+      .select()
+      .from(infoRequests)
+      .where(and(eq(infoRequests.requesterId, userId), eq(infoRequests.status, RequestStatus.PENDING)))
+      .limit(1);
 
-    return pendingRequest;
+    if (!pending) return null;
+
+    const target = await this.getUserWithProfile(eq(users.id, pending.targetId));
+    return {
+      ...pending,
+      target: target
+        ? { publicId: target.publicId, profile: target.profile ? { firstName: target.profile.firstName } : null }
+        : null,
+    };
   }
 
-  /**
-   * Respond to an info request (approve/deny)
-   */
   async respondToRequest(
     userId: string,
     requestId: string,
     dto: RespondRequestDto,
   ): Promise<{ success: boolean }> {
-    const request = await this.prisma.infoRequest.findUnique({
-      where: { id: requestId },
-      include: {
-        requester: {
-          include: { profile: true },
-        },
-        target: {
-          include: { profile: true, photos: true },
-        },
-      },
-    });
+    const db = this.drizzle.db;
+    const [request] = await db.select().from(infoRequests).where(eq(infoRequests.id, requestId)).limit(1);
+    if (!request) throw new NotFoundException('Request not found');
+    if (request.targetId !== userId) throw new ForbiddenException('You can only respond to requests sent to you');
+    if (request.status !== RequestStatus.PENDING) throw new BadRequestException('This request has already been processed');
 
-    if (!request) {
-      throw new NotFoundException('Request not found');
-    }
-
-    if (request.targetId !== userId) {
-      throw new ForbiddenException('You can only respond to requests sent to you');
-    }
-
-    if (request.status !== RequestStatus.PENDING) {
-      throw new BadRequestException('This request has already been processed');
-    }
-
-    if (new Date() > request.expiresAt) {
-      await this.prisma.infoRequest.update({
-        where: { id: requestId },
-        data: { status: RequestStatus.EXPIRED },
-      });
+    if (new Date() > new Date(request.expiresAt)) {
+      await db.update(infoRequests).set({ status: RequestStatus.EXPIRED as any }).where(eq(infoRequests.id, requestId));
       throw new BadRequestException('This request has expired');
     }
 
+    const requester = await this.getUserWithProfile(eq(users.id, request.requesterId));
+    const target = await this.getUserWithProfile(eq(users.id, request.targetId));
+    if (!requester || !target) throw new NotFoundException('Request parties not found');
+
     if (dto.approved) {
       const oneTimeToken = this.encryptionService.generateToken(32);
-
-      await this.prisma.infoRequest.update({
-        where: { id: requestId },
-        data: {
-          status: RequestStatus.APPROVED,
-          allowedShares: dto.shareItems || ['phone', 'email'],
-          respondedAt: new Date(),
-          oneTimeToken,
-        },
-      });
-
-      // Prepare shared info — share guardian/parent contact when available, not user's direct contact
-      const sharedInfo: { photo?: string; phone?: string; email?: string } = {};
       const allowedShares = dto.shareItems || ['phone', 'email'];
-      const profile = request.target.profile;
+
+      await db
+        .update(infoRequests)
+        .set({
+          status: RequestStatus.APPROVED as any,
+          allowedShares,
+          respondedAt: new Date().toISOString(),
+          oneTimeToken,
+        })
+        .where(eq(infoRequests.id, requestId));
+
+      const sharedInfo: { photo?: string; phone?: string; email?: string } = {};
 
       if (allowedShares.includes('photo')) {
-        const primaryPhoto = request.target.photos.find(p => p.isPrimary);
-        if (primaryPhoto && primaryPhoto.gcsDisplayPath) {
-          sharedInfo.photo = await this.storageService.getOneTimeSignedUrl(
-            primaryPhoto.gcsDisplayPath,
-          );
+        const [primary] = await db
+          .select()
+          .from(photos)
+          .where(and(eq(photos.userId, target.id), eq(photos.isPrimary, true)))
+          .limit(1);
+        if (primary?.gcsDisplayPath) {
+          sharedInfo.photo = await this.storageService.getOneTimeSignedUrl(primary.gcsDisplayPath);
         }
       }
 
-      if (allowedShares.includes('phone')) {
-        // Share guardian phone if profile was created by guardian/sibling, else user's phone
-        if (profile?.guardianPhoneEnc && profile.creatorRole !== 'SELF') {
-          try {
-            sharedInfo.phone = this.encryptionService.decrypt(profile.guardianPhoneEnc);
-          } catch {
-            sharedInfo.phone = request.target.phone || undefined;
-          }
-        } else {
-          sharedInfo.phone = request.target.phone || undefined;
-        }
-      }
+      if (allowedShares.includes('phone')) sharedInfo.phone = target.phone || undefined;
+      if (allowedShares.includes('email')) sharedInfo.email = target.email;
 
-      if (allowedShares.includes('email')) {
-        // Share guardian email if available, else user's email
-        if (profile?.guardianEmailEnc && profile.creatorRole !== 'SELF') {
-          try {
-            sharedInfo.email = this.encryptionService.decrypt(profile.guardianEmailEnc);
-          } catch {
-            sharedInfo.email = request.target.email;
-          }
-        } else {
-          sharedInfo.email = request.target.email;
-        }
-      }
-
-      // Send email to requester with shared info
       try {
         await this.emailService.sendSharedInfoEmail(
-          request.requester.email,
-          request.requester.profile?.firstName || 'User',
-          request.target.profile?.firstName || 'A user',
+          requester.email,
+          requester.profile?.firstName || 'User',
+          target.profile?.firstName || 'A user',
           sharedInfo,
         );
       } catch (error) {
@@ -239,137 +178,118 @@ export class RequestsService {
         allowedShares,
       );
     } else {
-      // Deny request
-      await this.prisma.infoRequest.update({
-        where: { id: requestId },
-        data: {
-          status: RequestStatus.DENIED,
-          respondedAt: new Date(),
-        },
-      });
+      await db
+        .update(infoRequests)
+        .set({ status: RequestStatus.DENIED as any, respondedAt: new Date().toISOString() })
+        .where(eq(infoRequests.id, requestId));
 
-      // Send denial notification email
       try {
-        await this.emailService.sendRequestDeniedEmail(
-          request.requester.email,
-          request.requester.profile?.firstName || 'User',
-        );
+        await this.emailService.sendRequestDeniedEmail(requester.email, requester.profile?.firstName || 'User');
       } catch (error) {
         console.error('Failed to send denial email:', error);
       }
 
-      await this.auditService.logInfoRequest(
-        userId,
-        'REQUEST_DENIED',
-        request.requesterId,
-        requestId,
-      );
+      await this.auditService.logInfoRequest(userId, 'REQUEST_DENIED', request.requesterId, requestId);
     }
 
     return { success: true };
   }
 
-  /**
-   * Get incoming requests for a user
-   */
   async getIncomingRequests(userId: string) {
-    return this.prisma.infoRequest.findMany({
-      where: { targetId: userId },
-      include: {
-        requester: {
-          select: {
-            publicId: true,
-            profile: {
-              select: {
-                firstName: true,
-                gender: true,
-                ethnicity: true,
-                city: true,
-                state: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const db = this.drizzle.db;
+    const rows = await db
+      .select()
+      .from(infoRequests)
+      .where(eq(infoRequests.targetId, userId))
+      .orderBy(desc(infoRequests.createdAt));
+
+    return Promise.all(
+      rows.map(async (r) => {
+        const requester = await this.getUserWithProfile(eq(users.id, r.requesterId));
+        return {
+          ...r,
+          requester: requester
+            ? {
+                publicId: requester.publicId,
+                profile: requester.profile
+                  ? {
+                      firstName: requester.profile.firstName,
+                      gender: requester.profile.gender,
+                      ethnicity: requester.profile.ethnicity,
+                      city: requester.profile.city,
+                      state: requester.profile.state,
+                    }
+                  : null,
+              }
+            : null,
+        };
+      }),
+    );
   }
 
-  /**
-   * Get outgoing requests for a user
-   */
   async getOutgoingRequests(userId: string) {
-    return this.prisma.infoRequest.findMany({
-      where: { requesterId: userId },
-      include: {
-        target: {
-          select: {
-            publicId: true,
-            profile: {
-              select: {
-                firstName: true,
-                gender: true,
-                ethnicity: true,
-                city: true,
-                state: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const db = this.drizzle.db;
+    const rows = await db
+      .select()
+      .from(infoRequests)
+      .where(eq(infoRequests.requesterId, userId))
+      .orderBy(desc(infoRequests.createdAt));
+
+    return Promise.all(
+      rows.map(async (r) => {
+        const target = await this.getUserWithProfile(eq(users.id, r.targetId));
+        return {
+          ...r,
+          target: target
+            ? {
+                publicId: target.publicId,
+                profile: target.profile
+                  ? {
+                      firstName: target.profile.firstName,
+                      gender: target.profile.gender,
+                      ethnicity: target.profile.ethnicity,
+                      city: target.profile.city,
+                      state: target.profile.state,
+                    }
+                  : null,
+              }
+            : null,
+        };
+      }),
+    );
   }
 
-  /**
-   * Access shared info via one-time token
-   */
   async getSharedInfo(token: string) {
-    const request = await this.prisma.infoRequest.findUnique({
-      where: { oneTimeToken: token },
-      include: {
-        target: {
-          include: {
-            profile: true,
-            photos: { where: { isPrimary: true } },
-          },
-        },
-      },
-    });
+    const db = this.drizzle.db;
+    const [request] = await db.select().from(infoRequests).where(eq(infoRequests.oneTimeToken, token)).limit(1);
+    if (!request) throw new NotFoundException('Invalid or expired link');
+    if (request.status !== RequestStatus.APPROVED) throw new BadRequestException('This request was not approved');
+    if (request.tokenUsedAt) throw new BadRequestException('This link has already been used');
 
-    if (!request) {
-      throw new NotFoundException('Invalid or expired link');
-    }
+    await db
+      .update(infoRequests)
+      .set({ tokenUsedAt: new Date().toISOString() })
+      .where(eq(infoRequests.id, request.id));
 
-    if (request.status !== RequestStatus.APPROVED) {
-      throw new BadRequestException('This request was not approved');
-    }
-
-    if (request.tokenUsedAt) {
-      throw new BadRequestException('This link has already been used');
-    }
-
-    await this.prisma.infoRequest.update({
-      where: { id: request.id },
-      data: { tokenUsedAt: new Date() },
-    });
+    const target = await this.getUserWithProfile(eq(users.id, request.targetId));
+    if (!target) throw new NotFoundException('Target not found');
 
     const result: { photoUrl?: string; phone?: string; email?: string } = {};
+    const allowedShares = request.allowedShares ?? [];
 
-    if (request.allowedShares.includes('photo')) {
-      const photo = request.target.photos[0];
-      if (photo?.gcsDisplayPath) {
-        result.photoUrl = await this.storageService.getSignedUrl(photo.gcsDisplayPath, 60);
+    if (allowedShares.includes('photo')) {
+      const [primary] = await db
+        .select()
+        .from(photos)
+        .where(and(eq(photos.userId, target.id), eq(photos.isPrimary, true)))
+        .limit(1);
+      if (primary?.gcsDisplayPath) {
+        result.photoUrl = await this.storageService.getSignedUrl(primary.gcsDisplayPath, 60);
       }
     }
 
-    if (request.allowedShares.includes('phone')) {
-      result.phone = request.target.phone || undefined;
-    }
-
-    if (request.allowedShares.includes('email')) {
-      result.email = request.target.email;
-    }
+    if (allowedShares.includes('phone')) result.phone = target.phone || undefined;
+    if (allowedShares.includes('email')) result.email = target.email;
 
     return result;
   }

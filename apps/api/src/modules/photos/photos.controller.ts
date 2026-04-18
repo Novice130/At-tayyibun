@@ -21,7 +21,7 @@ import {
 } from "@nestjs/swagger";
 import { PhotosService } from "./photos.service";
 import { CurrentUser } from "../../common/decorators";
-import { PhotoType } from "@prisma/client";
+import { PhotoType } from "../../common/types/role";
 
 @ApiTags("Photos")
 @ApiBearerAuth()

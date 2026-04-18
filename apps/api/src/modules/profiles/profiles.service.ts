@@ -1,16 +1,19 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { PrismaService } from "../../prisma/prisma.service";
-import { EncryptionService } from "../../services/encryption.service";
-import { AvatarService } from "../../services/avatar.service";
-import { Gender } from "@prisma/client";
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { and, asc, desc, eq, gte, lte, sql, SQL } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+import { DrizzleService } from '../../db/drizzle.service';
+import { profiles, users } from '../../db/schema';
+import { EncryptionService } from '../../services/encryption.service';
+import { AvatarService } from '../../services/avatar.service';
+import { Gender } from '../../common/types/role';
 
 export interface BrowseFilters {
   ethnicity?: string;
   gender?: Gender;
   minAge?: number;
   maxAge?: number;
-  sortBy?: "age" | "createdAt" | "rankBoost";
-  order?: "asc" | "desc";
+  sortBy?: 'age' | 'createdAt' | 'rankBoost';
+  order?: 'asc' | 'desc';
   page?: number;
   limit?: number;
 }
@@ -18,209 +21,138 @@ export interface BrowseFilters {
 @Injectable()
 export class ProfilesService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly drizzle: DrizzleService,
     private readonly encryptionService: EncryptionService,
-    private readonly avatarService: AvatarService
+    private readonly avatarService: AvatarService,
   ) {}
 
-  /**
-   * Browse profiles with filters and pagination
-   * Only returns public info + AI avatar
-   */
-  async browseProfiles(filters: BrowseFilters, viewerId?: string) {
+  async browseProfiles(filters: BrowseFilters) {
     const {
       ethnicity,
       gender,
       minAge,
       maxAge,
-      sortBy = "rankBoost",
-      order = "desc",
+      sortBy = 'rankBoost',
+      order = 'desc',
       page = 1,
       limit = 20,
     } = filters;
 
-    const where: Record<string, unknown> = {
-      profileComplete: true,
-    };
+    const conds: SQL[] = [eq(profiles.profileComplete, true)];
+    if (ethnicity) conds.push(eq(profiles.ethnicity, ethnicity));
+    if (gender) conds.push(eq(profiles.gender, gender));
 
-    if (ethnicity) {
-      where.ethnicity = ethnicity;
-    }
-
-    if (gender) {
-      where.gender = gender;
-    }
-
-    // Age filtering based on DOB
     if (minAge || maxAge) {
       const today = new Date();
       if (maxAge) {
-        const minDob = new Date(
-          today.getFullYear() - maxAge - 1,
-          today.getMonth(),
-          today.getDate()
-        );
-        where.dob = { ...((where.dob as object) || {}), gte: minDob };
+        const minDob = new Date(today.getFullYear() - maxAge - 1, today.getMonth(), today.getDate());
+        conds.push(gte(profiles.dob, minDob.toISOString().slice(0, 10)));
       }
       if (minAge) {
-        const maxDob = new Date(
-          today.getFullYear() - minAge,
-          today.getMonth(),
-          today.getDate()
-        );
-        where.dob = { ...((where.dob as object) || {}), lte: maxDob };
+        const maxDob = new Date(today.getFullYear() - minAge, today.getMonth(), today.getDate());
+        conds.push(lte(profiles.dob, maxDob.toISOString().slice(0, 10)));
       }
     }
 
-    // Get profiles
-    const profiles = await this.prisma.profile.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            publicId: true,
-            rankBoost: true,
-            membershipTier: true,
-            createdAt: true,
+    const whereClause = and(...conds);
+    const dir = order === 'desc' ? desc : asc;
+    const ageDir = order === 'asc' ? desc : asc;
+
+    const orderBy =
+      sortBy === 'age'
+        ? [ageDir(profiles.dob)]
+        : sortBy === 'createdAt'
+          ? [dir(users.createdAt)]
+          : [dir(users.rankBoost)];
+
+    const db = this.drizzle.db;
+    const [rows, [totalRow]] = await Promise.all([
+      db
+        .select({
+          profile: profiles,
+          user: {
+            publicId: users.publicId,
+            rankBoost: users.rankBoost,
+            membershipTier: users.membershipTier,
+            createdAt: users.createdAt,
           },
-        },
-      },
-      orderBy: {
-        ...(sortBy === "rankBoost" ? { user: { rankBoost: order } } : {}),
-        ...(sortBy === "age" ? { dob: order === "asc" ? "desc" : "asc" } : {}),
-        ...(sortBy === "createdAt" ? { user: { createdAt: order } } : {}),
-      },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+        })
+        .from(profiles)
+        .innerJoin(users, eq(profiles.userId, users.id))
+        .where(whereClause)
+        .orderBy(...orderBy)
+        .limit(limit)
+        .offset((page - 1) * limit),
+      db.select({ value: sql<number>`COUNT(*)` }).from(profiles).where(whereClause),
+    ]);
 
-    // Get total count
-    const total = await this.prisma.profile.count({ where });
-
-    // Map to public view
-    const publicProfiles = profiles.map((profile) => ({
-      publicId: profile.user.publicId,
+    const data = rows.map(({ profile, user }) => ({
+      publicId: user.publicId,
       firstName: profile.firstName,
-      age: this.calculateAge(profile.dob),
+      age: this.calculateAgeFromString(profile.dob),
       gender: profile.gender,
       ethnicity: profile.ethnicity,
       city: profile.city,
       state: profile.state,
-      avatarUrl: this.avatarService.getAvatarDisplay(
-        profile.userId,
-        profile.gender
-      ),
+      avatarUrl: this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
       bio:
-        profile.publicFields &&
-        typeof profile.publicFields === "object" &&
-        "bio" in profile.publicFields
-          ? (profile.publicFields as any)["bio"]
+        profile.publicFields && typeof profile.publicFields === 'object' && 'bio' in profile.publicFields
+          ? (profile.publicFields as any)['bio']
           : null,
-      membershipTier: profile.user.membershipTier,
+      membershipTier: user.membershipTier,
     }));
 
-    return {
-      data: publicProfiles,
-      meta: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit),
-      },
-    };
+    const total = Number(totalRow.value);
+    return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
-  /**
-   * Get a single profile by public ID
-   */
   async getProfileByPublicId(publicId: string, isAuthenticated: boolean) {
-    const user = await this.prisma.user.findUnique({
-      where: { publicId },
-      include: {
-        profile: true,
-      },
+    const user = await this.drizzle.db.query.users.findFirst({
+      where: eq(users.publicId, publicId),
+      with: { profiles: true },
     });
+    if (!user) throw new NotFoundException('Profile not found');
 
-    if (!user || !user.profile) {
-      throw new NotFoundException("Profile not found");
-    }
+    const profile = Array.isArray((user as any).profiles) ? (user as any).profiles[0] : (user as any).profiles;
+    if (!profile) throw new NotFoundException('Profile not found');
 
-    const profile = user.profile;
-
-    // Public view (unauthenticated or minimal view)
     const publicData = {
       publicId: user.publicId,
       firstName: profile.firstName,
-      age: this.calculateAge(profile.dob),
+      age: this.calculateAgeFromString(profile.dob),
       gender: profile.gender,
       ethnicity: profile.ethnicity,
       city: profile.city,
       state: profile.state,
-      avatarUrl: this.avatarService.getAvatarDisplay(
-        profile.userId,
-        profile.gender
-      ),
+      avatarUrl: this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
       bio:
-        profile.publicFields &&
-        typeof profile.publicFields === "object" &&
-        "bio" in profile.publicFields
-          ? (profile.publicFields as any)["bio"]
+        profile.publicFields && typeof profile.publicFields === 'object' && 'bio' in profile.publicFields
+          ? (profile.publicFields as any)['bio']
           : null,
       profileComplete: profile.profileComplete,
     };
 
-    // If not authenticated, return minimal info
-    if (!isAuthenticated) {
-      return {
-        ...publicData,
-        isFullView: false,
-      };
-    }
-
-    // Authenticated view - slightly more info but still no contact details
-    return {
-      ...publicData,
-      membershipTier: user.membershipTier,
-      isFullView: true,
-    };
+    if (!isAuthenticated) return { ...publicData, isFullView: false };
+    return { ...publicData, membershipTier: user.membershipTier, isFullView: true };
   }
 
-  /**
-   * Get current user's own profile (full access)
-   */
   async getMyProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        profile: true,
-        photos: true,
-      },
+    const user = await this.drizzle.db.query.users.findFirst({
+      where: eq(users.id, userId),
+      with: { profiles: true, photos: true },
     });
+    if (!user) throw new NotFoundException('User not found');
 
-    if (!user) {
-      throw new NotFoundException("User not found");
-    }
+    const profile = Array.isArray((user as any).profiles) ? (user as any).profiles[0] ?? null : (user as any).profiles ?? null;
+    const photos = (user as any).photos ?? [];
 
-    const profile = user.profile;
-
-    // Decrypt sensitive fields
-    let lastName = "";
-    let biodata = {};
-
+    let lastName = '';
+    let biodata: Record<string, unknown> = {};
     if (profile?.lastNameEnc) {
-      try {
-        lastName = this.encryptionService.decrypt(profile.lastNameEnc);
-      } catch {
-        lastName = "";
-      }
+      try { lastName = this.encryptionService.decrypt(profile.lastNameEnc); } catch { /* keep empty */ }
     }
-
     if (profile?.biodataJsonEnc) {
-      try {
-        biodata = this.encryptionService.decryptJson(profile.biodataJsonEnc);
-      } catch {
-        biodata = {};
-      }
+      try { biodata = this.encryptionService.decryptJson(profile.biodataJsonEnc); } catch { /* keep empty */ }
     }
 
     return {
@@ -237,19 +169,17 @@ export class ProfilesService {
             firstName: profile.firstName,
             lastName,
             dob: profile.dob,
-            age: this.calculateAge(profile.dob),
+            age: this.calculateAgeFromString(profile.dob),
             gender: profile.gender,
             ethnicity: profile.ethnicity,
             city: profile.city,
             state: profile.state,
-            bio: profile.bioEnc
-              ? this.encryptionService.decrypt(profile.bioEnc)
-              : null,
+            bio: profile.bioEnc ? this.encryptionService.decrypt(profile.bioEnc) : null,
             biodata,
             profileComplete: profile.profileComplete,
           }
         : null,
-      photos: user.photos.map((p) => ({
+      photos: photos.map((p: any) => ({
         id: p.id,
         type: p.type,
         isPrimary: p.isPrimary,
@@ -258,9 +188,6 @@ export class ProfilesService {
     };
   }
 
-  /**
-   * Update current user's profile
-   */
   async updateMyProfile(
     userId: string,
     data: {
@@ -273,70 +200,62 @@ export class ProfilesService {
       state?: string;
       bio?: string;
       biodata?: Record<string, unknown>;
-    }
+    },
   ) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { profile: true },
-    });
+    const db = this.drizzle.db;
+    const [existingProfile] = await db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
 
-    if (!user) {
-      throw new NotFoundException("User not found");
-    }
-
-    // Encrypt sensitive fields
-    const updateData: Record<string, unknown> = {};
-
+    const updateData: Record<string, unknown> = { updatedAt: new Date().toISOString() };
     if (data.firstName) updateData.firstName = data.firstName;
-    if (data.lastName)
-      updateData.lastNameEnc = this.encryptionService.encrypt(data.lastName);
-    if (data.dob) updateData.dob = data.dob;
+    if (data.lastName) updateData.lastNameEnc = this.encryptionService.encrypt(data.lastName);
+    if (data.dob) updateData.dob = data.dob.toISOString().slice(0, 10);
     if (data.gender) updateData.gender = data.gender;
     if (data.ethnicity) updateData.ethnicity = data.ethnicity;
     if (data.city) updateData.city = data.city;
     if (data.state) updateData.state = data.state;
     if (data.bio) updateData.bioEnc = this.encryptionService.encrypt(data.bio);
-    if (data.biodata)
-      updateData.biodataJsonEnc = this.encryptionService.encryptJson(
-        data.biodata
-      );
+    if (data.biodata) updateData.biodataJsonEnc = this.encryptionService.encryptJson(data.biodata);
 
-    // Check if profile is complete
     const isComplete = !!(
       data.firstName ||
-      (user.profile?.firstName && data.lastName) ||
-      (user.profile?.lastNameEnc && data.dob) ||
-      (user.profile?.dob && data.ethnicity) ||
-      user.profile?.ethnicity
+      (existingProfile?.firstName && data.lastName) ||
+      (existingProfile?.lastNameEnc && data.dob) ||
+      (existingProfile?.dob && data.ethnicity) ||
+      existingProfile?.ethnicity
     );
-
     updateData.profileComplete = isComplete;
+    updateData.publicFields = { bio: data.bio ? data.bio.substring(0, 200) : null };
 
-    // Update public fields (non-sensitive data that can be shown publicly)
-    updateData.publicFields = {
-      bio: data.bio ? data.bio.substring(0, 200) : null, // Truncated for public view
-    };
-
-    await this.prisma.profile.update({
-      where: { userId },
-      data: updateData,
-    });
+    if (existingProfile) {
+      await db.update(profiles).set(updateData).where(eq(profiles.userId, userId));
+    } else {
+      await db.insert(profiles).values({
+        id: randomUUID(),
+        userId,
+        firstName: (data.firstName ?? '') as string,
+        lastNameEnc: (updateData.lastNameEnc as string) ?? '',
+        dob: (updateData.dob as string) ?? new Date().toISOString().slice(0, 10),
+        gender: (data.gender as any) ?? 'MALE',
+        ethnicity: data.ethnicity ?? '',
+        city: data.city ?? null,
+        state: data.state ?? null,
+        bioEnc: (updateData.bioEnc as string) ?? null,
+        biodataJsonEnc: (updateData.biodataJsonEnc as string) ?? null,
+        publicFields: updateData.publicFields as any,
+        profileComplete: isComplete,
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     return this.getMyProfile(userId);
   }
 
-  /**
-   * Calculate age from date of birth
-   */
-  private calculateAge(dob: Date): number {
+  private calculateAgeFromString(dob: string | Date): number {
+    const d = typeof dob === 'string' ? new Date(dob) : dob;
     const today = new Date();
-    let age = today.getFullYear() - dob.getFullYear();
-    const monthDiff = today.getMonth() - dob.getMonth();
-
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-      age--;
-    }
-
+    let age = today.getFullYear() - d.getFullYear();
+    const monthDiff = today.getMonth() - d.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < d.getDate())) age--;
     return age;
   }
 }

@@ -11,7 +11,7 @@ import { ProfilesService, BrowseFilters } from "./profiles.service";
 import { UpdateProfileDto } from "./dto";
 import { CurrentUser, Public } from "../../common/decorators";
 import { Throttle } from "@nestjs/throttler";
-import { Gender } from "@prisma/client";
+import { Gender } from "../../common/types/role";
 
 @ApiTags("Profiles")
 @Controller("profiles")
@@ -57,7 +57,7 @@ export class ProfilesController {
       limit: Math.min(limit || 20, 50),
     };
 
-    return this.profilesService.browseProfiles(filters, userId);
+    return this.profilesService.browseProfiles(filters);
   }
 
   @Get("me")
