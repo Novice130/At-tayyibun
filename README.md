@@ -7,7 +7,7 @@
 This is a monorepo powered by [Turborepo](https://turbo.build/) containing:
 
 - **`apps/web`** - Next.js 14 frontend (App Router + TypeScript + TailwindCSS)
-- **`apps/api`** - NestJS backend (REST API + Prisma + PostgreSQL)
+- **`apps/api`** - NestJS backend (REST API + Drizzle ORM + PostgreSQL)
 - **`packages/shared`** - Shared TypeScript types and utilities
 - **`jobs/`** - Cloud Run background jobs
 - **`infra/`** - Terraform infrastructure-as-code
