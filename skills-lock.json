@@ -30,6 +30,11 @@
       "source": "JuliusBrussee/caveman",
       "sourceType": "github",
       "computedHash": "f71138e885d3e0df8c78b4814554ae146a1a6dbe76bafcc32e95f2ba6d4073c9"
+    },
+    "neon-postgres": {
+      "source": "neondatabase/agent-skills",
+      "sourceType": "github",
+      "computedHash": "574cf4b7c901ebc7d88d34e2c3e3d08fdec127bd0047f888de148ff0af787d4e"
     }
   }
 }
