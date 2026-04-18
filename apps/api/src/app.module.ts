@@ -4,6 +4,7 @@ import { ThrottlerModule } from "@nestjs/throttler";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 // Core modules
 import { PrismaModule } from "./prisma/prisma.module";
+import { DrizzleModule } from "./db/drizzle.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { UsersModule } from "./modules/users/users.module";
 import { ProfilesModule } from "./modules/profiles/profiles.module";
@@ -59,6 +60,7 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     ]),
 
     // Database
+    DrizzleModule,
     PrismaModule,
 
     // Feature modules
@@ -66,12 +68,12 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     UsersModule,
     ProfilesModule,
     RequestsModule,
-    // PhotosModule,
+    PhotosModule,
+    AdminModule,
     // MessagesModule,
     // AdsModule,
     // CouponsModule,
     // MembershipsModule,
-    // AdminModule,
     // CampaignsModule,
   ],
   providers: [

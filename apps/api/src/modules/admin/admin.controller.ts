@@ -13,7 +13,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagg
 import { AdminService } from './admin.service';
 import { Roles, CurrentUser } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
-import { Role } from '@prisma/client';
+import { Role } from '../../common/types/role';
 
 @ApiTags('Admin')
 @ApiBearerAuth()

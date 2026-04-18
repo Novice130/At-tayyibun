@@ -3,66 +3,54 @@ import {
   ExecutionContext,
   UnauthorizedException,
   CanActivate,
-} from "@nestjs/common";
-import { Reflector } from "@nestjs/core";
-import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
-import { PrismaService } from "../../prisma/prisma.service";
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { eq } from 'drizzle-orm';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { DrizzleService } from '../../db/drizzle.service';
+import { session } from '../../db/schema';
 
 /**
- * BetterAuth Session Cookie Guard - applied globally
- * Validates the `better-auth.session_token` cookie against the Session table.
- * All routes require authentication unless marked with @Public().
+ * BetterAuth session cookie guard, applied globally.
+ * Validates the session token cookie against the session table; all routes
+ * require a valid session unless the handler is marked with @Public().
  */
 @Injectable()
 export class BetterAuthGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private prisma: PrismaService,
+    private drizzle: DrizzleService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    // Check if route is marked as public
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
-
-    if (isPublic) {
-      return true;
-    }
+    if (isPublic) return true;
 
     const request = context.switchToHttp().getRequest();
+    const sessionToken = request.cookies?.['better-auth.session_token'];
+    if (!sessionToken) throw new UnauthorizedException('Authentication required');
 
-    // Extract session token from cookie
-    const sessionToken =
-      request.cookies?.["better-auth.session_token"] ||
-      request.cookies?.["better-auth.session_token"];
-
-    if (!sessionToken) {
-      throw new UnauthorizedException("Authentication required");
-    }
-
-    // Look up the session in the database
-    const session = await this.prisma.session.findUnique({
-      where: { token: sessionToken },
-      include: {
-        user: {
-          include: { profile: true },
-        },
+    const row = await this.drizzle.db.query.session.findFirst({
+      where: eq(session.token, sessionToken),
+      with: {
+        user: { with: { profiles: true } },
       },
     });
 
-    if (!session) {
-      throw new UnauthorizedException("Invalid session");
-    }
+    if (!row) throw new UnauthorizedException('Invalid session');
+    if (new Date(row.expiresAt) < new Date()) throw new UnauthorizedException('Session expired');
 
-    // Check if session has expired
-    if (new Date(session.expiresAt) < new Date()) {
-      throw new UnauthorizedException("Session expired");
+    const user = (row as any).user;
+    if (user) {
+      const { profiles: profileRows, ...rest } = user;
+      request.user = {
+        ...rest,
+        profile: Array.isArray(profileRows) ? profileRows[0] ?? null : profileRows ?? null,
+      };
     }
-
-    // Attach user to request (same shape downstream code expects)
-    request.user = session.user;
 
     return true;
   }

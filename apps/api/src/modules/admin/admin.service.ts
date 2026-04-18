@@ -1,70 +1,69 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
+import { and, count, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { DrizzleService } from '../../db/drizzle.service';
+import { profiles, systemConfig, users } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
-import { Role, MembershipTier, Gender } from '@prisma/client';
 
 @Injectable()
 export class AdminService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly drizzle: DrizzleService,
     private readonly auditService: AuditService,
   ) {}
 
-  /**
-   * Get analytics - user counts by gender and membership
-   */
   async getAnalytics() {
+    const db = this.drizzle.db;
     const [
-      totalUsers,
-      maleCount,
-      femaleCount,
-      freeCount,
-      silverCount,
-      goldCount,
-      verifiedCount,
+      [totalRow],
+      [maleRow],
+      [femaleRow],
+      [freeRow],
+      [silverRow],
+      [goldRow],
+      [verifiedRow],
     ] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.profile.count({ where: { gender: Gender.MALE } }),
-      this.prisma.profile.count({ where: { gender: Gender.FEMALE } }),
-      this.prisma.user.count({ where: { membershipTier: MembershipTier.FREE } }),
-      this.prisma.user.count({ where: { membershipTier: MembershipTier.SILVER } }),
-      this.prisma.user.count({ where: { membershipTier: MembershipTier.GOLD } }),
-      this.prisma.user.count({ where: { isVerified: true } }),
+      db.select({ value: count() }).from(users),
+      db.select({ value: count() }).from(profiles).where(eq(profiles.gender, 'MALE')),
+      db.select({ value: count() }).from(profiles).where(eq(profiles.gender, 'FEMALE')),
+      db.select({ value: count() }).from(users).where(eq(users.membershipTier, 'FREE')),
+      db.select({ value: count() }).from(users).where(eq(users.membershipTier, 'SILVER')),
+      db.select({ value: count() }).from(users).where(eq(users.membershipTier, 'GOLD')),
+      db.select({ value: count() }).from(users).where(eq(users.isVerified, true)),
     ]);
 
     return {
-      totalUsers,
-      byGender: {
-        male: maleCount,
-        female: femaleCount,
-      },
+      totalUsers: Number(totalRow.value),
+      byGender: { male: Number(maleRow.value), female: Number(femaleRow.value) },
       byMembership: {
-        free: freeCount,
-        silver: silverCount,
-        gold: goldCount,
+        free: Number(freeRow.value),
+        silver: Number(silverRow.value),
+        gold: Number(goldRow.value),
       },
-      verifiedUsers: verifiedCount,
+      verifiedUsers: Number(verifiedRow.value),
     };
   }
 
-  /**
-   * List all users with pagination
-   */
   async listUsers(page = 1, limit = 20, search?: string) {
-    const where = search
-      ? {
-          OR: [
-            { email: { contains: search, mode: 'insensitive' as const } },
-            { publicId: { contains: search } },
-            { profile: { firstName: { contains: search, mode: 'insensitive' as const } } },
-          ],
-        }
-      : {};
+    const db = this.drizzle.db;
+    const pattern = search ? `%${search}%` : undefined;
 
-    const [users, total] = await Promise.all([
-      this.prisma.user.findMany({
-        where,
-        select: {
+    const whereClause = pattern
+      ? or(
+          ilike(users.email, pattern),
+          ilike(users.publicId, pattern),
+          sql`EXISTS (SELECT 1 FROM ${profiles} WHERE ${profiles.userId} = ${users.id} AND ${profiles.firstName} ILIKE ${pattern})`,
+        )
+      : undefined;
+
+    const [rows, [totalRow]] = await Promise.all([
+      db.query.users.findMany({
+        where: whereClause,
+        columns: {
           id: true,
           publicId: true,
           email: true,
@@ -74,151 +73,117 @@ export class AdminService {
           isVerified: true,
           createdAt: true,
           rankBoost: true,
-          profile: {
-            select: {
-              firstName: true,
-              gender: true,
-              ethnicity: true,
-            },
+        },
+        with: {
+          profiles: {
+            columns: { firstName: true, gender: true, ethnicity: true },
           },
         },
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [desc(users.createdAt)],
+        limit,
+        offset: (page - 1) * limit,
       }),
-      this.prisma.user.count({ where }),
+      db.select({ value: count() }).from(users).where(whereClause ?? sql`TRUE`),
     ]);
 
+    // The introspected relation exposes `profiles` (one-to-one on user_id). Collapse to single `profile`.
+    const data = rows.map(({ profiles: profileRows, ...u }: any) => ({
+      ...u,
+      profile: Array.isArray(profileRows) ? profileRows[0] ?? null : profileRows ?? null,
+    }));
+
     return {
-      data: users,
+      data,
       meta: {
-        total,
+        total: Number(totalRow.value),
         page,
         limit,
-        pages: Math.ceil(total / limit),
+        pages: Math.ceil(Number(totalRow.value) / limit),
       },
     };
   }
 
-  /**
-   * Get user by ID or public ID
-   */
   async getUser(identifier: string) {
-    const user = await this.prisma.user.findFirst({
-      where: {
-        OR: [{ id: identifier }, { publicId: identifier }],
-      },
-      include: {
-        profile: true,
+    const db = this.drizzle.db;
+    const user = await db.query.users.findFirst({
+      where: or(eq(users.id, identifier), eq(users.publicId, identifier)),
+      with: {
+        profiles: true,
         photos: true,
-        sentRequests: { take: 10, orderBy: { createdAt: 'desc' } },
-        receivedRequests: { take: 10, orderBy: { createdAt: 'desc' } },
+        infoRequests_requesterId: { limit: 10, orderBy: (t, { desc }) => [desc(t.createdAt)] },
+        infoRequests_targetId: { limit: 10, orderBy: (t, { desc }) => [desc(t.createdAt)] },
       },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    if (!user) throw new NotFoundException('User not found');
 
-    return user;
+    // Normalize introspected relation names to the shape the frontend consumed before.
+    const { profiles: profileRows, infoRequests_requesterId, infoRequests_targetId, ...rest } = user as any;
+    return {
+      ...rest,
+      profile: Array.isArray(profileRows) ? profileRows[0] ?? null : profileRows ?? null,
+      sentRequests: infoRequests_requesterId ?? [],
+      receivedRequests: infoRequests_targetId ?? [],
+    };
   }
 
-  /**
-   * Set rank boost for a user (manual boost)
-   */
   async setRankBoost(adminId: string, userId: string, boost: number) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    const db = this.drizzle.db;
+    const [user] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId));
+    if (!user) throw new NotFoundException('User not found');
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        rankBoost: boost,
-        rankBoostedAt: new Date(),
-      },
-    });
+    await db
+      .update(users)
+      .set({ rankBoost: boost, rankBoostedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+      .where(eq(users.id, userId));
 
-    await this.auditService.logAdminAction(adminId, 'SET_RANK_BOOST', 'user', userId, {
-      boost,
-    });
+    await this.auditService.logAdminAction(adminId, 'SET_RANK_BOOST', 'user', userId, { boost });
 
     return { success: true };
   }
 
-  /**
-   * Add admin user (SUPER_ADMIN only)
-   */
   async addAdmin(superAdminId: string, userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    if (user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN) {
+    const db = this.drizzle.db;
+    const [user] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
+    if (!user) throw new NotFoundException('User not found');
+    if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
       throw new BadRequestException('User is already an admin');
     }
 
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { role: Role.ADMIN },
-    });
-
+    await db.update(users).set({ role: 'ADMIN', updatedAt: new Date().toISOString() }).where(eq(users.id, userId));
     await this.auditService.logAdminAction(superAdminId, 'ADD_ADMIN', 'user', userId);
-
     return { success: true };
   }
 
-  /**
-   * Remove admin user (SUPER_ADMIN only)
-   */
   async removeAdmin(superAdminId: string, adminId: string) {
-    const admin = await this.prisma.user.findUnique({ where: { id: adminId } });
-    if (!admin) {
-      throw new NotFoundException('Admin not found');
-    }
+    const db = this.drizzle.db;
+    const [admin] = await db.select({ role: users.role }).from(users).where(eq(users.id, adminId));
+    if (!admin) throw new NotFoundException('Admin not found');
+    if (admin.role === 'SUPER_ADMIN') throw new ForbiddenException('Cannot remove super admin');
+    if (admin.role !== 'ADMIN') throw new BadRequestException('User is not an admin');
 
-    if (admin.role === Role.SUPER_ADMIN) {
-      throw new ForbiddenException('Cannot remove super admin');
-    }
-
-    if (admin.role !== Role.ADMIN) {
-      throw new BadRequestException('User is not an admin');
-    }
-
-    await this.prisma.user.update({
-      where: { id: adminId },
-      data: { role: Role.USER },
-    });
-
+    await db.update(users).set({ role: 'USER', updatedAt: new Date().toISOString() }).where(eq(users.id, adminId));
     await this.auditService.logAdminAction(superAdminId, 'REMOVE_ADMIN', 'user', adminId);
-
     return { success: true };
   }
 
-  /**
-   * Toggle membership system
-   */
   async toggleMembership(adminId: string, enabled: boolean) {
-    await this.prisma.systemConfig.upsert({
-      where: { key: 'membership_enabled' },
-      update: { value: enabled },
-      create: { key: 'membership_enabled', value: enabled },
-    });
+    const db = this.drizzle.db;
+    await db
+      .insert(systemConfig)
+      .values({ key: 'membership_enabled', value: enabled, updatedAt: new Date().toISOString() })
+      .onConflictDoUpdate({
+        target: systemConfig.key,
+        set: { value: enabled, updatedAt: new Date().toISOString() },
+      });
 
-    await this.auditService.logAdminAction(adminId, 'TOGGLE_MEMBERSHIP', 'system_config', undefined, {
-      enabled,
-    });
-
+    await this.auditService.logAdminAction(adminId, 'TOGGLE_MEMBERSHIP', 'system_config', undefined, { enabled });
     return { success: true, enabled };
   }
 
-  /**
-   * Get system config
-   */
   async getSystemConfig() {
-    const configs = await this.prisma.systemConfig.findMany();
-    return Object.fromEntries(configs.map((c) => [c.key, c.value]));
+    const db = this.drizzle.db;
+    const rows = await db.select().from(systemConfig);
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]));
   }
 }
