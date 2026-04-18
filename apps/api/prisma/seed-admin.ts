@@ -2,11 +2,11 @@
  * Admin Account Seed Script
  * Run: npx ts-node prisma/seed-admin.ts
  * 
- * Creates or promotes admin@attayyibun.com to ADMIN role.
+ * Creates or promotes admin@attayyibun.com to SUPER_ADMIN role.
  * Safe to re-run — upserts by email.
  */
 import { PrismaClient, Role } from '@prisma/client';
-import * as argon2 from 'argon2';
+import { hashPassword } from 'better-auth/crypto';
 import { nanoid } from 'nanoid';
 
 const prisma = new PrismaClient();
@@ -23,28 +23,22 @@ async function main() {
   });
 
   if (existing) {
-    // Promote to ADMIN if not already
-    if (existing.role === Role.ADMIN || existing.role === Role.SUPER_ADMIN) {
-      console.log(`✓ ${ADMIN_EMAIL} already has role: ${existing.role}`);
+    if (existing.role === Role.SUPER_ADMIN) {
+      console.log(`✓ ${ADMIN_EMAIL} already has role: SUPER_ADMIN`);
     } else {
       await prisma.user.update({
         where: { id: existing.id },
-        data: { role: Role.ADMIN },
+        data: { role: Role.SUPER_ADMIN },
       });
-      console.log(`✓ Promoted ${ADMIN_EMAIL} to ADMIN`);
+      console.log(`✓ Promoted ${ADMIN_EMAIL} (${existing.role} → SUPER_ADMIN)`);
     }
     console.log(`  Public ID: ${existing.publicId}`);
     console.log(`  User ID:   ${existing.id}`);
     return;
   }
 
-  // Create new admin user
-  const passwordHash = await argon2.hash(ADMIN_PASSWORD, {
-    type: argon2.argon2id,
-    memoryCost: 65536,
-    timeCost: 3,
-    parallelism: 4,
-  });
+  // Create new admin user (better-auth uses scrypt; must match for login to work)
+  const passwordHash = await hashPassword(ADMIN_PASSWORD);
 
   const admin = await prisma.user.create({
     data: {
@@ -52,7 +46,7 @@ async function main() {
       email: ADMIN_EMAIL,
       name: 'Admin',
       passwordHash,
-      role: Role.ADMIN,
+      role: Role.SUPER_ADMIN,
       isVerified: true,
       emailVerified: true,
       emailVerifiedAt: new Date(),

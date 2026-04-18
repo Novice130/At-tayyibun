@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Heart, Eye, EyeOff, Mail, Lock } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { signIn } from '@/lib/auth-client';
 
 export default function LoginForm() {
@@ -44,9 +45,14 @@ export default function LoginForm() {
         <div className="card p-8">
           <div className="text-center mb-8">
             <Link href="/" className="inline-flex items-center gap-2 mb-6">
-              <div className="w-10 h-10 bg-gradient-gold rounded-full flex items-center justify-center">
-                <Heart className="w-5 h-5 text-black" />
-              </div>
+              <Image
+                src="/logo.png"
+                alt="At-Tayyibun Logo"
+                width={44}
+                height={44}
+                className="rounded-full"
+                priority
+              />
               <span className="font-heading font-bold text-xl text-gradient-gold">At-Tayyibun</span>
             </Link>
             <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>Welcome Back</h1>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { User, LogOut, Menu, X, MessageSquare, Bell, Loader, Lock } from 'lucide-react';
+import { User, LogOut, Menu, X, MessageSquare, Bell, Loader, Lock, Shield } from 'lucide-react';
 import { ProfileCard } from '@/components/profile/ProfileCard';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { FilterBar } from '@/components/filters/FilterBar';
@@ -102,6 +102,11 @@ export default function BrowsePage() {
               <Link href="/" className="transition" style={{ color: 'var(--color-text-secondary)' }}>Home</Link>
               <Link href="/browse" className="font-medium" style={{ color: 'var(--color-gold-500)' }}>Browse</Link>
               <Link href="/requests" className="transition" style={{ color: 'var(--color-text-secondary)' }}>Requests</Link>
+              {((session?.user as any)?.role === 'ADMIN' || (session?.user as any)?.role === 'SUPER_ADMIN') && (
+                <Link href="/admin" className="transition flex items-center gap-1" style={{ color: 'var(--color-gold-500)' }}>
+                  <Shield className="w-4 h-4" /> Admin
+                </Link>
+              )}
               <Link href="/messages" className="transition relative" style={{ color: 'var(--color-text-secondary)' }}>
                 <MessageSquare className="w-5 h-5" />
               </Link>
@@ -138,6 +143,9 @@ export default function BrowsePage() {
               <Link href="/" className="block py-2" style={{ color: 'var(--color-text-secondary)' }}>Home</Link>
               <Link href="/browse" className="block py-2 font-medium" style={{ color: 'var(--color-gold-500)' }}>Browse</Link>
               <Link href="/requests" className="block py-2" style={{ color: 'var(--color-text-secondary)' }}>Requests</Link>
+              {((session?.user as any)?.role === 'ADMIN' || (session?.user as any)?.role === 'SUPER_ADMIN') && (
+                <Link href="/admin" className="block py-2 font-medium" style={{ color: 'var(--color-gold-500)' }}>Admin</Link>
+              )}
               <Link href="/messages" className="block py-2" style={{ color: 'var(--color-text-secondary)' }}>Messages</Link>
               <Link href="/profile" className="block py-2" style={{ color: 'var(--color-text-secondary)' }}>My Profile</Link>
               <hr style={{ borderColor: 'var(--color-border)' }} />

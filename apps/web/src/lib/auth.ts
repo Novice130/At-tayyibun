@@ -52,6 +52,11 @@ export const auth = betterAuth({
                 type: "string",
                 required: false,
                 input: false // We generate it via hooks, not from user input
+            },
+            role: {
+                type: "string",
+                required: false,
+                input: false
             }
         }
     }
