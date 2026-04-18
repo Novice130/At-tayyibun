@@ -23,28 +23,39 @@ const ADMIN_PASSWORD = 'ChitapataChinukulu';
 
 async function main() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const db = drizzle(pool, { schema: { ...schema, ...relations }, casing: 'snake_case' });
+  const db = drizzle(pool, { schema: { ...schema, ...relations } });
 
   console.log('Admin seed starting...');
+
+  const passwordHash = await hashPassword(ADMIN_PASSWORD);
+  const now = new Date().toISOString();
 
   const [existing] = await db.select().from(schema.users).where(eq(schema.users.email, ADMIN_EMAIL)).limit(1);
 
   if (existing) {
-    if (existing.role === 'SUPER_ADMIN') {
-      console.log(`✓ ${ADMIN_EMAIL} already has role: SUPER_ADMIN`);
-    } else {
-      await db.update(schema.users).set({ role: 'SUPER_ADMIN' }).where(eq(schema.users.id, existing.id));
-      console.log(`✓ Promoted ${ADMIN_EMAIL} (${existing.role} → SUPER_ADMIN)`);
-    }
-    console.log(`  Public ID: ${existing.publicId}`);
-    console.log(`  User ID:   ${existing.id}`);
+    console.log(`✓ ${ADMIN_EMAIL} already exists. Updating role and password...`);
+    await db.update(schema.users)
+      .set({ 
+        role: 'SUPER_ADMIN',
+        passwordHash,
+        updatedAt: now
+      })
+      .where(eq(schema.users.id, existing.id));
+
+    // Also update the account table if it exists
+    await db.update(schema.account)
+      .set({ 
+        password: passwordHash,
+        updatedAt: now
+      })
+      .where(eq(schema.account.userId, existing.id));
+
+    console.log(`✓ Updated roles and credentials for ${ADMIN_EMAIL}`);
     await pool.end();
     return;
   }
 
-  const passwordHash = await hashPassword(ADMIN_PASSWORD);
   const userId = randomUUID();
-  const now = new Date().toISOString();
 
   await db.insert(schema.users).values({
     id: userId,

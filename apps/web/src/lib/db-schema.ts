@@ -168,9 +168,7 @@ export const users = pgTable("users", {
 	rankBoost: integer("rank_boost").default(0).notNull(),
 	rankBoostedAt: timestamp("rank_boosted_at", { precision: 3, mode: 'string' }),
 	lastLoginAt: timestamp("last_login_at", { precision: 3, mode: 'string' }),
-	twoFactorSecret: text("two_factor_secret"),
 	twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
-	twoFactorBackupCodes: text("two_factor_backup_codes").array(),
 	emailVerificationToken: text("email_verification_token"),
 	emailVerificationExpiry: timestamp("email_verification_expiry", { precision: 3, mode: 'string' }),
 	emailVerifiedAt: timestamp("email_verified_at", { precision: 3, mode: 'string' }),
@@ -394,5 +392,18 @@ export const account = pgTable("account", {
 			columns: [table.userId],
 			foreignColumns: [users.id],
 			name: "account_userId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const twoFactor = pgTable("two_factor", {
+	id: uuid().primaryKey().notNull(),
+	secret: text().notNull(),
+	backupCodes: text("backup_codes").notNull(),
+	userId: uuid("user_id").notNull(),
+}, (table) => [
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "two_factor_user_id_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
 ]);

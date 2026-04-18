@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Heart, Shield, Users, Clock, ChevronRight, Star, Quote, Lock, Sparkles } from 'lucide-react';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { Navbar } from '@/components/Navbar';
 
 const successStories = [
   {
@@ -50,57 +50,7 @@ const features = [
 export default function HomePage() {
   return (
     <div className="min-h-screen">
-      {/* ============ NAVIGATION ============ */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass safe-top">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center gap-3">
-              <Image
-                src="/logo.png"
-                alt="At-Tayyibun Logo"
-                width={40}
-                height={40}
-                className="rounded-full"
-              />
-              <span className="font-heading font-bold text-xl text-gradient-gold">
-                At-Tayyibun
-              </span>
-            </div>
-
-            {/* Desktop Nav */}
-            <div className="hidden md:flex items-center gap-8">
-              <Link href="/" className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--color-gold-500)' }}>
-                Home
-              </Link>
-              <Link href="/browse" className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
-                Matches
-              </Link>
-              <Link href="/about" className="text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-secondary)' }}>
-                Wisdom
-              </Link>
-              <ThemeToggle />
-              <Link href="/login" className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-                Login
-              </Link>
-              <Link href="/signup" className="btn-primary text-sm px-5 py-2">
-                Get Started
-              </Link>
-            </div>
-
-            {/* Mobile */}
-            <div className="md:hidden flex items-center gap-2">
-              <ThemeToggle />
-              <Link href="/login" className="text-sm font-medium px-3 py-2" style={{ color: 'var(--color-text-secondary)' }}>
-                Login
-              </Link>
-              <Link href="/signup" className="btn-primary text-sm px-4 py-2">
-                Sign Up
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* ============ HERO SECTION ============ */}
       <section className="relative min-h-screen flex items-center overflow-hidden pt-16">

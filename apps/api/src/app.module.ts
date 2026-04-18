@@ -1,7 +1,8 @@
 import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
+import { BullModule } from '@nestjs/bullmq';
 // Core modules
 import { DrizzleModule } from "./db/drizzle.module";
 import { AuthModule } from "./modules/auth/auth.module";
@@ -37,6 +38,16 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: process.env.NODE_ENV === "test" ? ".env.test" : ".env",
+    }),
+
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        connection: {
+          url: configService.get('REDIS_URL') || 'redis://localhost:6379',
+        },
+      }),
+      inject: [ConfigService],
     }),
 
     // Rate limiting (global defaults)

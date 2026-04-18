@@ -43,6 +43,7 @@ export class BetterAuthGuard implements CanActivate {
     if (!row) throw new UnauthorizedException('Invalid session');
     if (new Date(row.expiresAt) < new Date()) throw new UnauthorizedException('Session expired');
 
+    request.session = row;
     const user = (row as any).user;
     if (user) {
       const { profiles: profileRows, ...rest } = user;

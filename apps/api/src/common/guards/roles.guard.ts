@@ -22,14 +22,18 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const { user } = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
+    const { user } = request;
 
     if (!user) {
       throw new ForbiddenException('Access denied');
     }
 
-    // SUPER_ADMIN has access to everything
+    // SUPER_ADMIN has access to everything, but must pass MFA if enabled
     if (user.role === Role.SUPER_ADMIN) {
+      if (user.twoFactorEnabled && !request.session?.twoFactorVerified) {
+        throw new ForbiddenException('MFA_REQUIRED');
+      }
       return true;
     }
 
@@ -38,6 +42,13 @@ export class RolesGuard implements CanActivate {
 
     if (!hasRole) {
       throw new ForbiddenException('Insufficient permissions');
+    }
+
+    // If user is ADMIN, also enforce MFA if enabled
+    if (user.role === Role.ADMIN) {
+      if (user.twoFactorEnabled && !request.session?.twoFactorVerified) {
+        throw new ForbiddenException('MFA_REQUIRED');
+      }
     }
 
     return true;

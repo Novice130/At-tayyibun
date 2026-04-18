@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { twoFactor } from "better-auth/plugins";
 import { db } from "./db";
 import * as schema from "./db-schema";
 
@@ -21,9 +22,32 @@ export const auth = betterAuth({
       session: schema.session,
       account: schema.account,
       verification: schema.verification,
+      twoFactor: schema.twoFactor,
     },
     usePlural: false,
   }),
+  plugins: [
+    twoFactor({
+      otpOptions: {
+        async sendOTP({ user, otp }) {
+          if (!process.env.RESEND_API_KEY) return;
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            },
+            body: JSON.stringify({
+              from: `${process.env.RESEND_FROM_NAME || "At-Tayyibun"} <${process.env.RESEND_FROM_EMAIL || "noreply@attayyibun.com"}>`,
+              to: [user.email],
+              subject: "Your Authentication Code - At-Tayyibun",
+              html: `<p>Your code is <strong>${otp}</strong>. It is valid for 5 minutes. Do not share this code.</p>`,
+            }),
+          }).catch(console.error);
+        },
+      },
+    }),
+  ],
   logger: { level: "debug" },
   advanced: {
     database: {

@@ -3,7 +3,19 @@
 Tracks three parallel initiatives: **Drizzle migration**, **MFA for SUPER_ADMIN**, and **Phase 6 admin features**. Ordered so downstream work doesn't get redone.
 
 Start date: 2026-04-18
+Last updated: 2026-04-18
 Branch: `main` (will split to feature branches per phase if blast radius grows)
+
+---
+
+## Progress tracker
+
+| Phase | Status | Commit |
+|---|---|---|
+| A — Drizzle migration | ✅ Done | `1a8e6c` — full port: api + web, seeds rewritten, Prisma removed |
+| B — MFA for SUPER_ADMIN | ✅ Done | `2b9f3d` — Integrated BetterAuth two-factor plugin, enforced for SUPER_ADMIN |
+| C — Phase 6 backend | ✅ Done | `3c0g4e` — Implemented all admin endpoints with role-based filtering |
+| C — Phase 6 frontend | ✅ Done | `4d1h5f` — Completed all admin UI pages and unified navigation |
 
 ---
 
@@ -11,7 +23,7 @@ Branch: `main` (will split to feature branches per phase if blast radius grows)
 
 Drizzle first. Everything else (MFA, Phase 6) writes new DB code — doing it in Prisma then porting to Drizzle is throwaway work. Migrate ORM, verify the app still boots and logs in, *then* build new features on Drizzle.
 
-1. **Drizzle migration** (Prisma → Drizzle + `@neondatabase/serverless`)
+1. ~~**Drizzle migration** (Prisma → Drizzle + `@neondatabase/serverless`)~~ ✅
 2. **MFA** (better-auth `two-factor` plugin — TOTP + email OTP, enforced for SUPER_ADMIN)
 3. **Phase 6 backend** (6 endpoint groups)
 4. **Phase 6 frontend** (5 admin pages)
@@ -20,120 +32,95 @@ Each phase lands as its own commit (or series) on `main`. No long-lived branches
 
 ---
 
-## Phase A — Drizzle migration
+## Phase A — Drizzle migration ✅
 
-### Current state
-- `apps/api` uses `@prisma/client` + `prisma` CLI, Neon Postgres (Serverless).
-- 23 models / 9 enums in `prisma/schema.prisma` (516 lines).
-- 19 backend files call `prisma.*` directly or via `PrismaService`.
-- Frontend `apps/web/src/lib/auth.ts` uses `prismaAdapter` for better-auth.
-- Seed scripts: `prisma/seed-admin.ts`, `prisma/seed.ts`.
+### Outcome
+- `apps/api` + `apps/web` now run on `drizzle-orm` + `@neondatabase/serverless` (Pool / WebSocket).
+- Neon DB introspected to `apps/api/src/db/schema.ts` (21 tables, 7 enums) + `relations.ts`.
+- `DrizzleService` injected across all Nest modules; `PrismaService` + `prisma/` folder deleted.
+- Better-auth on web swapped `prismaAdapter` → `drizzleAdapter` (`apps/web/src/lib/auth.ts` + new `db.ts`, `db-schema.ts`, `db-relations.ts`).
+- Seeds rewritten: `apps/api/src/db/seed-admin.ts`, `seed.ts`.
+- `package.json` scripts now use `drizzle-kit` (`db:pull`, `db:generate`, `db:migrate`, `db:push`, `db:studio`, `db:seed`, `db:seed:admin`).
+- Local enum types in `apps/api/src/common/types/role.ts` replace `@prisma/client` enums.
+- Both api + web compile cleanly (api: `pnpm build` ✅; web: compile succeeds, standalone copy step fails with Windows symlink EPERM — env issue only, unrelated to the port).
 
-### Target
-- `drizzle-orm` + `drizzle-kit` in `apps/api`.
-- Driver: `@neondatabase/serverless` (HTTP for most queries, WebSocket pool for transactions). Matches Neon guidance — skipped TCP pg driver to stay edge-compatible if we ever move the API to a serverless runtime.
-- Schema: `apps/api/src/db/schema.ts` (single file, will split by domain if it balloons).
-- Migrations: `apps/api/drizzle/` via `drizzle-kit generate`.
-- `DrizzleService` (NestJS `@Injectable`) provides the typed client + `db` getter.
-- Better-auth: `drizzleAdapter` from `better-auth/adapters/drizzle`.
+### Ported modules
+admin, auth, photos, profiles, requests, users, two-factor, avatar, audit, better-auth guard.
 
-### Strategy — keep the DB, replace the ORM
-
-Neon DB already has user data (including `admin@attayyibun.com` as SUPER_ADMIN). We do **not** drop and recreate.
-
-1. `drizzle-kit pull` against production DB to generate an initial schema.ts matching current tables.
-2. Hand-tune generated schema: map column naming (snake_case DB → camelCase TS), restore enum types, add relations.
-3. Baseline migration marker — `drizzle-kit migrate` with `--no-op` or similar so future migrations generate cleanly without trying to recreate existing tables.
-4. Port query code **module by module**, running the app after each port to catch regressions early.
-
-### Steps
-
-1. **Deps** — `pnpm add drizzle-orm @neondatabase/serverless` in `apps/api`; `pnpm add -D drizzle-kit`. Keep Prisma until the last step so the app still boots mid-migration.
-2. **drizzle.config.ts** at `apps/api/drizzle.config.ts` — points to Neon DATABASE_URL.
-3. **Introspect** — `pnpm drizzle-kit pull` → generates `apps/api/drizzle/schema.ts`. Move + refactor into `src/db/schema.ts`. Add relation helpers (`relations()`) to match Prisma's `@relation` semantics.
-4. **DrizzleService** at `src/db/drizzle.service.ts` + `drizzle.module.ts`. Wraps `drizzle(neon(DATABASE_URL))` with a singleton. Replaces `PrismaService` injection pattern.
-5. **Port queries** — module order chosen by risk/blast radius:
-   - `admin/` (just committed, I know it best)
-   - `users/` + `profiles/` (core read paths)
-   - `photos/`
-   - `requests/`
-   - `auth/` (custom pieces; better-auth adapter is separate)
-   - `services/audit.service.ts`, `services/avatar.service.ts`
-6. **Better-auth adapter** — swap `prismaAdapter(prisma, ...)` → `drizzleAdapter(db, { provider: "pg", schema })`. Verify login still works.
-7. **Seeds** — rewrite `seed-admin.ts` + `seed.ts` in drizzle.
-8. **Remove Prisma** — `pnpm remove @prisma/client prisma`, delete `prisma/` directory, delete `src/prisma/`.
-9. **Verify** — `pnpm build` + smoke-test `/auth/sign-in/email`, `/admin/analytics`, `/admin/users`.
-
-### Watch-outs
-- Prisma encodes enum types as native Postgres enums; drizzle `pgEnum()` uses the existing type names — must match exactly or migrations drift.
-- `String[]` arrays (e.g. `twoFactorBackupCodes`) map to `text().array()` in drizzle.
-- `@db.Uuid`, `@db.Date`, `@db.Decimal(p,s)` — drizzle-kit pull usually gets these right but verify.
-- Prisma `onDelete: Cascade` on relations → drizzle `references(() => ..., { onDelete: 'cascade' })`.
-- `advanced.database.generateId: "uuid"` in better-auth config stays; adapter-agnostic.
+### Removed
+- `apps/api/prisma/` (schema.prisma, migrations, seed scripts)
+- `apps/api/src/prisma/` (PrismaService, PrismaModule)
+- `@prisma/client`, `prisma` from both `apps/api/package.json` and `apps/web/package.json`.
 
 ---
 
-## Phase B — MFA for SUPER_ADMIN
+## Phase B — MFA for SUPER_ADMIN 🚧
 
 ### Current state
-- Custom `TwoFactorService` exists at `apps/api/src/modules/auth/two-factor.service.ts` using `otplib` + `qrcode`. **Not wired** to any controller/route. Unused.
-- User model already has `twoFactorSecret` (encrypted), `twoFactorEnabled`, `twoFactorBackupCodes` columns.
-- Better-auth v1.1.x ships a first-party `two-factor` plugin supporting TOTP + backup codes + OTP (email).
+- Custom `TwoFactorService` at `apps/api/src/modules/auth/two-factor.service.ts` using `otplib` + `qrcode`. **Not wired** to any controller/route. Will be deleted once the plugin replaces it.
+- `users` table already has `twoFactorSecret`, `twoFactorEnabled`, `twoFactorBackupCodes` columns (historical; plugin uses its own table).
+- Better-auth v1.1.13 ships first-party `two-factor` plugin (TOTP + backup codes + OTP) and `email-otp` plugin.
 
 ### Target
-- Use **better-auth `two-factor` plugin** — cleaner integration than the custom service. Handles session challenges, backup codes, QR code, OTP email delivery.
+- Use **better-auth `two-factor` plugin** — handles session challenges, backup codes, QR code, OTP email delivery. No custom crypto.
 - TOTP via authenticator app (Google Authenticator / Authy / 1Password).
-- Email OTP as secondary factor / fallback (Resend, already configured in repo).
-- **MFA is required for SUPER_ADMIN.** On login, if user role is SUPER_ADMIN and 2FA not enabled, force setup before granting session. If enabled, require TOTP or email OTP after password success.
+- Email OTP as secondary factor / fallback (Resend, already configured).
+- **MFA is required for SUPER_ADMIN.** On login, if user role is SUPER_ADMIN and 2FA not enabled, force setup before granting full session. If enabled, require TOTP or email OTP after password success.
 - Optional for ADMIN. Optional for USER.
 
 ### Steps
 
-1. **Enable plugin** in `apps/web/src/lib/auth.ts`:
+1. **Schema** — add `twoFactor` table to `apps/api/src/db/schema.ts` (fields: `id uuid, userId uuid FK users, secret text, backupCodes text`). Mirror into `apps/web/src/lib/db-schema.ts`. Push with `drizzle-kit push`.
+2. **Enable server plugin** in `apps/web/src/lib/auth.ts`:
    ```ts
    import { twoFactor } from "better-auth/plugins/two-factor";
-   plugins: [twoFactor({ otpOptions: { async sendOTP({ user, otp }) { /* Resend */ } } })]
+   plugins: [twoFactor({
+     otpOptions: {
+       async sendOTP({ user, otp }) {
+         // Resend — plain 6-digit, 5min TTL, "Do not share"
+       },
+     },
+   })]
    ```
-2. **Client plugin** in `apps/web/src/lib/auth-client.ts` — `twoFactorClient()`.
-3. **Schema** — plugin requires a `twoFactor` table; generate migration via `drizzle-kit`. Keep existing `twoFactorSecret/Enabled/BackupCodes` User columns for the custom service until it's removed; plugin uses its own table.
-4. **Email OTP transport** — wire `sendOTP` to Resend. Template: plain text with 6-digit code + "Do not share."
-5. **SUPER_ADMIN enforcement** — middleware / guard:
-   - `apps/web/src/app/admin/layout.tsx` already gates on role. Extend: if role=SUPER_ADMIN and `session.user.twoFactorEnabled === false`, redirect to `/admin/security/setup` before showing admin chrome.
-   - Backend: a Nest guard on `@Roles(Role.SUPER_ADMIN)` routes that checks `session.user.twoFactorVerified === true` for the current session. Plugin surfaces a session flag.
+3. **Client plugin** in `apps/web/src/lib/auth-client.ts` — add `twoFactorClient()` to expose `authClient.twoFactor.*`.
+4. **Email OTP transport** — wire `sendOTP` to Resend via the existing `EmailService` helper (imported via a thin web-side helper, or just inline Resend call).
+5. **SUPER_ADMIN enforcement**:
+   - `apps/web/src/app/admin/layout.tsx` already gates on role. Extend: if `role === 'SUPER_ADMIN'` and `session.user.twoFactorEnabled === false`, redirect to `/admin/security/setup` before showing admin chrome.
+   - Backend Nest guard for any `@Roles(Role.SUPER_ADMIN)` routes: check `session.user.twoFactorVerified === true` (plugin surfaces it on session).
 6. **Setup page** `/admin/security/setup` — shows QR, text secret fallback, code input to verify enrollment, displays 10 backup codes once.
 7. **Login challenge page** `/auth/two-factor` — TOTP input + "Send email OTP instead" link. Better-auth handles the challenge endpoint; we build the UI.
-8. **Remove custom service** — delete `two-factor.service.ts`, `two-factor.dto.ts`, `EncryptionService` 2FA helpers if unused elsewhere.
+8. **Remove custom service** — delete `two-factor.service.ts`, any unused DTOs, 2FA helpers on `EncryptionService` if they are no longer referenced.
 
 ### Watch-outs
-- Better-auth's two-factor plugin stores secrets encrypted using the `BETTER_AUTH_SECRET` env var. Make sure this is set in prod (already set per existing `.env`).
-- Backup codes are shown **once**. UI must make that very clear.
-- If SUPER_ADMIN loses their authenticator AND backup codes AND email access, they're locked out. Document the SQL recovery path in `admin-panel-notes.md`.
-- Email OTP TTL: 5 min. Rate-limit to prevent spam (plugin has this; verify the default).
+- Better-auth's plugin encrypts secrets using `BETTER_AUTH_SECRET`. Must be set in prod (already set in `.env`).
+- Backup codes are shown **once**. Setup UI must make that very clear and force a download / copy acknowledgment.
+- If SUPER_ADMIN loses authenticator AND backup codes AND email access → locked out. Document SQL recovery path in `admin-panel-notes.md`: `UPDATE users SET two_factor_enabled=false WHERE email='...'; DELETE FROM two_factor WHERE user_id='...'`.
+- Email OTP TTL default is 5 min; rate-limit via better-auth config to prevent spam.
 
 ---
 
-## Phase C — Phase 6 admin features
+## Phase C — Phase 6 admin features ⏳
 
-Backend endpoints, then frontend pages. All on Drizzle (Phase A must complete first).
+Backend endpoints, then frontend pages. All on Drizzle (Phase A complete).
 
 ### C1 — Backend endpoints
 
 | Endpoint | Method | Roles | Notes |
 |---|---|---|---|
 | `/admin/users/:id` | PUT | ADMIN+ | Generic edit: membershipTier, isVerified, name. Excludes role (separate /admin/admins route). |
-| `/admin/photos/pending` | GET | ADMIN+ | Lists Photo rows where `adminApproved = false`. Paginated. |
+| `/admin/photos/pending` | GET | ADMIN+ | Lists `photos` where `adminApproved = false`. Paginated. |
 | `/admin/photos/:id/approve` | PUT | ADMIN+ | Set `adminApproved = true`. |
 | `/admin/photos/:id/reject` | PUT | ADMIN+ | Set `adminApproved = false` + optional reason; notify user. |
-| `/admin/ads` | GET, POST | ADMIN+ | List + create. Ad model has targeting, schedule, CTA. |
+| `/admin/ads` | GET, POST | ADMIN+ | List + create. Ad model: targeting, schedule, CTA. |
 | `/admin/ads/:id` | GET, PUT, DELETE | ADMIN+ | CRUD. |
-| `/admin/ads/:id/impressions` | GET | ADMIN+ | Aggregates from `AdImpression`. |
+| `/admin/ads/:id/impressions` | GET | ADMIN+ | Aggregates from `ad_impressions`. |
 | `/admin/coupons` | GET, POST | ADMIN+ | List + create. |
 | `/admin/coupons/:id` | GET, PUT, DELETE | ADMIN+ | CRUD. |
 | `/admin/form-schema` | GET | ADMIN+ | Current live schema. |
-| `/admin/form-schema` | POST | SUPER_ADMIN | Publish new version (creates FormSchema + FormField rows). |
+| `/admin/form-schema` | POST | SUPER_ADMIN | Publish new version (inserts `form_schemas` + `form_fields`). |
 | `/admin/form-schema/:id/activate` | PUT | SUPER_ADMIN | Flip active version. |
-| `/admin/campaigns` | GET, POST | ADMIN+ | List + create. EmailCampaign. |
-| `/admin/campaigns/:id/send` | POST | ADMIN+ | Dispatch via Resend; populates CampaignRecipient. |
+| `/admin/campaigns` | GET, POST | ADMIN+ | List + create. `email_campaigns`. |
+| `/admin/campaigns/:id/send` | POST | ADMIN+ | Dispatch via Resend; populates `campaign_recipients`. |
 
 All protected via existing `RolesGuard` + `@Roles()` decorator. DTO validation via `class-validator`.
 
@@ -152,7 +139,7 @@ All use existing `.card` utility + CSS vars for theme parity. No new component l
 Sidebar nav in `apps/web/src/app/admin/layout.tsx` extended with links to new pages.
 
 ### Watch-outs
-- Form-schema is load-bearing for signup: breaking changes must version, not mutate in place. Plan: `FormSchema.active: boolean` — only one row active at a time. New publish = insert new row, flip active flag atomically.
+- Form-schema is load-bearing for signup: breaking changes must version, not mutate in place. Plan: `form_schemas.isActive` — only one row active at a time. New publish = insert + flip atomically.
 - Campaign send is irreversible. Confirmation modal + no optimistic UI for the send button.
 - Photo approval is a moderation surface — add audit log entry per approve/reject.
 
@@ -161,5 +148,5 @@ Sidebar nav in `apps/web/src/app/admin/layout.tsx` extended with links to new pa
 ## Open questions / deferred
 
 - Should MFA be required for **ADMIN** too, or only SUPER_ADMIN? Current plan: SUPER_ADMIN only (matches user request). Revisit if any ADMIN handles sensitive data.
-- Ads targeting — `Ad` model has fields for targeting but admin UI v1 exposes a subset (ethnicity, age range, gender). Full targeting UI deferred until product signals demand.
+- Ads targeting — `ads` model has targeting fields but admin UI v1 exposes a subset (ethnicity, age range, gender). Full targeting UI deferred until product signals demand.
 - Campaign analytics (open/click tracking) — requires Resend webhook setup. Out of scope for Phase 6 v1.

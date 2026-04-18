@@ -1,4 +1,5 @@
 import { createAuthClient } from "better-auth/react";
+import { twoFactorClient } from "better-auth/client/plugins";
 
 const getBaseUrl = () => {
     if (typeof window !== "undefined") return window.location.origin;
@@ -8,11 +9,13 @@ const getBaseUrl = () => {
 
 export const authClient = createAuthClient({
     baseURL: `${getBaseUrl()}/auth`,
+    plugins: [twoFactorClient()],
 });
 
 export const {
     signIn,
     signUp,
     signOut,
-    useSession
+    useSession,
+    twoFactor,
 } = authClient;

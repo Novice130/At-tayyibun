@@ -14,6 +14,7 @@ export const photos = pgTable("photos", {
 	id: uuid().primaryKey().notNull(),
 	userId: uuid("user_id").notNull(),
 	type: photoType().notNull(),
+	dataUri: text("data_uri"),
 	gcsOriginalPath: text("gcs_original_path"),
 	gcsThumbnailPath: text("gcs_thumbnail_path"),
 	gcsDisplayPath: text("gcs_display_path"),
@@ -158,7 +159,7 @@ export const users = pgTable("users", {
 	phone: varchar({ length: 20 }),
 	name: text(),
 	image: text(),
-	emailVerified: boolean().default(false).notNull(),
+	emailVerified: boolean("emailVerified").default(false).notNull(),
 	passwordHash: text("password_hash"),
 	role: role().default('USER').notNull(),
 	membershipTier: membershipTier("membership_tier").default('FREE').notNull(),
@@ -168,9 +169,7 @@ export const users = pgTable("users", {
 	rankBoost: integer("rank_boost").default(0).notNull(),
 	rankBoostedAt: timestamp("rank_boosted_at", { precision: 3, mode: 'string' }),
 	lastLoginAt: timestamp("last_login_at", { precision: 3, mode: 'string' }),
-	twoFactorSecret: text("two_factor_secret"),
 	twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
-	twoFactorBackupCodes: text("two_factor_backup_codes").array(),
 	emailVerificationToken: text("email_verification_token"),
 	emailVerificationExpiry: timestamp("email_verification_expiry", { precision: 3, mode: 'string' }),
 	emailVerifiedAt: timestamp("email_verified_at", { precision: 3, mode: 'string' }),
@@ -228,9 +227,11 @@ export const formFields = pgTable("form_fields", {
 export const emailCampaigns = pgTable("email_campaigns", {
 	id: uuid().primaryKey().notNull(),
 	createdById: uuid("created_by_id").notNull(),
+	name: varchar({ length: 150 }),
 	subject: varchar({ length: 200 }).notNull(),
 	template: text().notNull(),
 	status: campaignStatus().default('DRAFT').notNull(),
+	targetAudience: jsonb("target_audience"),
 	totalRecipients: integer("total_recipients").default(0).notNull(),
 	sentCount: integer("sent_count").default(0).notNull(),
 	scheduledAt: timestamp("scheduled_at", { precision: 3, mode: 'string' }),
@@ -303,6 +304,8 @@ export const session = pgTable("session", {
 	ipAddress: text(),
 	userAgent: text(),
 	userId: uuid().notNull(),
+	twoFactorVerified: boolean("two_factor_verified").default(false),
+	factors: text("factors"),
 }, (table) => [
 	uniqueIndex("session_token_key").using("btree", table.token.asc().nullsLast().op("text_ops")),
 	foreignKey({
@@ -394,5 +397,18 @@ export const account = pgTable("account", {
 			columns: [table.userId],
 			foreignColumns: [users.id],
 			name: "account_userId_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const twoFactor = pgTable("two_factor", {
+	id: text().primaryKey().notNull(),
+	secret: text().notNull(),
+	backupCodes: text("backup_codes").notNull(),
+	userId: uuid("user_id").notNull(),
+}, (table) => [
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "two_factor_user_id_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
 ]);

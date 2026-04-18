@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { ArrowLeft, MapPin, User, Heart, Shield, Loader, Lock, Send, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useSession } from '@/lib/auth-client';
+import { Navbar } from '@/components/Navbar';
 
 interface ProfileData {
   publicId: string;
@@ -123,28 +124,13 @@ export default function ProfileDetailPage() {
 
   return (
     <div className="min-h-screen pb-12" style={{ backgroundColor: 'var(--color-bg)' }}>
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/browse" className="flex items-center gap-2">
-              <Image
-                src="/logo.png"
-                alt="At-Tayyibun Logo"
-                width={36}
-                height={36}
-                className="rounded-full"
-              />
-              <span className="font-heading font-bold text-gradient-gold hidden sm:block">At-Tayyibun</span>
-            </Link>
-            <Link href="/browse" className="btn-secondary text-sm flex items-center gap-2">
-              <ArrowLeft className="w-4 h-4" /> Back to Browse
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       <main className="max-w-3xl mx-auto px-4 pt-24">
+        <Link href="/browse" className="inline-flex items-center gap-2 text-secondary hover:text-gold-500 mb-6 transition-colors group">
+          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+          Back to Browse
+        </Link>
         <div className="space-y-6">
           {/* Profile Header */}
           <div className="card p-8">

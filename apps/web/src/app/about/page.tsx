@@ -3,43 +3,12 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { Heart, Users, Shield, Clock, ChevronRight } from 'lucide-react';
+import { Navbar } from '@/components/Navbar';
 
 export default function AboutPage() {
   return (
     <div className="min-h-screen">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass safe-top">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center gap-3">
-              <Image
-                src="/logo.png"
-                alt="At-Tayyibun Logo"
-                width={44}
-                height={44}
-                className="rounded-full"
-              />
-              <span className="font-heading font-bold text-xl text-gradient-gold">
-                At-Tayyibun
-              </span>
-            </Link>
-            <div className="hidden md:flex items-center gap-8">
-              <Link href="/browse" className="text-gray-300 hover:text-white transition">
-                Browse
-              </Link>
-              <Link href="/about" className="text-gold-400">
-                About
-              </Link>
-              <Link href="/login" className="text-gray-300 hover:text-white transition">
-                Login
-              </Link>
-              <Link href="/signup" className="btn-primary text-sm">
-                Get Started
-              </Link>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Hero */}
       <section className="pt-32 pb-16">

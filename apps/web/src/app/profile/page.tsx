@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, LogOut, Loader, Heart, User, MapPin, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useSession, signOut } from '@/lib/auth-client';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { Navbar } from '@/components/Navbar';
 
 interface UserProfile {
   id: string;
@@ -62,10 +62,6 @@ export default function ProfilePage() {
     }
   };
 
-  const handleLogout = async () => {
-    await signOut();
-    router.push('/login');
-  };
 
   if (isPending || !session || loading) {
     return (
@@ -77,32 +73,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen pb-12" style={{ backgroundColor: 'var(--color-bg)' }}>
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/browse" className="flex items-center gap-2">
-              <Image
-                src="/logo.png"
-                alt="At-Tayyibun Logo"
-                width={36}
-                height={36}
-                className="rounded-full"
-              />
-              <span className="font-heading font-bold text-gradient-gold hidden sm:block">At-Tayyibun</span>
-            </Link>
-            <div className="flex items-center gap-4">
-               <ThemeToggle />
-               <Link href="/browse" className="btn-secondary text-sm flex items-center gap-2">
-                 <ArrowLeft className="w-4 h-4" /> Back to Browse
-               </Link>
-               <button onClick={handleLogout} className="text-red-400 hover:text-red-300">
-                 <LogOut className="w-5 h-5" />
-               </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       <main className="max-w-4xl mx-auto px-4 pt-24">
         {error ? (

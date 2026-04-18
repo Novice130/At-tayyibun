@@ -4,12 +4,17 @@ import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LayoutDashboard, Users, Settings, LogOut, Loader } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Loader, Image as ImageIcon, Megaphone, Ticket, Mail, FileJson } from 'lucide-react';
 import { useSession, signOut } from '@/lib/auth-client';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 const NAV = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/admin/photos', label: 'Photos', icon: ImageIcon },
+  { href: '/admin/ads', label: 'Ads', icon: Megaphone },
+  { href: '/admin/coupons', label: 'Coupons', icon: Ticket },
+  { href: '/admin/campaigns', label: 'Campaigns', icon: Mail },
+  { href: '/admin/schemas', label: 'Schemas', icon: FileJson },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
@@ -27,10 +32,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace('/login');
       return;
     }
+    
+    // MFA Enforcement: If enabled but not verified, redirect to challenge
+    const twoFactorVerified = (session as any)?.session?.twoFactorVerified;
+    const isMfaPage = pathname.startsWith('/admin/security');
+
+    if ((session.user as any)?.twoFactorEnabled && !twoFactorVerified && !isMfaPage) {
+      router.replace('/admin/security/challenge');
+      return;
+    }
+
     if (!isAdmin) {
       router.replace('/browse');
     }
-  }, [session, isPending, isAdmin, router]);
+  }, [session, isPending, isAdmin, role, pathname, router]);
 
   if (isPending || !session || !isAdmin) {
     return (
