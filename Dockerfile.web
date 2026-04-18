@@ -5,7 +5,7 @@
 # --- Stage 1: Install dependencies ---
 FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
-RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
 
 # Copy workspace config (hoisted node-linker puts everything in root node_modules)
@@ -16,7 +16,7 @@ RUN pnpm install --frozen-lockfile
 
 # --- Stage 2: Build the Next.js app ---
 FROM node:20-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
 
 # With hoisted node-linker, all deps are in root node_modules
