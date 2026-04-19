@@ -3,8 +3,6 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { UsersModule } from '../users/users.module';
-import { AuditService } from '../../services/audit.service';
-import { EncryptionService } from '../../services/encryption.service';
 
 @Module({
   imports: [
@@ -12,8 +10,7 @@ import { EncryptionService } from '../../services/encryption.service';
     UsersModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuditService, EncryptionService],
+  providers: [AuthService],
   exports: [AuthService],
 })
 export class AuthModule {}
-

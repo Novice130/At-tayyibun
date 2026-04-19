@@ -5,6 +5,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { BullModule } from '@nestjs/bullmq';
 // Core modules
 import { DrizzleModule } from "./db/drizzle.module";
+import { SharedServicesModule } from "./services/shared-services.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { UsersModule } from "./modules/users/users.module";
 import { ProfilesModule } from "./modules/profiles/profiles.module";
@@ -19,13 +20,6 @@ import {
   MembershipsModule,
   CampaignsModule,
 } from "./modules/stub-modules";
-
-// Services
-import { EncryptionService } from "./services/encryption.service";
-import { EmailService } from "./services/email.service";
-import { StorageService } from "./services/storage.service";
-import { AvatarService } from "./services/avatar.service";
-import { AuditService } from "./services/audit.service";
 
 // Guards & Interceptors
 import { BetterAuthGuard } from "./common/guards/better-auth.guard";
@@ -72,6 +66,9 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     // Database
     DrizzleModule,
 
+    // Global shared services (Encryption, Email, Storage, Avatar, Audit)
+    SharedServicesModule,
+
     // Feature modules
     AuthModule,
     UsersModule,
@@ -86,13 +83,6 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     // CampaignsModule,
   ],
   providers: [
-    // Global services
-    EncryptionService,
-    EmailService,
-    StorageService,
-    AvatarService,
-    AuditService,
-
     // Global guards (deny-by-default)
     {
       provide: APP_GUARD,
@@ -108,13 +98,6 @@ import { ThrottlerGuard } from "@nestjs/throttler";
       provide: APP_INTERCEPTOR,
       useClass: AuditLogInterceptor,
     },
-  ],
-  exports: [
-    EncryptionService,
-    EmailService,
-    StorageService,
-    AvatarService,
-    AuditService,
   ],
 })
 export class AppModule {}
