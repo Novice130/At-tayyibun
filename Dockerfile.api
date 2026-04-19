@@ -1,8 +1,9 @@
 # ============================================================
 # At-Tayyibun - NestJS API (Production)
+# Single-install, serial stages. No parallel pnpm thrash.
 # ============================================================
 
-# --- Stage 1: Install ALL deps (for building) ---
+# --- Stage 1: Install deps once (cached) ---
 FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat python3 make g++
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
@@ -11,41 +12,35 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY apps/api/package.json ./apps/api/package.json
 COPY apps/web/package.json ./apps/web/package.json
-RUN pnpm install --frozen-lockfile
 
-# --- Stage 2: Build the NestJS app ---
-FROM node:20-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+# Throttle concurrency so small VPS network doesn't stall.
+RUN pnpm config set network-concurrency 4 \
+ && pnpm install --frozen-lockfile --prefer-offline
+
+# --- Stage 2: Build NestJS (reuse deps, no second install) ---
+FROM deps AS builder
 WORKDIR /app
-
-COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN cd apps/api && pnpm build
 
-# --- Stage 3: Production deps only (slim) ---
-FROM node:20-alpine AS prod-deps
-RUN apk add --no-cache libc6-compat python3 make g++
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
+# --- Stage 3: Production slim node_modules via pnpm deploy ---
+FROM deps AS prod-deps
 WORKDIR /app
+RUN pnpm --filter=@at-tayyibun/api deploy --prod --legacy /out
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
-COPY apps/api/package.json ./apps/api/package.json
-COPY apps/web/package.json ./apps/web/package.json
-RUN pnpm install --frozen-lockfile --prod
-
-# --- Stage 4: Production runner ---
+# --- Stage 4: Runner ---
 FROM node:20-alpine AS runner
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 ENV NODE_ENV=production
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nestjs
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 nestjs
 
 COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/package.json ./package.json
-COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=prod-deps /out/package.json ./package.json
+COPY --from=prod-deps /out/node_modules ./node_modules
 
 USER nestjs
 

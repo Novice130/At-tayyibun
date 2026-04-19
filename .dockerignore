@@ -1,6 +1,60 @@
-# Temp files
+# ======================================================
+# Build context exclusions — keep context small + clean
+# ======================================================
+
+# Deps (must install fresh in image)
+node_modules
+**/node_modules
+
+# Build artifacts
+dist
+**/dist
+.next
+**/.next
+build
+**/build
+coverage
+**/coverage
+
+# VCS + IDE
+.git
+.gitignore
+.vscode
+.idea
+*.swp
+
+# Env / secrets (never ship to image)
+.env
+.env.*
+!.env.example
+
+# Logs / temp
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
 temp_*/
+tmp
+.cache
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Tests + docs (not needed at runtime)
 test-*.ts
+*.test.ts
+*.spec.ts
 *.bak
-homepage_screenshot.png
-login_screenshot.png
+
+# Screenshots / binaries
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# Dokploy / CI
+.github
+.dockerignore
+docker-compose.yml
+README.md
