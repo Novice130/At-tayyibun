@@ -16,26 +16,24 @@ import { AdminSchemasService } from './services/admin-schemas.service';
 
 @Module({
   imports: [
-    BullModule.registerQueue({
-      name: 'email-campaign-queue',
-    }),
+    BullModule.registerQueue({ name: 'email-campaign-queue' }),
   ],
   controllers: [
-    AdminController, 
-    AdminPhotosController, 
-    AdminAdsController, 
+    AdminController,
+    AdminPhotosController,
+    AdminAdsController,
     AdminCouponsController,
     AdminCampaignsController,
-    AdminSchemasController
+    AdminSchemasController,
   ],
   providers: [
-    AdminService, 
-    AdminPhotosService, 
-    AdminAdsService, 
+    AdminService,
+    AdminPhotosService,
+    AdminAdsService,
     AdminCouponsService,
     AdminCampaignsService,
     EmailCampaignProcessor,
-    AdminSchemasService
+    AdminSchemasService,
   ],
   exports: [AdminService],
 })

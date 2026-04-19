@@ -39,6 +39,10 @@ import { ThrottlerGuard } from "@nestjs/throttler";
       useFactory: async (configService: ConfigService) => ({
         connection: {
           url: configService.get('REDIS_URL') || 'redis://localhost:6379',
+          lazyConnect: true,
+          enableOfflineQueue: true,
+          maxRetriesPerRequest: null,
+          reconnectOnError: () => 2,
         },
       }),
       inject: [ConfigService],
