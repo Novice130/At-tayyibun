@@ -47,3 +47,6 @@ infra/.terraform.lock.hcl
 *.pem
 *.key
 service-account.json
+
+# Claude
+.claude/
