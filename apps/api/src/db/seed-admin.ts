@@ -35,22 +35,38 @@ async function main() {
   if (existing) {
     console.log(`✓ ${ADMIN_EMAIL} already exists. Updating role and password...`);
     await db.update(schema.users)
-      .set({ 
+      .set({
         role: 'SUPER_ADMIN',
         passwordHash,
-        updatedAt: now
+        updatedAt: now,
       })
       .where(eq(schema.users.id, existing.id));
 
-    // Also update the account table if it exists
-    await db.update(schema.account)
-      .set({ 
-        password: passwordHash,
-        updatedAt: now
-      })
-      .where(eq(schema.account.userId, existing.id));
+    // Upsert the credential account — create it if missing, update if present
+    const [acct] = await db
+      .select({ id: schema.account.id })
+      .from(schema.account)
+      .where(eq(schema.account.userId, existing.id))
+      .limit(1);
 
-    console.log(`✓ Updated roles and credentials for ${ADMIN_EMAIL}`);
+    if (acct) {
+      await db.update(schema.account)
+        .set({ password: passwordHash, updatedAt: now })
+        .where(eq(schema.account.userId, existing.id));
+      console.log(`✓ Updated account password for ${ADMIN_EMAIL}`);
+    } else {
+      await db.insert(schema.account).values({
+        id: randomUUID(),
+        accountId: existing.id,
+        providerId: 'credential',
+        userId: existing.id,
+        password: passwordHash,
+        createdAt: now,
+        updatedAt: now,
+      });
+      console.log(`✓ Created missing credential account for ${ADMIN_EMAIL}`);
+    }
+
     await pool.end();
     return;
   }

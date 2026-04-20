@@ -17,22 +17,39 @@ async function checkAdmin() {
 
   try {
     const client = await pool.connect();
-    const res = await client.query('SELECT id, email, role, is_verified, two_factor_enabled FROM users WHERE email = $1', [adminEmail]);
-    client.release();
+    try {
+      const res = await client.query(
+        'SELECT id, email, role, is_verified, two_factor_enabled FROM users WHERE email = $1',
+        [adminEmail],
+      );
 
-    if (res.rows.length > 0) {
+      if (res.rows.length === 0) {
+        console.log('User NOT found!');
+        return;
+      }
+
       console.log('User found:');
       console.log(JSON.stringify(res.rows[0], null, 2));
 
-      const accountRes = await client.query('SELECT * FROM account WHERE "userId" = $1', [res.rows[0].id]);
+      const accountRes = await client.query(
+        'SELECT id, "accountId", "providerId", "userId", password IS NOT NULL as has_password, "createdAt" FROM account WHERE "userId" = $1',
+        [res.rows[0].id],
+      );
+
       if (accountRes.rows.length > 0) {
         console.log('Account found:');
         console.log(JSON.stringify(accountRes.rows[0], null, 2));
+        const credAccount = accountRes.rows.find((r: any) => r.providerId === 'credential');
+        if (credAccount) {
+          console.log(`✓ Credential account exists. has_password=${credAccount.has_password}`);
+        } else {
+          console.log('⚠ No credential account found (no email/password login possible)!');
+        }
       } else {
-        console.log('Account NOT found for this user!');
+        console.log('✗ Account NOT found — run: pnpm --filter @at-tayyibun/api seed:admin');
       }
-    } else {
-      console.log('User NOT found!');
+    } finally {
+      client.release();
     }
   } catch (err) {
     console.error('Error querying database:', err);
