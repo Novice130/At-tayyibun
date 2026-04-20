@@ -301,6 +301,8 @@ export const session = pgTable("session", {
 	ipAddress: text("ipAddress"),
 	userAgent: text("userAgent"),
 	userId: uuid("userId").notNull(),
+	twoFactorVerified: boolean("two_factor_verified").default(false),
+	factors: text("factors"),
 }, (table) => [
 	uniqueIndex("session_token_key").using("btree", table.token.asc().nullsLast().op("text_ops")),
 	foreignKey({
