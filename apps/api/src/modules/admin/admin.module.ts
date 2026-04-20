@@ -10,7 +10,6 @@ import { AdminCouponsController } from './controllers/admin-coupons.controller';
 import { AdminCouponsService } from './services/admin-coupons.service';
 import { AdminCampaignsController } from './controllers/admin-campaigns.controller';
 import { AdminCampaignsService } from './services/admin-campaigns.service';
-import { EmailCampaignProcessor } from './processors/email-campaign.processor';
 import { AdminSchemasController } from './controllers/admin-schemas.controller';
 import { AdminSchemasService } from './services/admin-schemas.service';
 
@@ -32,7 +31,6 @@ import { AdminSchemasService } from './services/admin-schemas.service';
     AdminAdsService,
     AdminCouponsService,
     AdminCampaignsService,
-    EmailCampaignProcessor,
     AdminSchemasService,
   ],
   exports: [AdminService],
