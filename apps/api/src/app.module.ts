@@ -36,15 +36,21 @@ import { ThrottlerGuard } from "@nestjs/throttler";
 
     BullModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        connection: {
-          url: configService.get('REDIS_URL') || 'redis://localhost:6379',
-          lazyConnect: true,
-          enableOfflineQueue: true,
-          maxRetriesPerRequest: null,
-          reconnectOnError: () => 2,
-        },
-      }),
+      useFactory: async (configService: ConfigService) => {
+        const raw = configService.get<string>('REDIS_URL') || 'redis://localhost:6379';
+        const { hostname, port, password, pathname } = new URL(raw);
+        return {
+          connection: {
+            host: hostname,
+            port: parseInt(port, 10) || 6379,
+            ...(password && { password: decodeURIComponent(password) }),
+            db: parseInt(pathname?.slice(1) || '0', 10) || 0,
+            lazyConnect: true,
+            maxRetriesPerRequest: null,
+            enableOfflineQueue: false,
+          },
+        };
+      },
       inject: [ConfigService],
     }),
 

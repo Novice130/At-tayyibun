@@ -158,7 +158,7 @@ export const users = pgTable("users", {
 	phone: varchar({ length: 20 }),
 	name: text(),
 	image: text(),
-	emailVerified: boolean().default(false).notNull(),
+	emailVerified: boolean("emailVerified").default(false).notNull(),
 	passwordHash: text("password_hash"),
 	role: role().default('USER').notNull(),
 	membershipTier: membershipTier("membership_tier").default('FREE').notNull(),
@@ -294,13 +294,13 @@ export const skipReasonOptions = pgTable("skip_reason_options", {
 
 export const session = pgTable("session", {
 	id: uuid().primaryKey().notNull(),
-	expiresAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	expiresAt: timestamp("expiresAt", { precision: 3, mode: 'string' }).notNull(),
 	token: text().notNull(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-	ipAddress: text(),
-	userAgent: text(),
-	userId: uuid().notNull(),
+	createdAt: timestamp("createdAt", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updatedAt", { precision: 3, mode: 'string' }).notNull(),
+	ipAddress: text("ipAddress"),
+	userAgent: text("userAgent"),
+	userId: uuid("userId").notNull(),
 }, (table) => [
 	uniqueIndex("session_token_key").using("btree", table.token.asc().nullsLast().op("text_ops")),
 	foreignKey({
@@ -314,9 +314,9 @@ export const verification = pgTable("verification", {
 	id: uuid().primaryKey().notNull(),
 	identifier: text().notNull(),
 	value: text().notNull(),
-	expiresAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }),
+	expiresAt: timestamp("expiresAt", { precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("createdAt", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`),
+	updatedAt: timestamp("updatedAt", { precision: 3, mode: 'string' }),
 });
 
 export const profiles = pgTable("profiles", {
@@ -375,18 +375,18 @@ export const auditLogs = pgTable("audit_logs", {
 
 export const account = pgTable("account", {
 	id: uuid().primaryKey().notNull(),
-	accountId: text().notNull(),
-	providerId: text().notNull(),
-	userId: uuid().notNull(),
-	accessToken: text(),
-	refreshToken: text(),
-	idToken: text(),
-	accessTokenExpiresAt: timestamp({ precision: 3, mode: 'string' }),
-	refreshTokenExpiresAt: timestamp({ precision: 3, mode: 'string' }),
+	accountId: text("accountId").notNull(),
+	providerId: text("providerId").notNull(),
+	userId: uuid("userId").notNull(),
+	accessToken: text("accessToken"),
+	refreshToken: text("refreshToken"),
+	idToken: text("idToken"),
+	accessTokenExpiresAt: timestamp("accessTokenExpiresAt", { precision: 3, mode: 'string' }),
+	refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt", { precision: 3, mode: 'string' }),
 	scope: text(),
 	password: text(),
-	createdAt: timestamp({ precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
-	updatedAt: timestamp({ precision: 3, mode: 'string' }).notNull(),
+	createdAt: timestamp("createdAt", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updatedAt", { precision: 3, mode: 'string' }).notNull(),
 }, (table) => [
 	foreignKey({
 			columns: [table.userId],
