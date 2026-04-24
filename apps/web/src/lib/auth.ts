@@ -31,8 +31,10 @@ export const auth = betterAuth({
     twoFactor({
       otpOptions: {
         async sendOTP({ user, otp }) {
-          if (!process.env.RESEND_API_KEY) return;
-          await fetch("https://api.resend.com/emails", {
+          if (!process.env.RESEND_API_KEY) {
+            throw new Error("RESEND_API_KEY not set; cannot send 2FA email");
+          }
+          const res = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -44,7 +46,11 @@ export const auth = betterAuth({
               subject: "Your Authentication Code - At-Tayyibun",
               html: `<p>Your code is <strong>${otp}</strong>. It is valid for 5 minutes. Do not share this code.</p>`,
             }),
-          }).catch(console.error);
+          });
+          if (!res.ok) {
+            const body = await res.text().catch(() => "");
+            throw new Error(`Resend ${res.status}: ${body.slice(0, 200)}`);
+          }
         },
       },
     }),
