@@ -58,7 +58,7 @@ export default function LoginForm() {
           <div className="text-center mb-8">
             <Link href="/" className="inline-flex items-center gap-2 mb-6">
               <Image
-                src="/logo.png"
+                src="/at-tayyibun-logo.png"
                 alt="At-Tayyibun Logo"
                 width={44}
                 height={44}

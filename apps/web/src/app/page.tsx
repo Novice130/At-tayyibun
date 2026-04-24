@@ -58,6 +58,25 @@ export default function HomePage() {
         <div className="absolute inset-0 dark:bg-gradient-dark" style={{ background: 'var(--color-bg)' }} />
         <div className="absolute inset-0 dark:bg-gradient-glow" />
 
+        {/* Mobile only: hero image as full background */}
+        <div className="absolute inset-0 lg:hidden">
+          <Image
+            src="/hero-couple-sunset.png"
+            alt=""
+            fill
+            className="object-cover object-[center_20%] scale-[1.18]"
+            priority
+          />
+          {/* Light-mode overlay — fades image into page color at bottom */}
+          <div className="absolute inset-0 dark:hidden" style={{
+            background: 'linear-gradient(180deg, rgba(250,248,245,0.15) 0%, rgba(250,248,245,0.5) 38%, rgba(250,248,245,0.9) 62%, #FAF8F5 80%)'
+          }} />
+          {/* Dark-mode overlay */}
+          <div className="absolute inset-0 hidden dark:block" style={{
+            background: 'linear-gradient(180deg, rgba(15,15,26,0.15) 0%, rgba(15,15,26,0.5) 38%, rgba(15,15,26,0.9) 62%, #0f0f1a 80%)'
+          }} />
+        </div>
+
         {/* Decorative elements */}
         <div className="absolute top-20 right-10 w-72 h-72 rounded-full opacity-20"
           style={{ background: 'radial-gradient(circle, var(--color-gold-500) 0%, transparent 70%)' }}
@@ -127,22 +146,43 @@ export default function HomePage() {
 
             {/* Right: Hero Image */}
             <div className="hidden lg:flex justify-center animate-slide-up">
-              <div className="relative w-96 h-96">
-                {/* Decorative ring */}
-                <div className="absolute inset-0 rounded-full animate-pulse-gold"
-                  style={{ border: '2px solid var(--color-gold-500)', opacity: 0.3 }}
+              <div className="relative w-[460px] h-[460px]">
+                {/* Gold ambient glow */}
+                <div
+                  className="absolute -inset-8 blur-3xl opacity-25 pointer-events-none"
+                  style={{ background: 'radial-gradient(circle at center, var(--color-gold-500) 0%, transparent 65%)' }}
                 />
-                <div className="absolute inset-4 rounded-full overflow-hidden shadow-gold">
+                {/* Image — overflow-hidden + scale crops the decorative border */}
+                <div className="relative w-full h-full rounded-3xl overflow-hidden">
                   <Image
-                    src="/hero-couple.png"
-                    alt="Muslim couple illustration"
+                    src="/hero-couple-sunset.png"
+                    alt="Muslim couple overlooking a coastal sunset together"
                     fill
-                    className="object-cover"
+                    className="object-cover scale-[1.18] origin-center"
                     priority
+                  />
+                  {/* Bottom page-blend gradient */}
+                  <div
+                    className="absolute bottom-0 left-0 right-0 h-28 pointer-events-none"
+                    style={{ background: 'linear-gradient(to top, var(--color-bg) 0%, transparent 100%)' }}
+                  />
+                  {/* Subtle side fades */}
+                  <div
+                    className="absolute inset-y-0 left-0 w-12 pointer-events-none"
+                    style={{ background: 'linear-gradient(to right, var(--color-bg) 0%, transparent 100%)' }}
+                  />
+                  <div
+                    className="absolute inset-y-0 right-0 w-12 pointer-events-none"
+                    style={{ background: 'linear-gradient(to left, var(--color-bg) 0%, transparent 100%)' }}
+                  />
+                  {/* Top fade */}
+                  <div
+                    className="absolute top-0 left-0 right-0 h-12 pointer-events-none"
+                    style={{ background: 'linear-gradient(to bottom, var(--color-bg) 0%, transparent 100%)' }}
                   />
                 </div>
                 {/* Floating badge */}
-                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 card px-4 py-2 flex items-center gap-2 shadow-soft">
+                <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 card px-4 py-2 flex items-center gap-2 shadow-soft whitespace-nowrap z-10">
                   <Sparkles className="w-4 h-4" style={{ color: 'var(--color-gold-500)' }} />
                   <span className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>Halal Connections</span>
                 </div>
@@ -274,7 +314,7 @@ export default function HomePage() {
             {/* Logo */}
             <div className="flex items-center gap-3">
               <Image
-                src="/logo.png"
+                src="/at-tayyibun-logo.png"
                 alt="At-Tayyibun Logo"
                 width={36}
                 height={36}

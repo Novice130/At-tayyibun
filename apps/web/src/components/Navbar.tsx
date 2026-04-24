@@ -39,7 +39,7 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2 group transition-transform hover:scale-105 active:scale-95">
             <Image
-              src="/logo.png"
+              src="/at-tayyibun-logo.png"
               alt="At-Tayyibun Logo"
               width={36}
               height={36}

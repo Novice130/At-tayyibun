@@ -37,7 +37,7 @@ function VerifyEmailContent() {
       <div className="w-full max-w-md text-center">
         <Link href="/" className="inline-flex items-center gap-2 mb-8">
           <Image
-            src="/logo.png"
+            src="/at-tayyibun-logo.png"
             alt="At-Tayyibun Logo"
             width={48}
             height={48}

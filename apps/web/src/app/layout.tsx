@@ -35,8 +35,8 @@ export default function RootLayout({
   return (
     <html lang="en" className="light" suppressHydrationWarning>
       <head>
-        <link rel="icon" type="image/png" href="/logo.png" />
-        <link rel="apple-touch-icon" href="/logo.png" />
+        <link rel="icon" type="image/png" href="/at-tayyibun-logo.png" />
+        <link rel="apple-touch-icon" href="/at-tayyibun-logo.png" />
         {/* Prevent flash of wrong theme */}
         <script
           dangerouslySetInnerHTML={{
@@ -58,7 +58,7 @@ export default function RootLayout({
               name: 'At-Tayyibun',
               description: 'Privacy-first Muslim matrimony platform in the United States',
               url: 'https://attayyibun.com',
-              logo: 'https://attayyibun.com/logo.png',
+              logo: 'https://attayyibun.com/at-tayyibun-logo.png',
               sameAs: [],
             }),
           }}

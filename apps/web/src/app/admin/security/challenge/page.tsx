@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShieldCheck, Mail, Loader2, RefreshCw } from 'lucide-react';
 import { twoFactor, useSession } from '@/lib/auth-client';
@@ -13,13 +13,30 @@ export default function MFAChallengePage() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [timer, setTimer] = useState(0);
+  const otpSentRef = useRef(false);
 
-  // Trigger OTP send on mount if session exists and is email MFA
+  const handleResend = useCallback(async () => {
+    if (timer > 0 || resending) return;
+    setResending(true);
+    try {
+      const { error } = await twoFactor.sendOtp();
+      if (error) throw error;
+      toast.info('Verification code sent to your email');
+      setTimer(60);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send code. Please try again later.');
+    } finally {
+      setResending(false);
+    }
+  }, [timer, resending]);
+
+  // Send OTP once on mount when session is ready
   useEffect(() => {
-    if (session?.user && (session.user as any).twoFactorEnabled) {
+    if (session?.user && (session.user as any).twoFactorEnabled && !otpSentRef.current) {
+      otpSentRef.current = true;
       handleResend();
     }
-  }, [session]);
+  }, [session, handleResend]);
 
   useEffect(() => {
     if (timer > 0) {
@@ -36,7 +53,7 @@ export default function MFAChallengePage() {
     try {
       const { data, error } = await twoFactor.verifyOtp({ code });
       if (error) throw error;
-      
+
       toast.success('Identity verified');
       await refetch();
       router.replace('/admin');
@@ -44,21 +61,6 @@ export default function MFAChallengePage() {
       toast.error(err.message || 'Invalid verification code');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    if (timer > 0 || resending) return;
-    setResending(true);
-    try {
-      const { error } = await twoFactor.sendOtp();
-      if (error) throw error;
-      toast.info('Verification code sent to your email');
-      setTimer(60);
-    } catch (err: any) {
-      toast.error('Failed to send code. Please try again later.');
-    } finally {
-      setResending(false);
     }
   };
 

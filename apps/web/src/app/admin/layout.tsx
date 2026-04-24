@@ -71,7 +71,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       >
         <div className="p-6 border-b" style={{ borderColor: 'var(--color-border)' }}>
           <Link href="/admin" className="flex items-center gap-2">
-            <Image src="/logo.png" alt="At-Tayyibun" width={36} height={36} className="rounded-full" />
+            <Image src="/at-tayyibun-logo.png" alt="At-Tayyibun" width={36} height={36} className="rounded-full" />
             <div>
               <div className="font-heading font-bold text-gradient-gold leading-tight">At-Tayyibun</div>
               <div className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>

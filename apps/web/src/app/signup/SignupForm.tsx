@@ -154,7 +154,7 @@ export default function SignupForm() {
         <div className="w-full max-w-lg">
           <div className="text-center mb-8">
             <Link href="/" className="inline-flex items-center gap-2 mb-6">
-              <Image src="/logo.png" alt="At-Tayyibun" width={40} height={40} className="rounded-full" priority />
+              <Image src="/at-tayyibun-logo.png" alt="At-Tayyibun" width={40} height={40} className="rounded-full" priority />
               <span className="font-heading font-bold text-xl text-gradient-gold">At-Tayyibun</span>
             </Link>
             <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>I am creating this profile as...</h1>
@@ -396,7 +396,7 @@ export default function SignupForm() {
               <ChevronLeft className="w-4 h-4" /> Change role
             </button>
             <Link href="/" className="inline-flex items-center gap-2 mb-6">
-              <Image src="/logo.png" alt="At-Tayyibun" width={40} height={40} className="rounded-full" priority />
+              <Image src="/at-tayyibun-logo.png" alt="At-Tayyibun" width={40} height={40} className="rounded-full" priority />
               <span className="font-heading font-bold text-xl text-gradient-gold">At-Tayyibun</span>
             </Link>
             <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>
@@ -551,7 +551,7 @@ export default function SignupForm() {
       <div className="hidden lg:flex flex-1 bg-gradient-purple items-center justify-center p-12">
         <div className="max-w-md text-center">
           <Image
-            src="/logo.png"
+            src="/at-tayyibun-logo.png"
             alt="At-Tayyibun"
             width={96}
             height={96}
