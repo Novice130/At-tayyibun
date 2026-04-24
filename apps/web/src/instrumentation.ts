@@ -4,7 +4,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     Sentry.init({
       dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN,
-      tracesSampleRate: 1,
+      tracesSampleRate: 0.1,
       debug: false,
     });
   }
@@ -12,7 +12,7 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'edge') {
     Sentry.init({
       dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN,
-      tracesSampleRate: 1,
+      tracesSampleRate: 0.1,
       debug: false,
     });
   }
