@@ -51,7 +51,7 @@ export const auth = betterAuth({
   ],
   logger: {
     level: "debug",
-    onLog(level, message, error) {
+    onLog(level: string, message: string, error?: unknown) {
       if (level === "error" && error) {
         import("@sentry/nextjs").then((Sentry) => {
           Sentry.captureException(error, {
