@@ -220,7 +220,8 @@ export class EmailService {
       </head>
       <body style="font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f0f0f0;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); color: white; padding: 24px; text-align: center; border-radius: 12px 12px 0 0;">
+          <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); color: white; padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+            <img src="${this.webUrl}/at-tayyibun-logo.png" alt="At-Tayyibun Logo" style="width: 80px; height: 80px; margin-bottom: 16px; object-fit: contain;" />
             <h1 style="margin: 0; font-size: 28px; letter-spacing: 1px;">
               <span style="color: #D4AF37;">At-Tayyibun</span>
             </h1>
