@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, Users } from 'lucide-react';
 import Image from 'next/image';
 import { signUp } from '@/lib/auth-client';
+import * as Sentry from '@sentry/nextjs';
+
 
 const MALE_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/male/male-${i + 1}.jpg`);
 const FEMALE_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/female/female-${i + 1}.jpg`);
@@ -111,6 +113,15 @@ export default function SignupForm() {
       setTimeout(() => router.push('/browse'), 2000);
     } catch (err: any) {
       console.error('Signup error:', err);
+      Sentry.captureException(err, {
+        extra: {
+          email: formData.email,
+          firstName: formData.firstName,
+          gender: formData.gender,
+          creatorRole: formData.creatorRole,
+          authAction: 'signUp.email',
+        },
+      });
       setError(err.message || 'Failed to create account. Please try again.');
     } finally {
       setIsLoading(false);

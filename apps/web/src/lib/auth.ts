@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { twoFactor } from "better-auth/plugins";
+import { randomUUID } from "crypto";
 import { db } from "./db";
 import * as schema from "./db-schema";
 
@@ -48,10 +49,21 @@ export const auth = betterAuth({
       },
     }),
   ],
-  logger: { level: "debug" },
+  logger: {
+    level: "debug",
+    onLog(level, message, error) {
+      if (level === "error" && error) {
+        import("@sentry/nextjs").then((Sentry) => {
+          Sentry.captureException(error, {
+            extra: { message, level },
+          });
+        });
+      }
+    },
+  },
   advanced: {
     database: {
-      generateId: "uuid",
+      generateId: () => randomUUID(),
     },
   },
   databaseHooks: {

@@ -6,8 +6,8 @@
 
 This is a monorepo powered by [Turborepo](https://turbo.build/) containing:
 
-- **`apps/web`** - Next.js 14 frontend (App Router + TypeScript + TailwindCSS)
-- **`apps/api`** - NestJS backend (REST API + Drizzle ORM + PostgreSQL)
+- **`apps/web`** - Next.js 15 frontend (App Router + TypeScript + CSS + Sentry)
+- **`apps/api`** - NestJS backend (REST API + Drizzle ORM + PostgreSQL + Better Auth)
 - **`packages/shared`** - Shared TypeScript types and utilities
 - **`jobs/`** - Cloud Run background jobs
 - **`infra/`** - Terraform infrastructure-as-code
@@ -78,7 +78,7 @@ at-tayyibun/
 - **Passwords**: Hashed with Argon2id
 - **Biodata**: Encrypted with AES-256-GCM before storage
 - **Photos**: Private by default, accessed via signed URLs
-- **Auth**: JWT with Firebase/Identity Platform
+- **Auth**: Better Auth with Argon2id hashing and multi-factor support
 - **Rate Limiting**: Redis-backed per-endpoint limits
 - **Headers**: HSTS, CSP, X-Frame-Options configured
 
