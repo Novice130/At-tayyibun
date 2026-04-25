@@ -84,9 +84,12 @@ export default function ProfileSetupPage() {
     if (!session) return;
     api.get('/profiles/me')
       .then((data: any) => {
-        if (data?.profile) {
-          const p = data.profile;
-          setGender(p.gender ?? null);
+        if (!data?.profile) return;
+        const p = data.profile;
+        setGender(p.gender ?? null);
+        // Pre-seed (signup) profiles have placeholder dob/ethnicity — only trust
+        // those fields once the user has completed the wizard at least once.
+        if (p.profileComplete) {
           setForm(f => ({
             ...f,
             firstName: p.firstName || f.firstName,
@@ -95,6 +98,8 @@ export default function ProfileSetupPage() {
             ethnicity: p.ethnicity || f.ethnicity,
             dob: p.dob || f.dob,
           }));
+        } else {
+          setForm(f => ({ ...f, firstName: p.firstName || f.firstName }));
         }
       })
       .catch(() => { /* no existing profile, start fresh */ });

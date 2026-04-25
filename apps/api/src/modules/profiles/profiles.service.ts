@@ -220,13 +220,16 @@ export class ProfilesService {
       if (data.bio) updateData.bioEnc = this.encryptionService.encrypt(data.bio);
       if (data.biodata) updateData.biodataJsonEnc = this.encryptionService.encryptJson(data.biodata);
 
-      const isComplete = !!(
-        data.firstName ||
-        (existingProfile?.firstName && data.lastName) ||
-        (existingProfile?.lastNameEnc && data.dob) ||
-        (existingProfile?.dob && data.ethnicity) ||
-        existingProfile?.ethnicity
-      );
+      // Profile is complete when every required field is present after this update.
+      const after = {
+        firstName: data.firstName ?? existingProfile?.firstName,
+        lastName: data.lastName ?? existingProfile?.lastNameEnc,
+        dob: data.dob ?? existingProfile?.dob,
+        gender: data.gender ?? existingProfile?.gender,
+        ethnicity: data.ethnicity ?? existingProfile?.ethnicity,
+        bio: data.bio ?? existingProfile?.bioEnc,
+      };
+      const isComplete = !!(after.firstName && after.lastName && after.dob && after.gender && after.ethnicity && after.bio);
       updateData.profileComplete = isComplete;
       updateData.publicFields = { 
         bio: data.bio ? data.bio.substring(0, 200) : null,

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, Users } from 'lucide-react';
 import Image from 'next/image';
 import { signUp } from '@/lib/auth-client';
+import { api } from '@/lib/api';
 // Sentry temporarily disabled.
 // import * as Sentry from '@sentry/nextjs';
 
@@ -108,6 +109,16 @@ export default function SignupForm() {
 
       if (authError) {
         throw new Error(authError.message);
+      }
+
+      // Seed profile row with gender + firstName so setup wizard pre-fills.
+      try {
+        await api.put('/profiles/me', {
+          firstName: formData.firstName,
+          gender: formData.gender,
+        });
+      } catch (seedErr) {
+        console.warn('Profile pre-seed failed; setup wizard will collect gender again.', seedErr);
       }
 
       setSuccess(true);
