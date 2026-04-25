@@ -110,7 +110,7 @@ export default function SignupForm() {
       }
 
       setSuccess(true);
-      setTimeout(() => router.push('/browse'), 2000);
+      setTimeout(() => router.push('/profile/setup'), 2000);
     } catch (err: any) {
       console.error('Signup error:', err);
       Sentry.captureException(err, {
@@ -137,10 +137,10 @@ export default function SignupForm() {
           </div>
           <h1 className="font-heading text-3xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Account Created!</h1>
           <p className="mb-8" style={{ color: 'var(--color-text-secondary)' }}>
-            Welcome! Redirecting you to browse profiles...
+            Welcome! Setting up your profile next...
           </p>
-          <Link href="/browse" className="btn-primary inline-block">
-            Go to Browse
+          <Link href="/profile/setup" className="btn-primary inline-block">
+            Complete Profile
           </Link>
         </div>
       </div>

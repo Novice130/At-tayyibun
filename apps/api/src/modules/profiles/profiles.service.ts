@@ -171,9 +171,12 @@ export class ProfilesService {
             dob: profile.dob,
             age: this.calculateAgeFromString(profile.dob),
             gender: profile.gender,
-            ethnicity: profile.ethnicity,
-            city: profile.city,
-            state: profile.state,
+      ethnicity: profile.ethnicity,
+      city:
+        profile.publicFields && typeof profile.publicFields === 'object' && (profile.publicFields as any)['hideLocation']
+          ? null
+          : profile.city,
+      state: profile.state,
             bio: profile.bioEnc ? this.encryptionService.decrypt(profile.bioEnc) : null,
             biodata,
             profileComplete: profile.profileComplete,
@@ -202,52 +205,61 @@ export class ProfilesService {
       biodata?: Record<string, unknown>;
     },
   ) {
-    const db = this.drizzle.db;
-    const [existingProfile] = await db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
+    try {
+      const db = this.drizzle.db;
+      const [existingProfile] = await db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
 
-    const updateData: Record<string, unknown> = { updatedAt: new Date().toISOString() };
-    if (data.firstName) updateData.firstName = data.firstName;
-    if (data.lastName) updateData.lastNameEnc = this.encryptionService.encrypt(data.lastName);
-    if (data.dob) updateData.dob = data.dob.toISOString().slice(0, 10);
-    if (data.gender) updateData.gender = data.gender;
-    if (data.ethnicity) updateData.ethnicity = data.ethnicity;
-    if (data.city) updateData.city = data.city;
-    if (data.state) updateData.state = data.state;
-    if (data.bio) updateData.bioEnc = this.encryptionService.encrypt(data.bio);
-    if (data.biodata) updateData.biodataJsonEnc = this.encryptionService.encryptJson(data.biodata);
+      const updateData: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+      if (data.firstName) updateData.firstName = data.firstName;
+      if (data.lastName) updateData.lastNameEnc = this.encryptionService.encrypt(data.lastName);
+      if (data.dob) updateData.dob = data.dob.toISOString().slice(0, 10);
+      if (data.gender) updateData.gender = data.gender;
+      if (data.ethnicity) updateData.ethnicity = data.ethnicity;
+      if (data.city) updateData.city = data.city;
+      if (data.state) updateData.state = data.state;
+      if (data.bio) updateData.bioEnc = this.encryptionService.encrypt(data.bio);
+      if (data.biodata) updateData.biodataJsonEnc = this.encryptionService.encryptJson(data.biodata);
 
-    const isComplete = !!(
-      data.firstName ||
-      (existingProfile?.firstName && data.lastName) ||
-      (existingProfile?.lastNameEnc && data.dob) ||
-      (existingProfile?.dob && data.ethnicity) ||
-      existingProfile?.ethnicity
-    );
-    updateData.profileComplete = isComplete;
-    updateData.publicFields = { bio: data.bio ? data.bio.substring(0, 200) : null };
+      const isComplete = !!(
+        data.firstName ||
+        (existingProfile?.firstName && data.lastName) ||
+        (existingProfile?.lastNameEnc && data.dob) ||
+        (existingProfile?.dob && data.ethnicity) ||
+        existingProfile?.ethnicity
+      );
+      updateData.profileComplete = isComplete;
+      updateData.publicFields = { 
+        bio: data.bio ? data.bio.substring(0, 200) : null,
+        hideLocation: data.biodata?.hideLocation ?? false
+      };
 
-    if (existingProfile) {
-      await db.update(profiles).set(updateData).where(eq(profiles.userId, userId));
-    } else {
-      await db.insert(profiles).values({
-        id: randomUUID(),
-        userId,
-        firstName: (data.firstName ?? '') as string,
-        lastNameEnc: (updateData.lastNameEnc as string) ?? '',
-        dob: (updateData.dob as string) ?? new Date().toISOString().slice(0, 10),
-        gender: (data.gender as any) ?? 'MALE',
-        ethnicity: data.ethnicity ?? '',
-        city: data.city ?? null,
-        state: data.state ?? null,
-        bioEnc: (updateData.bioEnc as string) ?? null,
-        biodataJsonEnc: (updateData.biodataJsonEnc as string) ?? null,
-        publicFields: updateData.publicFields as any,
-        profileComplete: isComplete,
-        updatedAt: new Date().toISOString(),
-      });
+      if (existingProfile) {
+        await db.update(profiles).set(updateData).where(eq(profiles.userId, userId));
+      } else {
+        await db.insert(profiles).values({
+          id: randomUUID(),
+          userId,
+          firstName: (data.firstName ?? '') as string,
+          lastNameEnc: (updateData.lastNameEnc as string) ?? '',
+          dob: (updateData.dob as string) ?? new Date().toISOString().slice(0, 10),
+          gender: (data.gender as any) ?? 'MALE',
+          ethnicity: data.ethnicity ?? '',
+          city: data.city ?? null,
+          state: data.state ?? null,
+          bioEnc: (updateData.bioEnc as string) ?? null,
+          biodataJsonEnc: (updateData.biodataJsonEnc as string) ?? null,
+          publicFields: updateData.publicFields as any,
+          profileComplete: isComplete,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      return await this.getMyProfile(userId);
+    } catch (error) {
+      console.error('[ProfilesService] updateMyProfile FAILED for userId:', userId);
+      console.error('[ProfilesService] Error:', error);
+      throw error;
     }
-
-    return this.getMyProfile(userId);
   }
 
   private calculateAgeFromString(dob: string | Date): number {

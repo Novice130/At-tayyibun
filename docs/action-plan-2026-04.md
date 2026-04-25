@@ -1,21 +1,28 @@
 # Action Plan — April 2026
 
-Tracks three parallel initiatives: **Drizzle migration**, **MFA for SUPER_ADMIN**, and **Phase 6 admin features**. Ordered so downstream work doesn't get redone.
+Tracks all development initiatives for At-Tayyibun. Ordered so downstream work doesn't get redone.
 
 Start date: 2026-04-18
-Last updated: 2026-04-18
-Branch: `main` (will split to feature branches per phase if blast radius grows)
+Last updated: 2026-04-25
+Branch: `main`
 
 ---
 
 ## Progress tracker
 
-| Phase | Status | Commit |
+| Phase | Status | Notes |
 |---|---|---|
 | A — Drizzle migration | ✅ Done | `1a8e6c` — full port: api + web, seeds rewritten, Prisma removed |
-| B — MFA for SUPER_ADMIN | ✅ Done | `2b9f3d` — Integrated BetterAuth two-factor plugin, enforced for SUPER_ADMIN |
-| C — Phase 6 backend | ✅ Done | `3c0g4e` — Implemented all admin endpoints with role-based filtering |
-| C — Phase 6 frontend | ✅ Done | `4d1h5f` — Completed all admin UI pages and unified navigation |
+| B — MFA for SUPER_ADMIN | ✅ Done | `2b9f3d` — BetterAuth two-factor plugin, enforced for SUPER_ADMIN |
+| C — Phase 6 backend | ✅ Done | `3c0g4e` — all admin endpoints with role-based filtering |
+| C — Phase 6 frontend | ✅ Done | `4d1h5f` — all admin UI pages, unified navigation |
+| D — Auth stability (Apr 24) | ✅ Done | `be7fa2d` — generateId bug fix, Sentry wiring |
+| E — MFA loop + login flow (Apr 25) | ✅ Done | `customSession` pattern, `twoFactorPage`, inline errors |
+| F — Profile setup wizard (Apr 25) | ✅ Done | `/profile/setup` — 5-step form, biodata, nikah confirmation |
+| G — Browse gender filter (Apr 25) | ✅ Done | Auto opposite-gender filter from user's own profile |
+| H — API error handling (Apr 25) | ✅ Done | Non-JSON response handling, network error messaging |
+| I — Production deploy | 🔴 Blocked | Secrets rotation required first (see §Security below) |
+| J — Graphify knowledge graph | 🟡 Ready | Skill installed; run `/graphify` to generate graph |
 
 ---
 
@@ -150,3 +157,77 @@ Sidebar nav in `apps/web/src/app/admin/layout.tsx` extended with links to new pa
 - Should MFA be required for **ADMIN** too, or only SUPER_ADMIN? Current plan: SUPER_ADMIN only (matches user request). Revisit if any ADMIN handles sensitive data.
 - Ads targeting — `ads` model has targeting fields but admin UI v1 exposes a subset (ethnicity, age range, gender). Full targeting UI deferred until product signals demand.
 - Campaign analytics (open/click tracking) — requires Resend webhook setup. Out of scope for Phase 6 v1.
+
+---
+
+## Phase E–H — Apr 25 fixes and user-facing features ✅
+
+### E — MFA loop + login flow
+
+**Problem:** Admin passed the OTP challenge but the admin layout's `mfaGateActive` was permanently `true` because `get-session` never returned `twoFactorVerified` (it was `undefined`, not `false`).
+
+**Fix:** `customSession` plugin in `auth.ts` using the `options satisfies BetterAuthOptions` pattern. Passing `options` as the second arg lets Better-Auth infer and surface plugin-managed session fields (like `twoFactorVerified` from the `twoFactor` plugin) in the `get-session` response.
+
+**Login:** Moved from fragile `data?.twoFactorRedirect` manual check to `twoFactorClient({ twoFactorPage: "/admin/security/challenge" })` — the client plugin handles the redirect automatically.
+
+**Files changed:** `auth.ts`, `auth-client.ts`, `login/LoginForm.tsx`
+
+---
+
+### F — Profile setup wizard (`/profile/setup`)
+
+New file: `apps/web/src/app/profile/setup/page.tsx`
+
+5-step form after signup. Fields:
+- **Step 1:** Full name (lastName encrypted), DOB (≥18), ethnicity, city/state, hide-location toggle
+- **Step 2:** Legal status (Citizen/PR/Visa), education, profession, relocate willingness
+- **Step 3:** Religious practice, prayer frequency, dietary preferences, sect (optional)
+- **Step 4:** Candidate bio (≥30 chars), partner preferences (≥20 chars), deal-breakers
+- **Step 5:** Summary + Nikah intent confirmation checkbox
+
+Submits to `PUT /profiles/me`. Basic fields → DB columns; rest → `biodata` JSON (encrypted as `biodataJsonEnc`). Gender read from existing profile to avoid NestJS defaulting every insert to `MALE`.
+
+Signup now redirects to `/profile/setup` instead of `/browse`.
+
+---
+
+### G — Browse gender filter
+
+`apps/web/src/app/browse/page.tsx`
+
+On mount: fetches own profile → extracts `gender` → fetches `GET /profiles?gender=<opposite>`. Filter persists through all subsequent filter-bar changes. Users cannot browse their own gender.
+
+---
+
+### H — API error handling
+
+`apps/web/src/lib/api.ts`
+
+- Wraps `fetch()` in try/catch → clean "Cannot connect to server" message when API is down (instead of cryptic JSON parse error).
+- Checks `Content-Type` before calling `.json()`.
+- Joins NestJS array validation messages.
+- Removed stray `console.log`.
+
+---
+
+## Security — outstanding (from Apr 24)
+
+🔴 **All secrets in Dokploy env must be rotated before any production deploy:**
+- Neon DB password (`DATABASE_URL`)
+- `BETTER_AUTH_SECRET`
+- `RESEND_API_KEY`
+- `SENTRY_AUTH_TOKEN`
+- GitHub App RSA key + `githubClientSecret` + `githubWebhookSecret`
+
+Do not push the Apr 25 changes to production until secrets are rotated.
+
+---
+
+## Pending — next session
+
+- [ ] Confirm MFA loop is resolved (smoke-test: log in, verify OTP, reach `/admin`)
+- [ ] E2E test profile setup: sign up → complete wizard → appear in opposite-gender browse
+- [ ] Verify `hideLocation` flag respected in `ProfileCard` browse view
+- [ ] Rotate all secrets (blocker for prod deploy)
+- [ ] Deploy to production via Dokploy
+- [ ] Run `/graphify` on the codebase to generate knowledge graph

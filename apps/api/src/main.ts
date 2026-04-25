@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   try {
@@ -57,6 +58,9 @@ async function bootstrap() {
         },
       }),
     );
+
+    // Global exception filter
+    app.useGlobalFilters(new AllExceptionsFilter());
 
     // API prefix
     app.setGlobalPrefix('api');

@@ -1,19 +1,28 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Storage, GetSignedUrlConfig } from '@google-cloud/storage';
+import type { GetSignedUrlConfig } from '@google-cloud/storage';
+import type { Storage } from '@google-cloud/storage';
 import * as path from 'path';
 
 @Injectable()
 export class StorageService {
-  private storage: Storage;
+  private storage: Storage | null = null;
   private bucketName: string;
+  private readonly logger = new Logger(StorageService.name);
 
   constructor(private readonly configService: ConfigService) {
-    this.storage = new Storage({
-      projectId: this.configService.get<string>('GCS_PROJECT_ID'),
-    });
-
     this.bucketName = this.configService.get<string>('GCS_BUCKET_NAME', 'at-tayyibun-photos');
+  }
+
+  private getStorage(): Storage {
+    if (!this.storage) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { Storage } = require('@google-cloud/storage') as { Storage: new (opts: any) => Storage };
+      this.storage = new Storage({
+        projectId: this.configService.get<string>('GCS_PROJECT_ID'),
+      });
+    }
+    return this.storage!;
   }
 
   /**
@@ -26,7 +35,7 @@ export class StorageService {
     directory = 'photos',
   ): Promise<string> {
     const destination = `${directory}/${fileName}`;
-    const bucket = this.storage.bucket(this.bucketName);
+    const bucket = this.getStorage().bucket(this.bucketName);
     const file = bucket.file(destination);
 
     await file.save(fileBuffer, {
@@ -43,7 +52,7 @@ export class StorageService {
    * Generate a signed URL for private file access
    */
   async getSignedUrl(filePath: string, expiresInMinutes = 60): Promise<string> {
-    const bucket = this.storage.bucket(this.bucketName);
+    const bucket = this.getStorage().bucket(this.bucketName);
     const file = bucket.file(filePath);
 
     const options: GetSignedUrlConfig = {
@@ -67,7 +76,7 @@ export class StorageService {
    * Delete a file from GCS
    */
   async deleteFile(filePath: string): Promise<void> {
-    const bucket = this.storage.bucket(this.bucketName);
+    const bucket = this.getStorage().bucket(this.bucketName);
     const file = bucket.file(filePath);
 
     await file.delete({ ignoreNotFound: true });
@@ -77,7 +86,7 @@ export class StorageService {
    * Check if a file exists
    */
   async fileExists(filePath: string): Promise<boolean> {
-    const bucket = this.storage.bucket(this.bucketName);
+    const bucket = this.getStorage().bucket(this.bucketName);
     const file = bucket.file(filePath);
 
     const [exists] = await file.exists();

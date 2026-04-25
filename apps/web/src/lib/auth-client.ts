@@ -9,7 +9,11 @@ const getBaseUrl = () => {
 
 export const authClient = createAuthClient({
     baseURL: `${getBaseUrl()}/auth`,
-    plugins: [twoFactorClient()],
+    plugins: [
+        twoFactorClient({
+            twoFactorPage: "/admin/security/challenge",
+        }),
+    ],
 });
 
 export const {

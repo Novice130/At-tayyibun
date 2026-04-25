@@ -26,6 +26,7 @@ export default function BrowsePage() {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeRequest, setActiveRequest] = useState<ActiveRequest | null>(null);
+  const [myGender, setMyGender] = useState<'MALE' | 'FEMALE' | null>(null);
   const { data: session, isPending } = useSession();
 
   useEffect(() => {
@@ -35,16 +36,26 @@ export default function BrowsePage() {
   }, [session, isPending, router]);
 
   useEffect(() => {
-    if (session) {
-      fetchProfiles();
-      fetchActiveRequest();
-    }
+    if (!session) return;
+    // Fetch own profile to determine gender, then load opposite-gender profiles
+    api.get('/profiles/me')
+      .then((data: any) => {
+        const gender: 'MALE' | 'FEMALE' | null = data?.profile?.gender ?? null;
+        setMyGender(gender);
+        const opposite = gender === 'MALE' ? 'FEMALE' : gender === 'FEMALE' ? 'MALE' : null;
+        fetchProfiles(opposite ? { gender: opposite } : {});
+      })
+      .catch(() => fetchProfiles({}));
+    fetchActiveRequest();
   }, [session]);
 
   const fetchProfiles = async (filters: any = {}) => {
     setLoading(true);
     try {
-      const data = await api.get('/profiles?' + new URLSearchParams(filters));
+      const params = new URLSearchParams(
+        Object.fromEntries(Object.entries(filters).filter(([, v]) => v != null)) as Record<string, string>
+      );
+      const data = await api.get('/profiles?' + params.toString());
       setProfiles(data.data || data.items || []);
     } catch (error) {
       console.error('Failed to fetch profiles:', error);
@@ -63,7 +74,8 @@ export default function BrowsePage() {
   };
 
   const handleFilter = (filters: { ethnicity: string; minAge: number | null; maxAge: number | null }) => {
-    const apiFilters: any = {};
+    const opposite = myGender === 'MALE' ? 'FEMALE' : myGender === 'FEMALE' ? 'MALE' : null;
+    const apiFilters: any = opposite ? { gender: opposite } : {};
     if (filters.ethnicity) apiFilters.ethnicity = filters.ethnicity;
     if (filters.minAge) apiFilters.minAge = filters.minAge.toString();
     if (filters.maxAge) apiFilters.maxAge = filters.maxAge.toString();

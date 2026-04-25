@@ -22,7 +22,7 @@
     "db:seed:photos": "tsx src/db/seed-photos.ts"
   },
   "dependencies": {
-    "@google-cloud/storage": "^7.14.0",
+    "@google-cloud/storage": "^7.18.0",
     "@neondatabase/serverless": "^1.1.0",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",

@@ -12,6 +12,7 @@ export default function LoginForm() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -20,6 +21,7 @@ export default function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError('');
 
     try {
       const { data, error: authError } = await signIn.email({
@@ -31,21 +33,22 @@ export default function LoginForm() {
         throw new Error(authError.message);
       }
 
-      if ((data as any)?.twoFactorRedirect) {
-        router.push('/admin/security/challenge');
+      // twoFactorRedirect is handled automatically by twoFactorClient({ twoFactorPage })
+      // so if we reach here, auth succeeded without 2FA challenge
+
+      const role = (data as any)?.user?.role;
+      if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
+        router.push('/admin');
         return;
       }
 
       router.push('/browse');
     } catch (err: any) {
-      console.error('Login error:', err);
+      const msg = err.message || 'Failed to sign in. Please try again.';
+      setError(msg);
       Sentry.captureException(err, {
-        extra: {
-          email: formData.email,
-          authAction: 'signIn.email',
-        },
+        extra: { email: formData.email, authAction: 'signIn.email' },
       });
-      alert(err.message || 'Failed to sign in. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -72,6 +75,12 @@ export default function LoginForm() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
             {/* Email */}
             <div>
               <label className="block text-sm font-medium mb-2">Email</label>

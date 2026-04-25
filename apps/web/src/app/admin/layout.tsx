@@ -25,37 +25,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { data: session, isPending } = useSession();
   const role = (session?.user as any)?.role;
   const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
+  const twoFactorEnabled = (session?.user as any)?.twoFactorEnabled === true;
+  const twoFactorVerified = (session as any)?.session?.twoFactorVerified === true;
+  const isMfaPage = pathname.startsWith('/admin/security');
+  const mfaGateActive =
+    (!isMfaPage && role === 'SUPER_ADMIN' && !twoFactorEnabled) ||
+    (!isMfaPage && twoFactorEnabled && !twoFactorVerified);
 
   useEffect(() => {
     if (isPending) return;
-    if (!session) {
-      router.replace('/login');
-      return;
-    }
-
-    if (!isAdmin) {
-      router.replace('/browse');
-      return;
-    }
-
-    const twoFactorEnabled = (session.user as any)?.twoFactorEnabled === true;
-    const twoFactorVerified = (session as any)?.session?.twoFactorVerified === true;
-    const isMfaPage = pathname.startsWith('/admin/security');
-
-    // SUPER_ADMIN must enroll MFA before accessing admin surfaces.
+    if (!session) { router.replace('/login'); return; }
+    if (!isAdmin) { router.replace('/browse'); return; }
     if (role === 'SUPER_ADMIN' && !twoFactorEnabled && !isMfaPage) {
       router.replace('/admin/security/setup');
       return;
     }
-
-    // If MFA enrolled but not verified this session, force challenge.
     if (twoFactorEnabled && !twoFactorVerified && !isMfaPage) {
       router.replace('/admin/security/challenge');
       return;
     }
-  }, [session, isPending, isAdmin, role, pathname, router]);
+  }, [session, isPending, isAdmin, role, twoFactorEnabled, twoFactorVerified, isMfaPage, pathname, router]);
 
-  if (isPending || !session || !isAdmin) {
+  if (isPending || !session || !isAdmin || mfaGateActive) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
         <Loader className="w-8 h-8 animate-spin text-gold-500" />
