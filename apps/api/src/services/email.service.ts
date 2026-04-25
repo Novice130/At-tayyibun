@@ -18,17 +18,29 @@ export interface TemplatedEmailOptions {
 
 @Injectable()
 export class EmailService {
-  private readonly resend: Resend;
+  private resendInstance?: Resend;
   private readonly fromEmail: string;
   private readonly fromName: string;
   private readonly webUrl: string;
 
   constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>('RESEND_API_KEY', '');
-    this.resend = new Resend(apiKey);
     this.fromEmail = this.configService.get<string>('RESEND_FROM_EMAIL', 'noreply@attayyibun.com');
     this.fromName = this.configService.get<string>('RESEND_FROM_NAME', 'At-Tayyibun');
     this.webUrl = this.configService.get<string>('WEB_URL', 'http://localhost:3000');
+  }
+
+  // Lazy: don't instantiate Resend at boot. The Resend constructor throws on
+  // missing key, which would crash the whole API on startup if RESEND_API_KEY
+  // is not configured. Defer until an email is actually being sent.
+  private get resend(): Resend {
+    if (!this.resendInstance) {
+      const apiKey = this.configService.get<string>('RESEND_API_KEY');
+      if (!apiKey) {
+        throw new Error('RESEND_API_KEY not configured; email sending disabled');
+      }
+      this.resendInstance = new Resend(apiKey);
+    }
+    return this.resendInstance;
   }
 
   private get from(): string {
