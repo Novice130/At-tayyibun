@@ -472,6 +472,16 @@ async function main() {
       updatedAt: now,
     });
 
+    await db.insert(schema.account).values({
+      id: randomUUID(),
+      accountId: userId,
+      providerId: 'credential',
+      userId,
+      password,
+      createdAt: now,
+      updatedAt: now,
+    });
+
     await db.insert(schema.profiles).values({
       id: randomUUID(),
       userId,

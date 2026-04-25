@@ -30,8 +30,11 @@ export class BetterAuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const request = context.switchToHttp().getRequest();
-    const sessionToken = request.cookies?.['better-auth.session_token'];
-    if (!sessionToken) throw new UnauthorizedException('Authentication required');
+    const rawCookie = request.cookies?.['better-auth.session_token']
+      ?? request.cookies?.['__Secure-better-auth.session_token'];
+    if (!rawCookie) throw new UnauthorizedException('Authentication required');
+    // Better-auth signs cookies as `<token>.<signature>` — strip signature for DB lookup.
+    const sessionToken = rawCookie.split('.')[0];
 
     const row = await this.drizzle.db.query.session.findFirst({
       where: eq(session.token, sessionToken),
