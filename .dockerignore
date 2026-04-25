@@ -47,11 +47,16 @@ test-*.ts
 *.spec.ts
 *.bak
 
-# Screenshots / binaries
-*.png
-*.jpg
-*.jpeg
-*.gif
+# Screenshots / binaries (root only — keep apps/web/public assets)
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+
+# Misc tracked artifacts not needed in image
+graphify-out
+.playwright-mcp
+docs
 
 # Dokploy / CI
 .github

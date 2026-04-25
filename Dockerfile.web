@@ -22,6 +22,8 @@ WORKDIR /app
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
+# Cap Node heap below 3.7 GiB VPS limit so OOM fails fast instead of hanging
+ENV NODE_OPTIONS="--max-old-space-size=2560"
 RUN cd apps/web && pnpm build
 
 # --- Stage 3: Runner (standalone output = no node_modules copy needed) ---
