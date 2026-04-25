@@ -5,7 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
-import * as Sentry from '@sentry/nextjs';
+// Sentry temporarily disabled.
+// import * as Sentry from '@sentry/nextjs';
 import { signIn } from '@/lib/auth-client';
 
 export default function LoginForm() {
@@ -46,9 +47,9 @@ export default function LoginForm() {
     } catch (err: any) {
       const msg = err.message || 'Failed to sign in. Please try again.';
       setError(msg);
-      Sentry.captureException(err, {
-        extra: { email: formData.email, authAction: 'signIn.email' },
-      });
+      // Sentry.captureException(err, {
+      //   extra: { email: formData.email, authAction: 'signIn.email' },
+      // });
     } finally {
       setIsLoading(false);
     }

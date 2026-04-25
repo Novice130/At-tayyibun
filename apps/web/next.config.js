@@ -1,4 +1,5 @@
-const { withSentryConfig } = require("@sentry/nextjs");
+// Sentry temporarily disabled — was hanging Dokploy builds on 3.7 GiB VPS.
+// const { withSentryConfig } = require("@sentry/nextjs");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -32,16 +33,18 @@ const nextConfig = {
   },
 };
 
-module.exports = withSentryConfig(nextConfig, {
-  org: "learnnovicecom",
-  project: "javascript-nextjs",
-  silent: !process.env.CI,
-  widenClientFileUpload: false,
-  tunnelRoute: "/monitoring",
-  hideSourceMaps: true,
-  webpack: {
-    treeshake: { removeDebugLogging: true },
-    automaticVercelMonitors: true,
-    reactComponentAnnotation: { enabled: true },
-  },
-});
+module.exports = nextConfig;
+
+// module.exports = withSentryConfig(nextConfig, {
+//   org: "learnnovicecom",
+//   project: "javascript-nextjs",
+//   silent: !process.env.CI,
+//   widenClientFileUpload: false,
+//   tunnelRoute: "/monitoring",
+//   hideSourceMaps: true,
+//   webpack: {
+//     treeshake: { removeDebugLogging: true },
+//     automaticVercelMonitors: true,
+//     reactComponentAnnotation: { enabled: true },
+//   },
+// });

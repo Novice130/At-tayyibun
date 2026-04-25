@@ -1,6 +1,7 @@
 "use client";
 
-import * as Sentry from "@sentry/nextjs";
+// Sentry temporarily disabled.
+// import * as Sentry from "@sentry/nextjs";
 
 export default function SentryExamplePage() {
   return (
@@ -13,7 +14,8 @@ export default function SentryExamplePage() {
       fontFamily: "system-ui, -apple-system, sans-serif"
     }}>
       <h1>Sentry Example Page</h1>
-      <p>Click the button below to test Sentry error reporting:</p>
+      <p>Sentry is currently disabled.</p>
+      {/*
       <button
         type="button"
         style={{
@@ -33,6 +35,7 @@ export default function SentryExamplePage() {
       >
         Throw Test Error
       </button>
+      */}
     </div>
   );
 }

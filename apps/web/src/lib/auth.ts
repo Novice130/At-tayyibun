@@ -139,11 +139,13 @@ const options = {
     level: "debug",
     log(level: string, message: string, error?: unknown) {
       if (level === "error" && error) {
-        import("@sentry/nextjs").then((Sentry) => {
-          Sentry.captureException(error, {
-            extra: { message, level },
-          });
-        });
+        // Sentry temporarily disabled.
+        // import("@sentry/nextjs").then((Sentry) => {
+        //   Sentry.captureException(error, {
+        //     extra: { message, level },
+        //   });
+        // });
+        console.error("[auth]", message, error);
       }
     },
   },
