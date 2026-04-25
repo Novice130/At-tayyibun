@@ -26,26 +26,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const role = (session?.user as any)?.role;
   const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
   const twoFactorEnabled = (session?.user as any)?.twoFactorEnabled === true;
-  const twoFactorVerified = (session as any)?.session?.twoFactorVerified === true;
   const isMfaPage = pathname.startsWith('/admin/security');
-  const mfaGateActive =
-    (!isMfaPage && role === 'SUPER_ADMIN' && !twoFactorEnabled) ||
-    (!isMfaPage && twoFactorEnabled && !twoFactorVerified);
+  // The challenge page is reached during a partial 2FA session where
+  // /auth/get-session returns null until verifyOtp completes. Allow it through
+  // without requiring a full session.
+  const isChallengePage = pathname === '/admin/security/challenge';
+  // Once session loads (non-null), 2FA is already verified — better-auth keeps
+  // partial 2FA sessions hidden from /auth/get-session until verifyOtp succeeds.
+  const mfaGateActive = !isMfaPage && role === 'SUPER_ADMIN' && !twoFactorEnabled;
 
   useEffect(() => {
     if (isPending) return;
+    if (isChallengePage) return;
     if (!session) { router.replace('/login'); return; }
     if (!isAdmin) { router.replace('/browse'); return; }
     if (role === 'SUPER_ADMIN' && !twoFactorEnabled && !isMfaPage) {
       router.replace('/admin/security/setup');
       return;
     }
-    if (twoFactorEnabled && !twoFactorVerified && !isMfaPage) {
-      router.replace('/admin/security/challenge');
-      return;
-    }
-  }, [session, isPending, isAdmin, role, twoFactorEnabled, twoFactorVerified, isMfaPage, pathname, router]);
+  }, [session, isPending, isAdmin, role, twoFactorEnabled, isMfaPage, isChallengePage, pathname, router]);
 
+  if (isChallengePage) return <>{children}</>;
   if (isPending || !session || !isAdmin || mfaGateActive) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>

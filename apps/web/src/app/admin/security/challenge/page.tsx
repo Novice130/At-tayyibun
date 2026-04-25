@@ -30,13 +30,15 @@ export default function MFAChallengePage() {
     }
   }, [timer, resending]);
 
-  // Send OTP once on mount when session is ready
+  // Send OTP once on mount. During the partial 2FA flow `/auth/get-session`
+  // returns null, so don't gate on session — the verify endpoint reads the
+  // partial cookie better-auth set during sign-in.
   useEffect(() => {
-    if (session?.user && (session.user as any).twoFactorEnabled && !otpSentRef.current) {
-      otpSentRef.current = true;
-      handleResend();
-    }
-  }, [session, handleResend]);
+    if (otpSentRef.current) return;
+    otpSentRef.current = true;
+    handleResend();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (timer > 0) {
