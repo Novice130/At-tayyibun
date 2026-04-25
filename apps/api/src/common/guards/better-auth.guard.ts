@@ -22,7 +22,7 @@ export class BetterAuthGuard implements CanActivate {
     private drizzle: DrizzleService,
   ) {}
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
+async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -31,17 +31,22 @@ export class BetterAuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const rawCookie = request.cookies?.['better-auth.session_token']
-      ?? request.cookies?.['__Secure-better-auth.session_token'];
+    ?? request.cookies?.['__Secure-better-auth.session_token'];
     if (!rawCookie) throw new UnauthorizedException('Authentication required');
-    // Better-auth signs cookies as `<token>.<signature>` — strip signature for DB lookup.
     const sessionToken = rawCookie.split('.')[0];
 
-    const row = await this.drizzle.db.query.session.findFirst({
-      where: eq(session.token, sessionToken),
-      with: {
-        user: { with: { profiles: true } },
-      },
-    });
+    let row: any;
+    try {
+      row = await this.drizzle.db.query.session.findFirst({
+        where: eq(session.token, sessionToken),
+        with: {
+          user: { with: { profiles: true } },
+        },
+      });
+    } catch (dbError) {
+      console.error('[BetterAuthGuard] DB session lookup failed:', dbError);
+      throw new UnauthorizedException('Authentication service temporarily unavailable');
+    }
 
     if (!row) throw new UnauthorizedException('Invalid session');
     if (new Date(row.expiresAt) < new Date()) throw new UnauthorizedException('Session expired');
