@@ -25,7 +25,17 @@ WORKDIR /app
 COPY . .
 RUN cd apps/api && pnpm build
 
-# --- Stage 3: Runner ---
+# --- Stage 3: Production-only deps (drops devDeps + web workspace) ---
+# Reuses the deps cache, then prunes everything but the api workspace's
+# production deps. Cuts node_modules from ~1.5 GB → a few hundred MB so the
+# runner copy doesn't blow out a small VPS disk.
+FROM deps AS prod-deps
+WORKDIR /app
+RUN pnpm install --filter @at-tayyibun/api --prod --frozen-lockfile --prefer-offline \
+ && pnpm store prune \
+ && rm -rf /root/.local/share/pnpm /root/.cache
+
+# --- Stage 4: Runner ---
 FROM node:20-alpine AS runner
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
@@ -37,7 +47,7 @@ RUN addgroup --system --gid 1001 nodejs \
 
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/package.json ./package.json
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/node_modules ./node_modules
 
 USER nestjs
 
