@@ -17,24 +17,25 @@ export class AdminService {
   ) {}
 
   async getAnalytics() {
-    const db = this.drizzle.db;
-    const [
-      [totalRow],
-      [maleRow],
-      [femaleRow],
-      [freeRow],
-      [silverRow],
-      [goldRow],
-      [verifiedRow],
-    ] = await Promise.all([
-      db.select({ value: count() }).from(users),
-      db.select({ value: count() }).from(profiles).where(eq(profiles.gender, 'MALE')),
-      db.select({ value: count() }).from(profiles).where(eq(profiles.gender, 'FEMALE')),
-      db.select({ value: count() }).from(users).where(eq(users.membershipTier, 'FREE')),
-      db.select({ value: count() }).from(users).where(eq(users.membershipTier, 'SILVER')),
-      db.select({ value: count() }).from(users).where(eq(users.membershipTier, 'GOLD')),
-      db.select({ value: count() }).from(users).where(eq(users.isVerified, true)),
-    ]);
+    try {
+      const db = this.drizzle.db;
+      const [
+        [totalRow],
+        [maleRow],
+        [femaleRow],
+        [freeRow],
+        [silverRow],
+        [goldRow],
+        [verifiedRow],
+      ] = await Promise.all([
+        db.select({ value: count() }).from(users),
+        db.select({ value: count() }).from(profiles).where(eq(profiles.gender, 'MALE')),
+        db.select({ value: count() }).from(profiles).where(eq(profiles.gender, 'FEMALE')),
+        db.select({ value: count() }).from(users).where(eq(users.membershipTier, 'FREE')),
+        db.select({ value: count() }).from(users).where(eq(users.membershipTier, 'SILVER')),
+        db.select({ value: count() }).from(users).where(eq(users.membershipTier, 'GOLD')),
+        db.select({ value: count() }).from(users).where(eq(users.isVerified, true)),
+      ]);
 
     return {
       totalUsers: Number(totalRow.value),
@@ -46,6 +47,10 @@ export class AdminService {
       },
       verifiedUsers: Number(verifiedRow.value),
     };
+    } catch (error) {
+      console.error('[AdminService] getAnalytics FAILED:', error);
+      throw error;
+    }
   }
 
   async listUsers(page = 1, limit = 20, search?: string) {
