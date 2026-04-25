@@ -6,65 +6,84 @@
 
 ---
 
-## 1. Open problem — Admin Dashboard 500
+## 1. Open problem — Multiple endpoints returning 500 in prod
 
-**Symptom**: Logging in as `admin@attayyibun.com` (production) and landing on
-`/admin` shows a red banner: **"Internal server error"**. The page itself
-loads (sidebar, role label, sign-out all render correctly), so the auth +
-MFA gate works — only the analytics fetch fails.
+**Symptoms** (BOTH failing in production, NOT just admin):
+- `GET /api/admin/analytics` → 500. Admin dashboard shows red "Internal
+  server error" banner. Sidebar + role + sign-out all render fine; only
+  the analytics fetch fails.
+- `PUT /api/profiles/me` → 500. Browser console:
+  ```
+  PUT https://attayyibun.com/api/profiles/me 500 (Internal Server Error)
+  ```
+  Reproduces with a brand-new (non-admin) signup completing the 5-step
+  profile setup wizard. Step 5 → Complete Profile → red "Internal server
+  error" banner above the form.
 
-**Where it fails**: `apps/web/src/app/admin/page.tsx:21` calls
-`api.get('/admin/analytics')`. The endpoint is
-[`apps/api/src/modules/admin/admin.controller.ts:26`](../apps/api/src/modules/admin/admin.controller.ts#L26)
-→ [`AdminService.getAnalytics()`](../apps/api/src/modules/admin/admin.service.ts#L19)
-which runs 7 parallel `count()` queries against `users` + `profiles`.
-
-**What's already known / ruled out**:
-- API is actually running (`docker service ls | grep attayibun-api` shows `1/1`)
-- Auth is good (sidebar shows `SUPER_ADMIN`, sign-out works → cookie + role parsed)
-- MFA gate works (we got past `/admin/security/challenge`)
+**What's ruled out**:
+- API is up (`docker service ls | grep attayibun-api` → `1/1`)
+- Auth works (admin sidebar renders SUPER_ADMIN; new signups successfully
+  reach the wizard)
+- MFA works (we got past `/admin/security/challenge`)
 - `RESEND_API_KEY`, `ENCRYPTION_KEY`, `DATABASE_URL` all set in Dokploy env
-- Latest API commit `5422571` (lazy Resend) deployed `done`
+- Latest API commit `5422571` (lazy Resend) deployed `status: done`
+- AuditLogInterceptor is NOT the cause — its `auditedPaths` list doesn't
+  include `GET /admin/*` or `PUT /profiles/*`, so it short-circuits both
+  endpoints before any audit write happens
 
-**Most likely causes** (in order):
-1. **`RolesGuard` failing** — `admin.controller.ts` uses
-   `@UseGuards(RolesGuard)` + `@Roles(Role.ADMIN, Role.SUPER_ADMIN)`. If the
-   guard reads `request.user.role` but the BetterAuthGuard never set it (or
-   set it as a string that doesn't match the enum), the guard throws, which
-   the global `AllExceptionsFilter` turns into 500. Verify by reading
-   [`apps/api/src/common/guards/roles.guard.ts`](../apps/api/src/common/guards/roles.guard.ts)
-   alongside [`better-auth.guard.ts`](../apps/api/src/common/guards/better-auth.guard.ts) —
-   the latter sets `request.user = { ...rest, profile }` from the
-   `users` row, so `role` should be the enum string. But check: does the
-   role enum in `Role` from `common/types/role.ts` match what the DB stores?
-2. **DB schema drift** — the prod Neon DB might be missing a column the
-   counts touch (`users.membershipTier`, `users.isVerified`, `profiles.gender`).
-   Drizzle introspected schema lives in `apps/api/src/db/schema.ts`; if a
-   migration was never applied to prod, count queries throw at the SQL layer.
-3. **`AuditLogInterceptor`** — registered globally in `app.module.ts:107`. If
-   it tries to write to an `audit_log` table that doesn't exist in prod, every
-   admin request throws 500 *before the handler runs*.
+**The signal — both endpoints touch the DB**: `getAnalytics` runs 7
+`count()` queries; `updateMyProfile` does a `SELECT … FROM profiles WHERE
+user_id = …` then `INSERT INTO profiles (…)` with several columns. They
+share no other code path. Strong signal of **DB schema drift between local
+and prod Neon** — a column or table the queries reference is missing,
+extra, or renamed in prod.
 
-**How to diagnose** (5 min):
+**Most likely causes** (re-ranked given both endpoints fail):
+1. **DB schema drift in prod Neon.** Most likely culprit. Local schema in
+   `apps/api/src/db/schema.ts` may have evolved (e.g. recent commits added
+   `publicFields.hideLocation`, `lastNameEnc`, `biodataJsonEnc`). If
+   `pnpm --filter @at-tayyibun/api db:push` was never run against prod
+   `DATABASE_URL`, INSERTs/SELECTs hit non-existent columns and throw.
+2. **`RolesGuard` mismatch** (only explains analytics failure, not
+   profiles/me). Less likely now that profiles/me also fails for non-admin
+   signups — but worth ruling out by reading
+   `apps/api/src/common/guards/roles.guard.ts` and confirming
+   `request.user.role` is set as the enum string.
+3. **Drizzle relational query failure** — both endpoints use the relational
+   query API. If `usersRelations` / `profilesRelations` reference a
+   foreign key that doesn't exist in prod, queries throw.
+
+**How to diagnose** (5 min — DO THIS FIRST):
 ```bash
-# On VPS — get the actual stack trace from the latest 500
-docker service logs attayibun-api-nvxlws --tail 100 2>&1 | grep -A20 -iE "error|exception|admin"
+# On VPS — get the actual stack trace
+docker service logs attayibun-api-nvxlws --tail 200 2>&1 \
+  | grep -B2 -A30 -iE "error|exception" \
+  | tail -80
 ```
-Look for the exception immediately following the `GET /api/admin/analytics`
-log line. The stack trace will name the failing service / column / table.
+Trigger one of the failing endpoints in the browser, then immediately tail
+again. The stack trace will name the failing column / table / service.
 
-If the log says `column "rank_boost" does not exist` → run drizzle migration
-against prod DB. If the log names `RolesGuard` → fix the role check. If it
-mentions `audit_log` → either create the table or guard the audit interceptor
-behind a try/catch.
+**Suggested fix path** (depends on log):
+- **If schema drift** (`column "X" does not exist`, `relation "Y" does
+  not exist`): run drizzle generate + push against prod:
+  ```bash
+  cd apps/api
+  DATABASE_URL=<prod-url> pnpm exec drizzle-kit push
+  ```
+  ⚠️ This is destructive — review the diff before applying. Take a Neon
+  branch backup first.
+- **If RolesGuard**: fix `request.user.role` extraction in
+  `better-auth.guard.ts` or guard.
+- **If Drizzle relations**: align `relations.ts` with the prod schema.
 
-**Suggested fix path**:
-- If guard issue: BetterAuthGuard puts `role` directly on `request.user` but
-  RolesGuard might compare against `request.user.role`. Read both and align.
-- If schema: regenerate drizzle migration from `schema.ts` and apply via
-  `pnpm --filter @at-tayyibun/api db:push` against prod `DATABASE_URL`.
-- If audit interceptor: wrap its async write in a try/catch and only log,
-  never throw — observability bugs must never break the request path.
+After fix, verify BOTH endpoints:
+```bash
+curl -s 'https://attayyibun.com/api/admin/analytics' \
+  -H "cookie: better-auth.session_token=<paste-from-browser>" | head
+# Should return JSON with totalUsers etc., not 500
+```
+And in browser: complete the profile wizard with a fresh signup; should
+redirect to /browse without error banner.
 
 ---
 
