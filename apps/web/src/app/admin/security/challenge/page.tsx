@@ -6,6 +6,10 @@ import { ShieldCheck, Mail, Loader2, RefreshCw } from 'lucide-react';
 import { twoFactor, useSession } from '@/lib/auth-client';
 import { toast } from 'sonner';
 
+// Module-scope flag: persists across React 18 StrictMode double-mounts
+// and any client-side remounts, so we only send one OTP per browser tab.
+let otpSentOnce = false;
+
 export default function MFAChallengePage() {
   const router = useRouter();
   const { data: session, refetch } = useSession();
@@ -13,7 +17,6 @@ export default function MFAChallengePage() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [timer, setTimer] = useState(0);
-  const otpSentRef = useRef(false);
   const verifyingRef = useRef(false);
 
   const handleResend = useCallback(async () => {
@@ -31,12 +34,13 @@ export default function MFAChallengePage() {
     }
   }, [timer, resending]);
 
-  // Send OTP once on mount. During the partial 2FA flow `/auth/get-session`
-  // returns null, so don't gate on session — the verify endpoint reads the
-  // partial cookie better-auth set during sign-in.
+  // Send OTP once on mount. Module-level flag survives React 18 StrictMode
+  // double-mounts AND any router-induced remounts, so the user only ever
+  // gets one OTP email per page visit (better-auth invalidates the older
+  // OTP when a new one is sent — typing the first email's code = 401).
   useEffect(() => {
-    if (otpSentRef.current) return;
-    otpSentRef.current = true;
+    if (otpSentOnce) return;
+    otpSentOnce = true;
     handleResend();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
