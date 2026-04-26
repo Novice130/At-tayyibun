@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -19,8 +19,12 @@ export default function LoginForm() {
     password: '',
   });
 
+  const submittingRef = useRef(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setIsLoading(true);
     setError('');
 
@@ -34,22 +38,16 @@ export default function LoginForm() {
         throw new Error(authError.message);
       }
 
-      // twoFactorRedirect is handled automatically by twoFactorClient({ twoFactorPage })
-      // so if we reach here, auth succeeded without 2FA challenge
-
       const role = (data as any)?.user?.role;
       if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
         router.push('/admin');
         return;
       }
-
       router.push('/browse');
     } catch (err: any) {
       const msg = err.message || 'Failed to sign in. Please try again.';
       setError(msg);
-      // Sentry.captureException(err, {
-      //   extra: { email: formData.email, authAction: 'signIn.email' },
-      // });
+      submittingRef.current = false;
     } finally {
       setIsLoading(false);
     }

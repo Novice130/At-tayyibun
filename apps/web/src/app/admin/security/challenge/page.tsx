@@ -14,6 +14,7 @@ export default function MFAChallengePage() {
   const [resending, setResending] = useState(false);
   const [timer, setTimer] = useState(0);
   const otpSentRef = useRef(false);
+  const verifyingRef = useRef(false);
 
   const handleResend = useCallback(async () => {
     if (timer > 0 || resending) return;
@@ -50,6 +51,10 @@ export default function MFAChallengePage() {
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (code.length < 6) return;
+    // Cloudflare Rocket Loader can re-fire submit handlers; ref guard
+    // prevents the OTP being burned by a duplicate request.
+    if (verifyingRef.current) return;
+    verifyingRef.current = true;
 
     setLoading(true);
     try {
@@ -61,6 +66,7 @@ export default function MFAChallengePage() {
       router.replace('/admin');
     } catch (err: any) {
       toast.error(err.message || 'Invalid verification code');
+      verifyingRef.current = false;
     } finally {
       setLoading(false);
     }
