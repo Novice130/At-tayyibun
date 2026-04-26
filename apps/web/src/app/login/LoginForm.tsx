@@ -35,6 +35,16 @@ export default function LoginForm() {
       });
 
       if (authError) {
+        // Better-auth returns code "EMAIL_NOT_VERIFIED" when
+        // requireEmailVerification gates sign-in. Surface a friendlier
+        // message; the verification email was already re-sent by the
+        // server side of the sign-in attempt (better-auth default).
+        const code = (authError as any).code;
+        if (code === 'EMAIL_NOT_VERIFIED') {
+          throw new Error(
+            'Please verify your email before signing in. We just sent a new verification link to your inbox.',
+          );
+        }
         throw new Error(authError.message);
       }
 

@@ -163,7 +163,111 @@ const options = {
       },
     },
   },
-  emailAndPassword: { enabled: true },
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: true,
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    expiresIn: 60 * 60, // 1 hour
+    async sendVerificationEmail({ user, url }) {
+      if (!process.env.RESEND_API_KEY) {
+        throw new Error("RESEND_API_KEY not set; cannot send verification email");
+      }
+      const firstName = user.name?.split(" ")[0] || "there";
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify your email – At-Tayyibun</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f1eb;font-family:'Helvetica Neue',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f1eb;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+
+          <tr>
+            <td align="center" style="padding-bottom:24px;">
+              <img
+                src="${process.env.WEB_URL || 'https://attayyibun.com'}/at-tayyibun-logo.png"
+                alt="At-Tayyibun Logo"
+                style="width: 80px; height: 80px; object-fit: contain;"
+              />
+              <div style="color:#1a1a2e;font-size:22px;font-weight:700;letter-spacing:0.5px;margin-top:12px;">At-Tayyibun</div>
+              <div style="color:#8a7a5a;font-size:13px;margin-top:2px;">Muslim Matrimony</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#ffffff;border-radius:16px;padding:40px 40px 32px;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+              <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1a1a2e;">Confirm your email</h1>
+              <p style="margin:0 0 28px;font-size:15px;color:#5a5a6e;line-height:1.6;">
+                Assalamu Alaikum ${firstName},<br/>
+                Welcome to At-Tayyibun. Tap the button below to confirm your email and finish setting up your profile.
+              </p>
+
+              <div style="text-align:center;margin:0 0 28px;">
+                <a href="${url}"
+                   style="display:inline-block;background:#c9a84c;color:#1a1a2e;font-weight:700;font-size:15px;text-decoration:none;padding:14px 32px;border-radius:10px;">
+                  Verify email
+                </a>
+              </div>
+
+              <p style="margin:0 0 24px;font-size:13px;color:#7a7a8a;line-height:1.6;">
+                Or paste this link into your browser:<br/>
+                <a href="${url}" style="color:#8a7a5a;word-break:break-all;">${url}</a>
+              </p>
+
+              <div style="background:#fff8f0;border-left:3px solid #e07b39;border-radius:4px;padding:12px 16px;">
+                <p style="margin:0;font-size:13px;color:#7a4a2a;line-height:1.5;">
+                  <strong>Note:</strong> this link expires in 1 hour. If you didn't sign up at At-Tayyibun, you can safely ignore this email.
+                </p>
+              </div>
+
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding-top:28px;">
+              <div style="font-size:12px;color:#aaa098;line-height:1.8;">
+                © 2025 At-Tayyibun · Muslim Matrimony<br/>
+                <a href="https://attayyibun.com" style="color:#c9a84c;text-decoration:none;">attayyibun.com</a>
+                &nbsp;·&nbsp;
+                <span>Do not reply to this email</span>
+              </div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        },
+        body: JSON.stringify({
+          from: `${process.env.RESEND_FROM_NAME || "At-Tayyibun"} <${process.env.RESEND_FROM_EMAIL || "noreply@attayyibun.com"}>`,
+          to: [user.email],
+          subject: "Confirm your email – At-Tayyibun",
+          html,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`Resend ${res.status}: ${body.slice(0, 200)}`);
+      }
+    },
+  },
   user: {
     additionalFields: {
       publicId: { type: "string", required: false, input: false },

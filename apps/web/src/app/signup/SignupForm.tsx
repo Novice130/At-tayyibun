@@ -111,18 +111,19 @@ export default function SignupForm() {
         throw new Error(authError.message);
       }
 
-      // Seed profile row with gender + firstName so setup wizard pre-fills.
+      // With requireEmailVerification: true, sign-up does NOT auto-create a
+      // session, so the profile pre-seed PUT would 401. Defer pre-seed until
+      // after the user clicks the verification link (autoSignInAfterVerification
+      // creates the session, then /profile/setup runs the seed itself).
+      // The gender + firstName are stashed in sessionStorage as a backup.
       try {
-        await api.put('/profiles/me', {
-          firstName: formData.firstName,
-          gender: formData.gender,
-        });
-      } catch (seedErr) {
-        console.warn('Profile pre-seed failed; setup wizard will collect gender again.', seedErr);
-      }
+        sessionStorage.setItem(
+          'pending-profile-seed',
+          JSON.stringify({ firstName: formData.firstName, gender: formData.gender }),
+        );
+      } catch {}
 
       setSuccess(true);
-      setTimeout(() => router.push('/profile/setup'), 2000);
     } catch (err: any) {
       console.error('Signup error:', err);
       // Sentry.captureException(err, {
@@ -147,13 +148,20 @@ export default function SignupForm() {
           <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
             <Mail className="w-10 h-10 text-green-500" aria-hidden="true" />
           </div>
-          <h1 className="font-heading text-3xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Account Created!</h1>
-          <p className="mb-8" style={{ color: 'var(--color-text-secondary)' }}>
-            Welcome! Setting up your profile next...
+          <h1 className="font-heading text-3xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Check your email</h1>
+          <p className="mb-2" style={{ color: 'var(--color-text)' }}>
+            We sent a verification link to <strong>{formData.email}</strong>.
           </p>
-          <Link href="/profile/setup" className="btn-primary inline-block">
-            Complete Profile
-          </Link>
+          <p className="mb-8" style={{ color: 'var(--color-text-secondary)' }}>
+            Click the link to confirm your email, then you'll be signed in and taken to profile setup. The link expires in 1 hour.
+          </p>
+          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            Didn't get it? Check spam, or{' '}
+            <Link href="/login" className="text-gold-400 hover:text-gold-300">
+              sign in
+            </Link>{' '}
+            to request a new link.
+          </p>
         </div>
       </div>
     );

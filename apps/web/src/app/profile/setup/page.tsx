@@ -79,6 +79,26 @@ export default function ProfileSetupPage() {
     if (!isPending && !session) router.replace('/login');
   }, [session, isPending, router]);
 
+  // First load after email verification: drain the sessionStorage seed the
+  // signup form left behind (gender + firstName) so the wizard pre-fills.
+  // No-op if there's nothing pending or it's already been applied.
+  useEffect(() => {
+    if (!session) return;
+    let seed: { firstName?: string; gender?: 'MALE' | 'FEMALE' } | null = null;
+    try {
+      const raw = sessionStorage.getItem('pending-profile-seed');
+      if (raw) seed = JSON.parse(raw);
+    } catch {}
+    if (!seed) return;
+    if (seed.gender) setGender(seed.gender);
+    if (seed.firstName) setForm(f => ({ ...f, firstName: seed!.firstName! }));
+    api.put('/profiles/me', {
+      ...(seed.firstName ? { firstName: seed.firstName } : {}),
+      ...(seed.gender ? { gender: seed.gender } : {}),
+    }).catch(() => { /* will be re-collected on Complete Profile submit */ });
+    try { sessionStorage.removeItem('pending-profile-seed'); } catch {}
+  }, [session]);
+
   // Pre-fill gender from existing profile (set during signup)
   useEffect(() => {
     if (!session) return;

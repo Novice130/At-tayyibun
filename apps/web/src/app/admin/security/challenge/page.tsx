@@ -62,7 +62,11 @@ export default function MFAChallengePage() {
 
     setLoading(true);
     try {
-      const { data, error } = await twoFactor.verifyOtp({ code });
+      // trustDevice: true makes better-auth issue a "trusted device" cookie
+      // valid for 30 days — admin won't be challenged for 2FA on this same
+      // browser within that window. Sliding window: each successful sign-in
+      // refreshes it.
+      const { data, error } = await twoFactor.verifyOtp({ code, trustDevice: true });
       if (error) throw error;
 
       toast.success('Identity verified');
