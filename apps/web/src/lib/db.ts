@@ -1,12 +1,7 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from 'ws';
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from './db-schema';
 import * as relations from './db-relations';
-
-if (typeof WebSocket === 'undefined') {
-  neonConfig.webSocketConstructor = ws;
-}
 
 const globalForDb = globalThis as unknown as {
   dbPool?: Pool;
@@ -14,7 +9,14 @@ const globalForDb = globalThis as unknown as {
 };
 
 export const pool =
-  globalForDb.dbPool ?? new Pool({ connectionString: process.env.DATABASE_URL });
+  globalForDb.dbPool ??
+  new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  });
 if (process.env.NODE_ENV !== 'production') globalForDb.dbPool = pool;
 
 export const db =
