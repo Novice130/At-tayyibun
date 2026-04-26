@@ -7,8 +7,8 @@ import * as relations from './relations';
 
 neonConfig.webSocketConstructor = ws;
 neonConfig.pipelineConnect = false;
-neonConfig.fetchTimeout = 10000;
-neonConfig.maxMessageSize = 1024 * 1024;
+neonConfig.fetchTimeout = 30000;
+neonConfig.maxMessageSize = 1024 * 1024 * 10;
 
 export type DB = ReturnType<typeof drizzle<typeof schema & typeof relations>>;
 
@@ -20,9 +20,9 @@ export class DrizzleService implements OnModuleDestroy {
   constructor() {
     const url = process.env.DATABASE_URL;
     if (!url) throw new Error('DATABASE_URL is not set');
-    this.pool = new Pool({ connectionString: url, idleTimeout: 10000, max: 10 });
+    this.pool = new Pool({ connectionString: url, idleTimeout: 30000, max: 20 });
     this.db = drizzle(this.pool, { schema: { ...schema, ...relations }, casing: 'snake_case' });
-    console.log('[DrizzleService] Neon WebSocket pool initialized. ws available:', typeof ws !== 'undefined');
+    console.log('[DrizzleService] Neon pool init. ws available:', typeof ws !== 'undefined');
   }
 
   async onModuleDestroy() {
