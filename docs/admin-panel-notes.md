@@ -8,7 +8,7 @@ Running log of decisions, gotchas, and rationale while building the admin panel.
 
 - Backend admin module (`apps/api/src/modules/admin/`) already ships: `/admin/analytics`, `/admin/users`, `/admin/users/:id`, `/admin/users/:id/boost`, `/admin/admins` (add/remove, SUPER_ADMIN), `/admin/settings` + `/admin/settings/membership` toggle. RBAC enforced via `RolesGuard` + `@Roles()` decorator.
 - Frontend has **no** `/admin` route yet. Better-auth session exposes `user.id`, `user.email`, `user.name`, `user.image`, `user.publicId` — but **not** `user.role`. Role lives on the `User` table in Postgres.
-- Admin seed creates `admin@attayyibun.com` / `ChitapataChinukulu`. First seed used argon2 hash → login failed. Switched seed to better-auth `hashPassword` (scrypt). Existing admin row rehashed via one-shot script.
+- Admin seed creates `admin@attayyibun.com`; password is documented in the user's local Claude memory (`reference_test_accounts.md`), not committed here. First seed used argon2 hash → login failed. Switched seed to better-auth `hashPassword` (scrypt). Existing admin row rehashed via one-shot script. Rotate before going to real users.
 
 ## MVP slice (shipping this pass)
 

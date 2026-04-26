@@ -1,35 +1,25 @@
 # Progress — At-Tayyibun
 
-## 2026-04-26 Evening (NVIDIA AI Session)
+## 2026-04-26 — Auth/DB stabilization marathon
+Eight-layer bug chain resolved (full narrative in
+`docs/session-handoff-2026-04-26.md`):
 
-### Fixes Applied ✅
-| Commit | Change | Status |
+| Commit | Layer | What it fixed |
 |---|---|---|
-| `dd73367` | Diagnostic try-catch in `getAnalytics` | Deployed |
-| `878290c` | BetterAuthGuard DB fallback; neonConfig ws tuning | Deployed |
+| `be7fa2d` | 0 | BetterAuth `generateId` string → function |
+| `d0a1305` `cb5fb21` | 1 | Sentry OOM build → commented + heap cap |
+| `7085143` `5422571` | 2 | Lazy GCS + Resend constructors |
+| `51fe05b` | 3 | Strip cookie signature; seed `account` row |
+| `747d3fd` | 4 | Persist gender from sign-up |
+| `0ac7356` `a720aec` | 5 | Unblock 2FA challenge; session schema cols |
+| `37dd401` | 6 | Drop neon-serverless WS → node-postgres TCP |
+| `d1acac1` | 7 | RolesGuard stops checking phantom 2FA column |
+| `c4b077a` `1bf42ac` | 8 | Single OTP per challenge mount |
 
-### Root Cause Identified ✅
-WebSocket connection to Neon DB failing inside Docker. All 500s are cascading from this.
+Verification harness: `diagnostics/drive-admin-login.ts` drives the
+admin sign-in + 2FA flow with an OTP read from the `verification` table,
+so future regressions can be detected without an inbox.
 
-### Files Changed
-- `apps/api/src/modules/admin/admin.service.ts` — try-catch logging
-- `apps/api/src/common/guards/better-auth.guard.ts` — DB fallback → 503
-- `apps/api/src/db/drizzle.service.ts` — ws tuning + startup log
-- `diagnostics/check-prod-schema.sh` — schema drift check script
-- `docs/nvidia-ai-changes-2026-04-26.md` — consolidated memory file
-- `docs/session-handoff-2026-04-26.md` — open problem tracker
-- `memory-bank/` — NEW: centralized memory system
-
-## 2026-04-25 Session
-- `7085143`: hideLocation fix, lazy StorageService
-- `51fe05b`: seed credential accounts
-- `747d3fd`: persist gender from signup
-- `0ac7356`: unblock MFA challenge
-- `9a13698`: slim API Docker image
-- `5422571`: lazy-construct Resend
-
-## Lessons Learned
-1. Constructor-throws-on-missing-env → always lazy-load SDKs
-2. Old container image → force-update after env changes
-3. WebSocket in Docker → test Neon connectivity from container
-4. twoFactorVerified column → better-auth never writes to it
+## Lessons distilled
+See `docs/session-handoff-2026-04-26.md` §5 — the canonical "do not
+relearn this" list.

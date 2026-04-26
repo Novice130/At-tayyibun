@@ -1,31 +1,22 @@
-# Active Context — At-Tayyibun 2026-04-26 Evening
+# Active Context — 2026-04-26
 
-## Current Problem
-**WebSocket connection to Neon DB failing inside Docker container.**
-All API endpoints returning 500 because `BetterAuthGuard` can't look up sessions.
+## Status
+All known prod-blockers cleared. Auth + profile + admin flows verified
+end-to-end via Playwright (`diagnostics/drive-admin-login.ts`).
 
-## Root Cause
-```
-Error: All attempts to open a WebSocket to connect to the database failed.
-Details: TypeError: fetch failed
-at BetterAuthGuard.canActivate
-```
-Docker container cannot reach Neon WebSocket endpoint (port 5432/SSL).
+## Last commit on `main`
+`1bf42ac` — single OTP per challenge mount via module-scope flag.
 
-## Fix Applied (commit `878290c`)
-- `better-auth.guard.ts`: try-catch on DB lookup → 503 fallback
-- `drizzle.service.ts`: neonConfig ws tuning + startup log
+## Open work
+- Rotate prod secrets (Neon, BetterAuth, Resend, Sentry token).
+- Decide whether to relax profile completion check (drops `bio` +
+  `lastName` requirement) so partially-complete users like
+  `testsister1@example.com` show up in browse.
+- Re-enable Sentry on web after VPS upgrade (currently commented out).
+- Regenerate `graphify-out/` after the DB driver swap.
 
-## Pending Actions
-1. Force deploy: `docker service update --force attayibun-api-nvxlws`
-2. Check startup log for `[DrizzleService] Neon WebSocket pool initialized. ws available:`
-3. If still failing → fix Docker DNS or switch Neon to HTTP mode
-4. Test OTP login flow
-5. Test admin analytics endpoint
-6. Test profile setup wizard
-
-## Environment
-- Prod API: `attayibun-api-nvxlws` on Dokploy VPS
-- Neon DB: cloud.neon.tech
-- Web app: Next.js on Dokploy
-- SMTP: Resend (RESEND_API_KEY set in Dokploy)
+## Where to start a new session
+Read `docs/session-handoff-2026-04-26.md` — it's the canonical handoff
+that absorbs the previous chunked notes. Do not consult the older
+session-handoff files (they predate the consolidation and are
+historical).

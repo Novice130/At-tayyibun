@@ -53,3 +53,4 @@ service-account.json
 .claude/
 
 .playwright-mcp/
+opencode-mcp-export.json

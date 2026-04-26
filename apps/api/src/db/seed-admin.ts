@@ -18,8 +18,12 @@ import * as relations from './relations';
 
 neonConfig.webSocketConstructor = ws;
 
-const ADMIN_EMAIL = 'admin@attayyibun.com';
-const ADMIN_PASSWORD = 'ChitapataChinukulu';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@attayyibun.com';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+if (!ADMIN_PASSWORD) {
+  console.error('ADMIN_PASSWORD env var required for admin seed');
+  process.exit(1);
+}
 
 async function main() {
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });

@@ -91,7 +91,7 @@ If duplicate or missing → disable 2FA via `/admin/security/setup` and re-enabl
 
 | Email | Password | Role | 2FA |
 |---|---|---|---|
-| admin@attayyibun.com | ChitapataChinukulu | SUPER_ADMIN | Email OTP |
+| admin@attayyibun.com | (see local memory `reference_test_accounts.md`) | SUPER_ADMIN | Email OTP |
 | ahmad0@example.com | Test@123 | USER | None |
 
 ---

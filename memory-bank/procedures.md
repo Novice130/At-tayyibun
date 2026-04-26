@@ -1,49 +1,53 @@
 # Procedures — At-Tayyibun
 
-## Deploy API Fix
+## Tail prod API logs for errors
+```bash
+docker service logs attayibun-api-nvxlws --tail 200 2>&1 \
+  | grep -B2 -A30 -iE "error|exception" | tail -80
+```
+
+## Force-redeploy the API
 ```bash
 docker service update --force attayibun-api-nvxlws
 ```
 
-## Check API Logs
+## Confirm the latest code actually shipped
 ```bash
-docker service logs attayibun-api-nvxlws --tail 50 -f 2>&1 | Select-String "DrizzleService|Neon|ws available|error|ERROR"
+docker service logs attayibun-api-nvxlws --tail 30 2>&1 \
+  | grep -E "DrizzleService|node-postgres pool init"
 ```
 
-## Check Container Status
+## Drive admin login end-to-end (no email needed)
 ```bash
-docker service ls | grep attayibun-api
-docker service ps attayibun-api-nvxlws --no-trunc | head -3
+DATABASE_URL='<neon-pooler-url>' \
+  pnpm --filter @at-tayyibun/web exec tsx \
+    ../../diagnostics/drive-admin-login.ts
 ```
+Reads OTP from the `verification` table and types it into headless
+chromium. Use this to isolate backend vs browser the moment a 401
+returns.
 
-## Force-Redeploy (pulls latest main)
+## Quick DB diagnostics
+A reusable script lives at `diagnostics/check-state.ts`. Run with
+`DATABASE_URL=... npx tsx diagnostics/check-state.ts`. Edit the
+`sections` map to whatever queries the current bug needs.
+
+## Reseed (clears + recreates everything)
 ```bash
-docker service update --force attayibun-api-nvxlws
-# Then immediately watch logs:
-docker service logs attayibun-api-nvxlws --tail 30 -f
+pnpm --filter @at-tayyibun/api db:seed         # 20 test users
+pnpm --filter @at-tayyibun/api db:seed:admin   # admin (idempotent)
 ```
 
-## Test Health Endpoint
+## Local dev
 ```bash
-curl -s https://attayyibun.com/api/admin/analytics -H "cookie: better-auth.session_token=<token>"
+pnpm dev   # web :3000 + api :3001 via Turborepo
 ```
 
-## Check Neon DB Two-Factor Records
-```sql
-SELECT u.email, u.two_factor_enabled, t.id as two_factor_id
-FROM users u LEFT JOIN two_factor t ON t."userId" = u.id
-WHERE u.email = 'admin@attayyibun.com';
+## Browser MCP servers (configured)
+- `playwright` — `npx -y @playwright/mcp@latest`
+- `chrome-devtools` — `npx chrome-devtools-mcp@latest`
+- `puppeteer` — `npx -y @modelcontextprotocol/server-puppeteer`
+- `dokploy-mcp` — manages Dokploy apps without curl
+- `memory-bank` — reads/writes this folder programmatically
 
-SELECT "userId", COUNT(*) as cnt FROM two_factor GROUP BY "userId" HAVING COUNT(*) > 1;
-```
-
-## Sign Out and Clear 2FA
-1. Sign in as admin → goes to challenge page
-2. Disable 2FA via `/admin/security/setup`
-3. Re-enable 2FA fresh
-
-## Local Dev
-```bash
-cd apps/api && pnpm dev  # port 3001
-cd apps/web && pnpm dev  # port 3000
-```
+`claude mcp list` to see status.

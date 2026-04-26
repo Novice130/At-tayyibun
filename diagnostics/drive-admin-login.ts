@@ -43,8 +43,14 @@ async function main() {
   await page.waitForSelector('input[type=email]', { timeout: 15000 });
 
   console.log('=== Step 2: fill credentials ===');
-  await page.fill('input[type=email]', 'admin@attayyibun.com');
-  await page.fill('input[type=password]', 'ChitapataChinukulu');
+  const email = process.env.ADMIN_EMAIL || 'admin@attayyibun.com';
+  const password = process.env.ADMIN_PASSWORD;
+  if (!password) {
+    console.error('ADMIN_PASSWORD env var required');
+    process.exit(1);
+  }
+  await page.fill('input[type=email]', email);
+  await page.fill('input[type=password]', password);
 
   const before = new Date();
 

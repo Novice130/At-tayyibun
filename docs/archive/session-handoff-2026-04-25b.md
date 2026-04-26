@@ -1,6 +1,6 @@
 # Session Handoff — 2026-04-25 (Session B)
 
-> Paste into a new Claude Code session. Covers the investigation of the 500 error on profile setup, all relevant files read, and exact root causes found.
+> Paste into a new Claude Code session. Covers the investigation of the 500 error on profile setup, all relevant files read, exact root causes found, and fixes applied Apr 25 afternoon session.
 
 ---
 
@@ -154,6 +154,81 @@ app.useGlobalFilters(new AllExceptionsFilter());
 - [ ] **`hideLocation` in ProfileCard** — show state-only when `biodata.hideLocation = true`
 - [ ] **Rotate all secrets** — Neon DB, Better-Auth secret, Resend API key, Sentry token — REQUIRED before prod deploy
 - [ ] **Production deploy** — blocked on secrets rotation
+
+---
+
+## 7. What was actually done (Apr 25 afternoon session)
+
+### `hideLocation` in browse profiles — FIXED ✅
+
+**Problem**: `browseProfiles` returned full city even when user had `hideLocation = true` in biodata. Location was exposed publicly.
+
+**Fix in `apps/api/src/modules/profiles/profiles.service.ts`**:
+
+1. `updateMyProfile` now stores `hideLocation` in `publicFields`:
+```typescript
+updateData.publicFields = {
+  bio: data.bio ? data.bio.substring(0, 200) : null,
+  hideLocation: data.biodata?.hideLocation ?? false
+};
+```
+
+2. `browseProfiles` checks `hideLocation` and nulls `city` when true:
+```typescript
+city:
+  profile.publicFields && typeof profile.publicFields === 'object' && (profile.publicFields as any)['hideLocation']
+    ? null
+    : profile.city,
+```
+
+3. `getProfileByPublicId` same logic for consistency.
+
+**Commit**: `7085143` — pushed + manual Dokploy deploy triggered.
+
+### `@google-cloud/storage` lazy load — FIXED ✅
+
+**Problem**: `StorageService` instantiated `@google-cloud/storage` at module load time. On Windows/pnpm the package's `build/cjs/src/index.js` was missing, crashing API before it could start.
+
+**Fix**: Changed `StorageService` to lazy-load via `require()` inside `getStorage()` getter, only called when storage methods actually invoked.
+
+```typescript
+private getStorage(): Storage {
+  if (!this.storage) {
+    const { Storage } = require('@google-cloud/storage') as { Storage: new (opts: any) => Storage };
+    this.storage = new Storage({ projectId: this.configService.get<string>('GCS_PROJECT_ID') });
+  }
+  return this.storage!;
+}
+```
+
+**Commit**: `7085143`.
+
+### Pre-existing local dev blocker: BullModule DI error
+
+**Error**: `Nest can't resolve dependencies of the BullExplorer (?, DiscoveryService, ...)`
+
+This blocks local `pnpm dev` / `node dist/src/main.js` but does NOT block production Docker builds (prod API already running fine on Dokploy). Not related to any profile/setup changes. Root cause: `@nestjs/bullmq` version + Windows/pnpm module resolution quirk. 
+
+**Workaround**: Test against production at `https://attayyibun.com` via Playwright instead of local API.
+
+---
+
+## 8. Deploy status
+
+- Commit `7085143` pushed to `main` → GitHub
+- Dokploy deploy manually triggered for both `api` and `app`
+- BullModule issue pre-exists in codebase — not introduced by today's changes
+- Prod API was healthy before deploy (Docker handles module resolution correctly)
+
+---
+
+## 9. Still pending
+
+- [ ] **MFA loop confirm** — test with SUPER_ADMIN login, OTP verify, admin dashboard loads
+- [ ] **Profile E2E test** — new user signup → complete wizard → appears in browse with opposite-gender filter  
+- [ ] **hideLocation browse verify** — after deploy finishes, confirm city is nulled when hideLocation=true
+- [ ] **BullModule fix** — investigate + fix for local dev (not blocking prod)
+- [ ] **Rotate secrets** — Neon DB password, Better-Auth secret, Resend API key, Sentry token
 
 ---
 
