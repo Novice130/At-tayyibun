@@ -19,10 +19,13 @@ import * as relations from './relations';
 neonConfig.webSocketConstructor = ws;
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@attayyibun.com';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-if (!ADMIN_PASSWORD) {
-  console.error('ADMIN_PASSWORD env var required for admin seed');
-  process.exit(1);
+function requireAdminPassword(): string {
+  const v = process.env.ADMIN_PASSWORD;
+  if (!v) {
+    console.error('ADMIN_PASSWORD env var required for admin seed');
+    process.exit(1);
+  }
+  return v;
 }
 
 async function main() {
@@ -31,7 +34,7 @@ async function main() {
 
   console.log('Admin seed starting...');
 
-  const passwordHash = await hashPassword(ADMIN_PASSWORD);
+  const passwordHash = await hashPassword(requireAdminPassword());
   const now = new Date().toISOString();
 
   const [existing] = await db.select().from(schema.users).where(eq(schema.users.email, ADMIN_EMAIL)).limit(1);
