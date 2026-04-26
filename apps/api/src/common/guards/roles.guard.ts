@@ -3,10 +3,6 @@ import { Reflector } from '@nestjs/core';
 import { Role } from '../types/role';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
-/**
- * Role-based access control guard
- * Checks if user has required role(s) for the route
- */
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
@@ -17,40 +13,19 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    // If no roles are specified, allow access
-    if (!requiredRoles || requiredRoles.length === 0) {
-      return true;
-    }
+    if (!requiredRoles || requiredRoles.length === 0) return true;
 
     const request = context.switchToHttp().getRequest();
     const { user } = request;
+    if (!user) throw new ForbiddenException('Access denied');
 
-    if (!user) {
-      throw new ForbiddenException('Access denied');
-    }
+    // Better-auth only issues a session_token cookie after OTP verify.
+    // If we have a session here at all, 2FA was satisfied — no need to
+    // re-check session.twoFactorVerified (better-auth never writes it).
+    if (user.role === Role.SUPER_ADMIN) return true;
 
-    // SUPER_ADMIN has access to everything, but must pass MFA if enabled
-    if (user.role === Role.SUPER_ADMIN) {
-      if (user.twoFactorEnabled && !request.session?.twoFactorVerified) {
-        throw new ForbiddenException('MFA_REQUIRED');
-      }
-      return true;
-    }
-
-    // Check if user has one of the required roles
     const hasRole = requiredRoles.includes(user.role);
-
-    if (!hasRole) {
-      throw new ForbiddenException('Insufficient permissions');
-    }
-
-    // If user is ADMIN, also enforce MFA if enabled
-    if (user.role === Role.ADMIN) {
-      if (user.twoFactorEnabled && !request.session?.twoFactorVerified) {
-        throw new ForbiddenException('MFA_REQUIRED');
-      }
-    }
-
+    if (!hasRole) throw new ForbiddenException('Insufficient permissions');
     return true;
   }
 }
