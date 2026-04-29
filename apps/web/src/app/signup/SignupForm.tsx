@@ -1,18 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, Users } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, Users, Loader, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
-import { signUp } from '@/lib/auth-client';
+import { signUp, useSession } from '@/lib/auth-client';
 import { api } from '@/lib/api';
 // Sentry temporarily disabled.
 // import * as Sentry from '@sentry/nextjs';
 
 
-const MALE_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/male/male-${i + 1}.jpg`);
-const FEMALE_AVATARS = Array.from({ length: 12 }, (_, i) => `/avatars/female/female-${i + 1}.jpg`);
+const MALE_AVATARS = Array.from({ length: 13 }, (_, i) => `/avatars/male/male-${i + 1}.jpg`);
+const FEMALE_AVATARS = Array.from({ length: 13 }, (_, i) => `/avatars/female/female-${i + 1}.jpg`);
 
 type CreatorRole = 'SELF' | 'BROTHER' | 'SISTER' | 'GUARDIAN';
 type GuardianContactType = 'MOTHER' | 'FATHER' | 'RELATIVE' | 'GUARDIAN' | 'OTHER';
@@ -34,11 +34,28 @@ const guardianContactLabels: Record<GuardianContactType, string> = {
 
 export default function SignupForm() {
   const router = useRouter();
+  const { data: session, isPending: sessionPending } = useSession();
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    if (!sessionPending && session) router.replace('/profile');
+  }, [session, sessionPending, router]);
+
+  if (sessionPending || session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader className="w-8 h-8 text-gold-500 animate-spin" />
+      </div>
+    );
+  }
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
-  const [step, setStep] = useState<'role' | 'form' | 'guardian' | 'avatar'>('role');
+  const [step, setStep] = useState<'role' | 'form' | 'guardian' | 'avatar' | 'verify-phone'>('role');
+  const [otpCode, setOtpCode] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [resendingOtp, setResendingOtp] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
   const [formData, setFormData] = useState({
     firstName: '',
     email: '',
@@ -91,31 +108,39 @@ export default function SignupForm() {
     setStep('avatar');
   };
 
+  // Normalize a free-typed US phone to E.164 (+1XXXXXXXXXX). Twilio requires E.164.
+  const toE164 = (raw: string): string | null => {
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length === 10) return `+1${digits}`;
+    if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+    if (raw.trim().startsWith('+') && digits.length >= 7) return `+${digits}`;
+    return null;
+  };
+
   const handleSubmit = async () => {
     if (!formData.avatar) {
       setError('Please choose an avatar.');
+      return;
+    }
+    const e164 = toE164(formData.phone);
+    if (!e164) {
+      setError('Please enter a valid US phone number.');
       return;
     }
     setIsLoading(true);
     setError('');
 
     try {
-      const { data, error: authError } = await signUp.email({
+      const { error: authError } = await signUp.email({
         email: formData.email,
         password: formData.password,
         name: formData.firstName,
         image: formData.avatar,
       });
+      if (authError) throw new Error(authError.message);
 
-      if (authError) {
-        throw new Error(authError.message);
-      }
-
-      // With requireEmailVerification: true, sign-up does NOT auto-create a
-      // session, so the profile pre-seed PUT would 401. Defer pre-seed until
-      // after the user clicks the verification link (autoSignInAfterVerification
-      // creates the session, then /profile/setup runs the seed itself).
-      // The gender + firstName are stashed in sessionStorage as a backup.
+      // Email verification is disabled — signUp creates an active session.
+      // Stash the pre-seed for /profile/setup (gender + firstName).
       try {
         sessionStorage.setItem(
           'pending-profile-seed',
@@ -123,45 +148,140 @@ export default function SignupForm() {
         );
       } catch {}
 
-      setSuccess(true);
+      // Persist phone on the user row and dispatch the Twilio OTP.
+      await api.post('/session/phone/send', { phone: e164 });
+      setResendTimer(60);
+      setStep('verify-phone');
     } catch (err: any) {
       console.error('Signup error:', err);
-      // Sentry.captureException(err, {
-      //   extra: {
-      //     email: formData.email,
-      //     firstName: formData.firstName,
-      //     gender: formData.gender,
-      //     creatorRole: formData.creatorRole,
-      //     authAction: 'signUp.email',
-      //   },
-      // });
       setError(err.message || 'Failed to create account. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (success) {
+  // Resend timer tick
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const t = setInterval(() => setResendTimer(s => s - 1), 1000);
+    return () => clearInterval(t);
+  }, [resendTimer]);
+
+  const handleResendOtp = async () => {
+    if (resendTimer > 0 || resendingOtp) return;
+    const e164 = toE164(formData.phone);
+    if (!e164) return;
+    setResendingOtp(true);
+    setError('');
+    try {
+      await api.post('/session/phone/send', { phone: e164 });
+      setResendTimer(60);
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend code.');
+    } finally {
+      setResendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.length < 6) { setError('Enter the 6-digit code.'); return; }
+    setVerifyingOtp(true);
+    setError('');
+    try {
+      await api.post('/session/phone/verify', { code: otpCode });
+      router.push('/profile/setup');
+    } catch (err: any) {
+      setError(err.message || 'Invalid or expired code.');
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  if (step === 'verify-phone') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: 'var(--color-bg)' }}>
-        <div className="max-w-md w-full text-center">
-          <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Mail className="w-10 h-10 text-green-500" aria-hidden="true" />
+        <div className="max-w-md w-full">
+          <div className="card p-8">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="p-4 rounded-full bg-gold-500/10 text-gold-500 ring-8 ring-gold-500/5 mb-4">
+                <ShieldCheck className="w-10 h-10" />
+              </div>
+              <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>Verify your phone</h1>
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                Enter the 6-digit code sent to
+                <span className="block font-medium mt-1" style={{ color: 'var(--color-text)' }}>{formData.phone}</span>
+              </p>
+            </div>
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg mb-4 text-sm text-center">
+                {error}
+              </div>
+            )}
+
+            <div className="flex justify-center gap-2 mb-6">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <input
+                  key={i}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  className="w-12 h-14 text-center text-2xl font-bold rounded-xl input"
+                  value={otpCode[i] || ''}
+                  onPaste={(e) => {
+                    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+                    if (!pasted) return;
+                    e.preventDefault();
+                    const filled = (otpCode.slice(0, i) + pasted).slice(0, 6);
+                    setOtpCode(filled);
+                    const target = e.currentTarget.parentElement?.children[Math.min(filled.length, 5)] as HTMLInputElement | undefined;
+                    target?.focus();
+                  }}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    if (!val) {
+                      const arr = otpCode.split(''); arr[i] = ''; setOtpCode(arr.join(''));
+                      return;
+                    }
+                    if (val.length > 1) {
+                      const filled = (otpCode.slice(0, i) + val).slice(0, 6);
+                      setOtpCode(filled);
+                      const target = e.target.parentElement?.children[Math.min(filled.length, 5)] as HTMLInputElement | undefined;
+                      target?.focus();
+                      return;
+                    }
+                    const arr = otpCode.split(''); arr[i] = val; setOtpCode(arr.join(''));
+                    if (i < 5) (e.target.nextElementSibling as HTMLInputElement)?.focus();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Backspace' && !otpCode[i] && i > 0) {
+                      ((e.target as HTMLInputElement).previousElementSibling as HTMLInputElement)?.focus();
+                    }
+                  }}
+                  autoFocus={i === 0}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={handleVerifyOtp}
+              disabled={verifyingOtp || otpCode.length < 6}
+              className="btn-primary w-full py-3 text-lg flex items-center justify-center gap-2"
+            >
+              {verifyingOtp ? <Loader className="w-5 h-5 animate-spin" /> : 'Verify & Continue'}
+            </button>
+
+            <div className="pt-4 mt-4 border-t border-border text-center">
+              <button
+                onClick={handleResendOtp}
+                disabled={resendTimer > 0 || resendingOtp}
+                className="text-sm font-medium text-gold-500 hover:text-gold-400 disabled:opacity-50"
+              >
+                {resendingOtp ? 'Sending…' : resendTimer > 0 ? `Resend code in ${resendTimer}s` : 'Resend code'}
+              </button>
+            </div>
           </div>
-          <h1 className="font-heading text-3xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Check your email</h1>
-          <p className="mb-2" style={{ color: 'var(--color-text)' }}>
-            We sent a verification link to <strong>{formData.email}</strong>.
-          </p>
-          <p className="mb-8" style={{ color: 'var(--color-text-secondary)' }}>
-            Click the link to confirm your email, then you'll be signed in and taken to profile setup. The link expires in 1 hour.
-          </p>
-          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-            Didn't get it? Check spam, or{' '}
-            <Link href="/login" className="text-gold-400 hover:text-gold-300">
-              sign in
-            </Link>{' '}
-            to request a new link.
-          </p>
         </div>
       </div>
     );

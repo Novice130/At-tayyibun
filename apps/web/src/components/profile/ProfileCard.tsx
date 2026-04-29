@@ -6,11 +6,11 @@ import { MapPin, Heart, Lock } from 'lucide-react';
 
 interface ProfileCardProps {
   publicId: string;
-  firstName: string;
+  firstName: string | null;
   age: number;
   ethnicity: string;
-  city?: string;
-  state?: string;
+  city?: string | null;
+  state?: string | null;
   avatarUrl: string;
   membershipTier?: 'FREE' | 'SILVER' | 'GOLD';
   locked?: boolean;
@@ -33,12 +33,14 @@ export function ProfileCard({
     GOLD: <span className="badge-gold">Gold</span>,
   };
 
+  const displayName = firstName ?? publicId;
+
   const content = (
     <>
       <div className="relative aspect-square rounded-xl overflow-hidden mb-3" style={{ backgroundColor: 'var(--color-surface-hover)' }}>
         <Image
           src={avatarUrl}
-          alt={`${firstName}'s avatar`}
+          alt={`${displayName}'s avatar`}
           fill
           className={`object-cover ${locked ? 'opacity-60' : ''}`}
           unoptimized
@@ -57,7 +59,9 @@ export function ProfileCard({
 
       <div className="space-y-1">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-lg" style={{ color: 'var(--color-text)' }}>{firstName}, {age}</h3>
+          <h3 className={`font-semibold text-lg ${firstName ? '' : 'font-mono text-sm tracking-tight'}`} style={{ color: 'var(--color-text)' }}>
+            {displayName}{firstName ? `, ${age}` : ` · ${age}`}
+          </h3>
           {!locked && (
             <button
               onClick={(e) => {

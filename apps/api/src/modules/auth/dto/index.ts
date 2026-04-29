@@ -51,5 +51,14 @@ export class VerifyPhoneDto {
   code: string;
 }
 
+export class SendPhoneOtpDto {
+  @ApiProperty({ example: '+15551234567' })
+  @IsString()
+  @Matches(/^\+[1-9][0-9]{6,14}$/, {
+    message: 'Phone must be in E.164 format (e.g. +15551234567)',
+  })
+  phone: string;
+}
+
 // Two-Factor Authentication DTOs
 export * from './two-factor.dto';

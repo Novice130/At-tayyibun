@@ -103,19 +103,39 @@ export default function MFAChallengePage() {
                   <input
                     key={i}
                     type="text"
-                    maxLength={1}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
                     className="w-12 h-14 text-center text-2xl font-bold rounded-xl input focus:scale-105 transition-transform"
                     value={code[i] || ''}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+                      if (!pasted) return;
+                      e.preventDefault();
+                      const filled = (code.slice(0, i) + pasted).slice(0, 6);
+                      setCode(filled);
+                      const target = e.currentTarget.parentElement?.children[Math.min(filled.length, 5)] as HTMLInputElement | undefined;
+                      target?.focus();
+                    }}
                     onChange={(e) => {
-                      const val = e.target.value;
-                      if (!/^\d*$/.test(val)) return;
+                      const val = e.target.value.replace(/\D/g, '');
+                      if (!val) {
+                        const newCode = code.split('');
+                        newCode[i] = '';
+                        setCode(newCode.join(''));
+                        return;
+                      }
+                      if (val.length > 1) {
+                        const filled = (code.slice(0, i) + val).slice(0, 6);
+                        setCode(filled);
+                        const target = e.target.parentElement?.children[Math.min(filled.length, 5)] as HTMLInputElement | undefined;
+                        target?.focus();
+                        return;
+                      }
                       const newCode = code.split('');
-                      newCode[i] = val.slice(-1);
-                      const finalCode = newCode.join('');
-                      setCode(finalCode);
-                      
-                      // Auto focus next or submit
-                      if (val && i < 5) {
+                      newCode[i] = val;
+                      setCode(newCode.join(''));
+                      if (i < 5) {
                         const next = e.target.nextElementSibling as HTMLInputElement;
                         next?.focus();
                       }

@@ -4,6 +4,7 @@ import { EmailService } from './email.service';
 import { StorageService } from './storage.service';
 import { AvatarService } from './avatar.service';
 import { AuditService } from './audit.service';
+import { TwilioService } from './twilio.service';
 
 @Global()
 @Module({
@@ -13,6 +14,7 @@ import { AuditService } from './audit.service';
     StorageService,
     AvatarService,
     AuditService,
+    TwilioService,
   ],
   exports: [
     EncryptionService,
@@ -20,6 +22,7 @@ import { AuditService } from './audit.service';
     StorageService,
     AvatarService,
     AuditService,
+    TwilioService,
   ],
 })
 export class SharedServicesModule {}

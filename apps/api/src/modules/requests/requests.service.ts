@@ -104,9 +104,19 @@ export class RequestsService {
     return {
       ...pending,
       target: target
-        ? { publicId: target.publicId, profile: target.profile ? { firstName: target.profile.firstName } : null }
+        ? {
+            publicId: target.publicId,
+            profile: target.profile
+              ? { firstName: this.maskFirstNameIfHidden(target.profile) }
+              : null,
+          }
         : null,
     };
+  }
+
+  private maskFirstNameIfHidden(p: any): string | null {
+    const pf = p?.publicFields && typeof p.publicFields === 'object' ? p.publicFields : {};
+    return pf['hideName'] ? null : p.firstName;
   }
 
   async respondToRequest(
@@ -245,7 +255,7 @@ export class RequestsService {
                 publicId: target.publicId,
                 profile: target.profile
                   ? {
-                      firstName: target.profile.firstName,
+                      firstName: this.maskFirstNameIfHidden(target.profile),
                       gender: target.profile.gender,
                       ethnicity: target.profile.ethnicity,
                       city: target.profile.city,

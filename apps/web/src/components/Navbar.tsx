@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
@@ -17,6 +17,25 @@ export function Navbar() {
   const { data: session } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onScroll = () => setUserMenuOpen(false);
+    const onClickOutside = (e: MouseEvent) => {
+      if (!userMenuRef.current) return;
+      if (!userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setUserMenuOpen(false); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [userMenuOpen]);
 
   const handleLogout = async () => {
     await signOut();
@@ -90,8 +109,8 @@ export function Navbar() {
               <ThemeToggle />
               
               {session ? (
-                <div className="relative">
-                  <button 
+                <div className="relative" ref={userMenuRef}>
+                  <button
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
                     className="flex items-center gap-2 p-1 rounded-full hover:bg-surface-hover transition-all border border-transparent hover:border-border"
                   >
@@ -109,7 +128,6 @@ export function Navbar() {
 
                   {userMenuOpen && (
                     <>
-                      <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
                       <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-surface-secondary border border-border shadow-2xl z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         <div className="p-4 border-b border-border">
                           <p className="font-bold truncate">{user?.name || 'User'}</p>

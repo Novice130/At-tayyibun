@@ -86,21 +86,23 @@ export class ProfilesService {
       db.select({ value: sql<number>`COUNT(*)` }).from(profiles).where(whereClause),
     ]);
 
-    const data = rows.map(({ profile, user }) => ({
-      publicId: user.publicId,
-      firstName: profile.firstName,
-      age: this.calculateAgeFromString(profile.dob),
-      gender: profile.gender,
-      ethnicity: profile.ethnicity,
-      city: profile.city,
-      state: profile.state,
-      avatarUrl: this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
-      bio:
-        profile.publicFields && typeof profile.publicFields === 'object' && 'bio' in profile.publicFields
-          ? (profile.publicFields as any)['bio']
-          : null,
-      membershipTier: user.membershipTier,
-    }));
+    const data = rows.map(({ profile, user }) => {
+      const pf = (profile.publicFields && typeof profile.publicFields === 'object') ? (profile.publicFields as any) : {};
+      const nameHidden = !!pf['hideName'];
+      const locationHidden = !!pf['hideLocation'];
+      return {
+        publicId: user.publicId,
+        firstName: nameHidden ? null : profile.firstName,
+        age: this.calculateAgeFromString(profile.dob),
+        gender: profile.gender,
+        ethnicity: profile.ethnicity,
+        city: locationHidden ? null : profile.city,
+        state: locationHidden ? null : profile.state,
+        avatarUrl: this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
+        bio: 'bio' in pf ? pf['bio'] : null,
+        membershipTier: user.membershipTier,
+      };
+    });
 
     const total = Number(totalRow.value);
     return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
@@ -116,19 +118,19 @@ export class ProfilesService {
     const profile = Array.isArray((user as any).profiles) ? (user as any).profiles[0] : (user as any).profiles;
     if (!profile) throw new NotFoundException('Profile not found');
 
+    const pf = (profile.publicFields && typeof profile.publicFields === 'object') ? (profile.publicFields as any) : {};
+    const nameHidden = !!pf['hideName'];
+    const locationHidden = !!pf['hideLocation'];
     const publicData = {
       publicId: user.publicId,
-      firstName: profile.firstName,
+      firstName: nameHidden ? null : profile.firstName,
       age: this.calculateAgeFromString(profile.dob),
       gender: profile.gender,
       ethnicity: profile.ethnicity,
-      city: profile.city,
-      state: profile.state,
+      city: locationHidden ? null : profile.city,
+      state: locationHidden ? null : profile.state,
       avatarUrl: this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
-      bio:
-        profile.publicFields && typeof profile.publicFields === 'object' && 'bio' in profile.publicFields
-          ? (profile.publicFields as any)['bio']
-          : null,
+      bio: 'bio' in pf ? pf['bio'] : null,
       profileComplete: profile.profileComplete,
     };
 
@@ -231,9 +233,10 @@ export class ProfilesService {
       };
       const isComplete = !!(after.firstName && after.lastName && after.dob && after.gender && after.ethnicity && after.bio);
       updateData.profileComplete = isComplete;
-      updateData.publicFields = { 
+      updateData.publicFields = {
         bio: data.bio ? data.bio.substring(0, 200) : null,
-        hideLocation: data.biodata?.hideLocation ?? false
+        hideLocation: data.biodata?.hideLocation ?? false,
+        hideName: data.biodata?.hideName ?? false,
       };
 
       if (existingProfile) {

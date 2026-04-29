@@ -11,12 +11,12 @@ import { Navbar } from '@/components/Navbar';
 
 interface ProfileData {
   publicId: string;
-  firstName: string;
+  firstName: string | null;
   age: number;
   gender: string;
   ethnicity: string;
-  city?: string;
-  state?: string;
+  city?: string | null;
+  state?: string | null;
   avatarUrl: string;
   bio?: string;
   membershipTier?: string;
@@ -29,7 +29,7 @@ interface ActiveRequest {
   status: string;
   target: {
     publicId: string;
-    profile: { firstName: string } | null;
+    profile: { firstName: string | null } | null;
   };
 }
 
@@ -122,6 +122,9 @@ export default function ProfileDetailPage() {
     );
   }
 
+  const displayName = profile.firstName ?? profile.publicId;
+  const isAnon = !profile.firstName;
+
   return (
     <div className="min-h-screen pb-12" style={{ backgroundColor: 'var(--color-bg)' }}>
       <Navbar />
@@ -138,15 +141,15 @@ export default function ProfileDetailPage() {
               <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-gold-500/30 shadow-xl flex-shrink-0">
                 <Image
                   src={profile.avatarUrl}
-                  alt={`${profile.firstName}'s avatar`}
+                  alt={`${displayName}'s avatar`}
                   fill
                   className="object-cover"
                   unoptimized
                 />
               </div>
               <div className="flex-1 text-center md:text-left">
-                <h1 className="font-heading text-3xl font-bold mb-2">
-                  {profile.firstName}, {profile.age}
+                <h1 className={`font-heading mb-2 font-bold ${isAnon ? 'text-xl font-mono tracking-tight' : 'text-3xl'}`}>
+                  {displayName}{isAnon ? ` · ${profile.age}` : `, ${profile.age}`}
                 </h1>
                 <div className="flex flex-wrap justify-center md:justify-start gap-4" style={{ color: 'var(--color-text-secondary)' }}>
                   <span className="flex items-center gap-1">
@@ -194,7 +197,7 @@ export default function ProfileDetailPage() {
                 </div>
                 <h3 className="text-lg font-semibold mb-2">Request Sent!</h3>
                 <p className="max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
-                  Your contact request has been sent to {profile.firstName}. You&apos;ll receive an email when they respond.
+                  Your contact request has been sent to {displayName}. You&apos;ll receive an email when they respond.
                 </p>
                 <p className="text-sm mt-3" style={{ color: 'var(--color-text-muted)' }}>
                   While waiting, you can still browse profiles but cannot send another request.
@@ -207,7 +210,7 @@ export default function ProfileDetailPage() {
                 </div>
                 <h3 className="text-lg font-semibold mb-2">Request Locked</h3>
                 <p className="max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
-                  You already have a pending request for <strong>{activeRequest?.target?.profile?.firstName}</strong>.
+                  You already have a pending request for <strong>{activeRequest?.target?.profile?.firstName || activeRequest?.target?.publicId}</strong>.
                   Wait for their response before requesting another profile&apos;s contact information.
                 </p>
                 <Link href="/requests" className="btn-secondary inline-block mt-4">
@@ -217,7 +220,7 @@ export default function ProfileDetailPage() {
             ) : (
               <div className="text-center py-6">
                 <p className="mb-6 max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
-                  Contact details are private. Send a request and {profile.firstName} will decide
+                  Contact details are private. Send a request and {displayName} will decide
                   whether to share their phone number and email with you.
                 </p>
                 <button

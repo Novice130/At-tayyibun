@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Post,
@@ -10,6 +11,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from '../../common/decorators';
+import { SendPhoneOtpDto, VerifyPhoneDto } from './dto';
 
 @ApiTags('Session')
 @Controller('session')
@@ -50,5 +52,22 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Logout successful' })
   async logout() {
     return { message: 'Logged out successfully. Clear session on client.' };
+  }
+
+  @Post('phone/send')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Save phone on user and send Twilio Verify OTP' })
+  async sendPhoneOtp(@Req() req: Request, @Body() dto: SendPhoneOtpDto) {
+    const user = req.user as { id: string };
+    await this.authService.sendPhoneOtp(user.id, dto.phone);
+    return { sent: true };
+  }
+
+  @Post('phone/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify Twilio OTP and mark user phone-verified' })
+  async verifyPhoneOtp(@Req() req: Request, @Body() dto: VerifyPhoneDto) {
+    const user = req.user as { id: string };
+    return this.authService.verifyPhoneOtp(user.id, dto.code);
   }
 }

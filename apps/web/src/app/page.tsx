@@ -61,10 +61,17 @@ export default function HomePage() {
         {/* Mobile only: hero image as full background */}
         <div className="absolute inset-0 lg:hidden">
           <Image
+            src="/hero-couple-sunset-light.png"
+            alt=""
+            fill
+            className="object-cover object-[center_20%] scale-[1.18] dark:hidden"
+            priority
+          />
+          <Image
             src="/hero-couple-sunset.png"
             alt=""
             fill
-            className="object-cover object-[center_20%] scale-[1.18]"
+            className="object-cover object-[center_20%] scale-[1.18] hidden dark:block"
             priority
           />
           {/* Light-mode overlay — fades image into page color at bottom */}
@@ -155,10 +162,17 @@ export default function HomePage() {
                 {/* Image — overflow-hidden + scale crops the decorative border */}
                 <div className="relative w-full h-full rounded-3xl overflow-hidden">
                   <Image
+                    src="/hero-couple-sunset-light.png"
+                    alt="Muslim couple overlooking a coastal sunset together"
+                    fill
+                    className="object-cover scale-[1.18] origin-center dark:hidden"
+                    priority
+                  />
+                  <Image
                     src="/hero-couple-sunset.png"
                     alt="Muslim couple overlooking a coastal sunset together"
                     fill
-                    className="object-cover scale-[1.18] origin-center"
+                    className="object-cover scale-[1.18] origin-center hidden dark:block"
                     priority
                   />
                   {/* Bottom page-blend gradient */}

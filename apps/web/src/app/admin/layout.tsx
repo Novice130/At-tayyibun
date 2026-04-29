@@ -4,13 +4,12 @@ import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LayoutDashboard, Users, Settings, LogOut, Loader, Image as ImageIcon, Megaphone, Ticket, Mail, FileJson } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Loader, Megaphone, Ticket, Mail, FileJson } from 'lucide-react';
 import { useSession, signOut } from '@/lib/auth-client';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 const NAV = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { href: '/admin/photos', label: 'Photos', icon: ImageIcon },
   { href: '/admin/ads', label: 'Ads', icon: Megaphone },
   { href: '/admin/coupons', label: 'Coupons', icon: Ticket },
   { href: '/admin/campaigns', label: 'Campaigns', icon: Mail },

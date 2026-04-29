@@ -165,10 +165,12 @@ const options = {
   },
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: true,
+    // Email verification disabled in favor of Twilio phone OTP at signup.
+    // Password-reset flow still uses email separately.
+    requireEmailVerification: false,
   },
   emailVerification: {
-    sendOnSignUp: true,
+    sendOnSignUp: false,
     autoSignInAfterVerification: true,
     expiresIn: 60 * 60, // 1 hour
     async sendVerificationEmail({ user, url }) {

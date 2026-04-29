@@ -54,3 +54,6 @@ service-account.json
 
 .playwright-mcp/
 opencode-mcp-export.json
+
+# Local image scratch (sources copied into apps/web/public/)
+Images/

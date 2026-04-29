@@ -113,7 +113,7 @@ export default function ProfilePage() {
                   )}
                 </div>
               </div>
-              <button className="btn-secondary">Edit Profile</button>
+              <Link href="/profile/setup" className="btn-secondary">Edit Profile</Link>
             </div>
 
             {/* About Section */}

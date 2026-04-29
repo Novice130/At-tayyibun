@@ -22,6 +22,7 @@ interface FormData {
   city: string;
   state: string;
   hideLocation: boolean;
+  hideName: boolean;
   // Step 2 – Background
   legalStatus: string;
   education: string;
@@ -42,7 +43,7 @@ interface FormData {
 
 const EMPTY: FormData = {
   firstName: '', lastName: '', dob: '', ethnicity: '',
-  city: '', state: '', hideLocation: false,
+  city: '', state: '', hideLocation: false, hideName: false,
   legalStatus: '', education: '', profession: '', relocate: '',
   religiousPractice: '', prayerFrequency: '', dietaryPreference: '', sect: '',
   about: '', partnerPreferences: '', dealBreakers: '',
@@ -186,6 +187,7 @@ export default function ProfileSetupPage() {
         bio: form.about.trim(),
         biodata: {
           hideLocation: form.hideLocation,
+          hideName: form.hideName,
           legalStatus: form.legalStatus,
           education: form.education.trim(),
           profession: form.profession.trim(),
@@ -334,6 +336,14 @@ export default function ProfileSetupPage() {
                 checked={form.hideLocation} onChange={e => set('hideLocation', e.target.checked)} />
               <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                 Hide my city/state from the public browse page and only show my region.
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input type="checkbox" className="mt-0.5 w-4 h-4 accent-amber-500 flex-shrink-0"
+                checked={form.hideName} onChange={e => set('hideName', e.target.checked)} />
+              <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                Hide my first name on the public browse page. Only my Public ID will be shown until I accept a connection.
               </span>
             </label>
           </div>
