@@ -58,9 +58,16 @@ export default function SignupForm() {
     guardianEmail: '',
   });
 
+  // Bounce already-signed-in visitors AWAY from /signup — but only if they
+  // landed on the role picker. If they're mid-signup (form/guardian/avatar/
+  // verify-phone), the session was just created by signUp.email and we need
+  // to stay on the page so the phone-OTP step can run.
   useEffect(() => {
-    if (!sessionPending && session) router.replace('/profile');
-  }, [session, sessionPending, router]);
+    if (sessionPending) return;
+    if (!session) return;
+    if (step !== 'role') return;
+    router.replace('/profile');
+  }, [session, sessionPending, router, step]);
 
   // Resend timer tick
   useEffect(() => {
@@ -69,7 +76,7 @@ export default function SignupForm() {
     return () => clearInterval(t);
   }, [resendTimer]);
 
-  if (sessionPending || session) {
+  if (sessionPending || (session && step === 'role')) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader className="w-8 h-8 text-gold-500 animate-spin" />
