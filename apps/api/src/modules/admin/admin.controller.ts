@@ -70,6 +70,16 @@ export class AdminController {
     return this.adminService.updateUser(adminId, userId, dto);
   }
 
+  @Delete('users/:id')
+  @ApiOperation({ summary: 'Delete user (cascades photos/profile/sessions; clears info_requests first)' })
+  @ApiResponse({ status: 200, description: 'User deleted' })
+  async deleteUser(
+    @Param('id') userId: string,
+    @CurrentUser('id') adminId: string,
+  ) {
+    return this.adminService.deleteUser(adminId, userId);
+  }
+
   @Post('admins')
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Add admin user (SUPER_ADMIN only)' })

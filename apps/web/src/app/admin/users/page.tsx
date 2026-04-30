@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Search, Loader, ChevronLeft, ChevronRight, Shield, ShieldOff, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Search, Loader, ChevronLeft, ChevronRight, Shield, ShieldOff, X, AlertCircle, CheckCircle2, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useSession } from '@/lib/auth-client';
 
@@ -118,6 +118,20 @@ export default function AdminUsersPage() {
       load(page, search);
     } catch (e: any) {
       setAction({ type: 'error', msg: e.message || 'Demotion failed' });
+    }
+  };
+
+  const deleteUser = async (userId: string, label: string) => {
+    if (!confirm(`Permanently delete ${label}? This removes their photos, profile, sessions, and pending requests. Cannot be undone.`)) return;
+    setAction(null);
+    try {
+      await api.delete(`/admin/users/${userId}`);
+      setAction({ type: 'info', msg: `Deleted ${label}` });
+      setSelectedId(null);
+      setDetail(null);
+      load(page, search);
+    } catch (e: any) {
+      setAction({ type: 'error', msg: e.message || 'Delete failed' });
     }
   };
 
@@ -328,6 +342,21 @@ export default function AdminUsersPage() {
                   </div>
                 )}
               </section>
+
+              {detail.role !== 'SUPER_ADMIN' && (
+                <section className="mt-5 pt-5 border-t" style={{ borderColor: 'var(--color-border)' }}>
+                  <h3 className="text-xs font-medium mb-2 text-red-400">Danger zone</h3>
+                  <button
+                    onClick={() => deleteUser(detail.id, detail.profile?.firstName || detail.email)}
+                    className="w-full py-2 text-sm rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete account
+                  </button>
+                  <p className="text-xs mt-2" style={{ color: 'var(--color-text-muted)' }}>
+                    Removes user, photos, profile, sessions, and pending info requests. Audit log entry retained.
+                  </p>
+                </section>
+              )}
             </div>
           ) : null}
         </aside>

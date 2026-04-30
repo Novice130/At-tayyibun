@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { and, count, desc, eq, ilike, or, sql } from 'drizzle-orm';
 import { DrizzleService } from '../../db/drizzle.service';
-import { profiles, systemConfig, users } from '../../db/schema';
+import { infoRequests, profiles, systemConfig, users } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 
 @Injectable()
@@ -155,6 +155,24 @@ export class AdminService {
 
     await db.update(users).set(patch).where(eq(users.id, userId));
     await this.auditService.logAdminAction(adminId, 'UPDATE_USER', 'user', userId, dto);
+    return { success: true };
+  }
+
+  async deleteUser(adminId: string, userId: string) {
+    if (adminId === userId) throw new BadRequestException('Cannot delete your own account');
+    const db = this.drizzle.db;
+    const [target] = await db.select({ id: users.id, role: users.role, email: users.email }).from(users).where(eq(users.id, userId));
+    if (!target) throw new NotFoundException('User not found');
+    if (target.role === 'SUPER_ADMIN') throw new ForbiddenException('Cannot delete a SUPER_ADMIN');
+
+    // info_requests has FK ... ON DELETE RESTRICT for both requester and target,
+    // so clear those rows first. Everything else (photos, profiles, session,
+    // account, twoFactor, campaign_recipients, unsubscribes) is ON DELETE
+    // CASCADE; audit_logs is ON DELETE SET NULL — both fine.
+    await db.delete(infoRequests).where(or(eq(infoRequests.requesterId, userId), eq(infoRequests.targetId, userId)));
+    await db.delete(users).where(eq(users.id, userId));
+
+    await this.auditService.logAdminAction(adminId, 'DELETE_USER', 'user', userId, { email: target.email });
     return { success: true };
   }
 
