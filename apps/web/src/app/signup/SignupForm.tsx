@@ -37,18 +37,6 @@ export default function SignupForm() {
   const { data: session, isPending: sessionPending } = useSession();
   const [showPassword, setShowPassword] = useState(false);
 
-  useEffect(() => {
-    if (!sessionPending && session) router.replace('/profile');
-  }, [session, sessionPending, router]);
-
-  if (sessionPending || session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader className="w-8 h-8 text-gold-500 animate-spin" />
-      </div>
-    );
-  }
-
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState<'role' | 'form' | 'guardian' | 'avatar' | 'verify-phone'>('role');
@@ -69,6 +57,25 @@ export default function SignupForm() {
     guardianPhone: '',
     guardianEmail: '',
   });
+
+  useEffect(() => {
+    if (!sessionPending && session) router.replace('/profile');
+  }, [session, sessionPending, router]);
+
+  // Resend timer tick
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const t = setInterval(() => setResendTimer(s => s - 1), 1000);
+    return () => clearInterval(t);
+  }, [resendTimer]);
+
+  if (sessionPending || session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader className="w-8 h-8 text-gold-500 animate-spin" />
+      </div>
+    );
+  }
 
   const handleRoleSelect = (role: CreatorRole) => {
     setFormData({ ...formData, creatorRole: role });
@@ -160,12 +167,7 @@ export default function SignupForm() {
     }
   };
 
-  // Resend timer tick
-  useEffect(() => {
-    if (resendTimer <= 0) return;
-    const t = setInterval(() => setResendTimer(s => s - 1), 1000);
-    return () => clearInterval(t);
-  }, [resendTimer]);
+
 
   const handleResendOtp = async () => {
     if (resendTimer > 0 || resendingOtp) return;
