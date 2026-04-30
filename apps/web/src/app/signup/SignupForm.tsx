@@ -39,7 +39,9 @@ export default function SignupForm() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
   const [step, setStep] = useState<'role' | 'form' | 'guardian' | 'avatar' | 'verify-phone'>('role');
+  // Phone-OTP state — kept around so re-enabling Twilio is a one-line change in handleSubmit.
   const [otpCode, setOtpCode] = useState('');
   const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [resendingOtp, setResendingOtp] = useState(false);
@@ -136,6 +138,8 @@ export default function SignupForm() {
       setError('Please choose an avatar.');
       return;
     }
+    // Phone validation kept active — we still collect the phone for the
+    // contact-share flow, just don't send an SMS OTP for now.
     const e164 = toE164(formData.phone);
     if (!e164) {
       setError('Please enter a valid US phone number.');
@@ -153,8 +157,9 @@ export default function SignupForm() {
       });
       if (authError) throw new Error(authError.message);
 
-      // Email verification is disabled — signUp creates an active session.
-      // Stash the pre-seed for /profile/setup (gender + firstName).
+      // requireEmailVerification: true — signUp does NOT auto-create a session.
+      // Stash the pre-seed; /profile/setup will drain it after the user clicks
+      // the verification link and autoSignInAfterVerification creates the cookie.
       try {
         sessionStorage.setItem(
           'pending-profile-seed',
@@ -162,10 +167,17 @@ export default function SignupForm() {
         );
       } catch {}
 
-      // Persist phone on the user row and dispatch the Twilio OTP.
-      await api.post('/session/phone/send', { phone: e164 });
-      setResendTimer(60);
-      setStep('verify-phone');
+      // ── Twilio phone OTP — temporarily disabled ──────────────────────────
+      // Trial Twilio + A2P 10DLC paperwork blocked launch. Switching back to
+      // email-link verification (better-auth requireEmailVerification: true).
+      // To re-enable: flip auth.ts back to false, uncomment the two lines
+      // below, and remove the setSuccess(true) call.
+      //
+      //   await api.post('/session/phone/send', { phone: e164 });
+      //   setResendTimer(60);
+      //   setStep('verify-phone');
+      void e164; // referenced so the validator above isn't dead code
+      setSuccess(true);
     } catch (err: any) {
       console.error('Signup error:', err);
       setError(err.message || 'Failed to create account. Please try again.');
@@ -205,6 +217,30 @@ export default function SignupForm() {
       setVerifyingOtp(false);
     }
   };
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: 'var(--color-bg)' }}>
+        <div className="max-w-md w-full text-center">
+          <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Mail className="w-10 h-10 text-green-500" aria-hidden="true" />
+          </div>
+          <h1 className="font-heading text-3xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>Check your email</h1>
+          <p className="mb-2" style={{ color: 'var(--color-text)' }}>
+            We sent a verification link to <strong>{formData.email}</strong>.
+          </p>
+          <p className="mb-8" style={{ color: 'var(--color-text-secondary)' }}>
+            Click the link to confirm your email, then you&apos;ll be signed in and taken to profile setup. The link expires in 1 hour.
+          </p>
+          <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            Didn&apos;t get it? Check spam, or{' '}
+            <Link href="/login" className="text-gold-400 hover:text-gold-300">sign in</Link>{' '}
+            to request a new link.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (step === 'verify-phone') {
     return (

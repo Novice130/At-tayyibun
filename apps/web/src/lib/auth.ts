@@ -165,12 +165,13 @@ const options = {
   },
   emailAndPassword: {
     enabled: true,
-    // Email verification disabled in favor of Twilio phone OTP at signup.
-    // Password-reset flow still uses email separately.
-    requireEmailVerification: false,
+    // Phone OTP via Twilio is wired but commented out at the signup step
+    // until an SMS provider with no A2P 10DLC paperwork is chosen. For now
+    // we fall back to email-link verification.
+    requireEmailVerification: true,
   },
   emailVerification: {
-    sendOnSignUp: false,
+    sendOnSignUp: true,
     autoSignInAfterVerification: true,
     expiresIn: 60 * 60, // 1 hour
     async sendVerificationEmail({ user, url }) {
