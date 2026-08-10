@@ -205,6 +205,28 @@ export class RequestsService {
     return { success: true };
   }
 
+  async cancelRequest(userId: string, requestId: string): Promise<{ success: boolean }> {
+    const db = this.drizzle.db;
+    const [request] = await db.select().from(infoRequests).where(eq(infoRequests.id, requestId)).limit(1);
+    if (!request) throw new NotFoundException('Request not found');
+    if (request.requesterId !== userId) {
+      throw new ForbiddenException('You can only cancel requests you sent');
+    }
+    if (request.status !== RequestStatus.PENDING) {
+      throw new BadRequestException('Only pending requests can be cancelled');
+    }
+
+    // Audit before the delete so the row still exists for the log's context.
+    await this.auditService.logInfoRequest(userId, 'REQUEST_CANCELLED', request.targetId, requestId);
+
+    // Hard-delete rather than adding a CANCELLED status: the target never acted,
+    // so there is nothing to preserve on the row, and it keeps the partial
+    // unique index on (requester_id) WHERE status = 'PENDING' free immediately.
+    await db.delete(infoRequests).where(eq(infoRequests.id, requestId));
+
+    return { success: true };
+  }
+
   async getIncomingRequests(userId: string) {
     const db = this.drizzle.db;
     const rows = await db

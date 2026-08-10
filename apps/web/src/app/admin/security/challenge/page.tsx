@@ -98,7 +98,7 @@ export default function MFAChallengePage() {
             </div>
 
             <form onSubmit={handleVerify} className="w-full space-y-6">
-              <div className="flex justify-center gap-2">
+              <div className="flex justify-center gap-1.5 sm:gap-2">
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                   <input
                     key={i}
@@ -106,7 +106,7 @@ export default function MFAChallengePage() {
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     maxLength={6}
-                    className="w-12 h-14 text-center text-2xl font-bold rounded-xl input focus:scale-105 transition-transform"
+                    className="w-10 sm:w-12 h-14 text-center text-xl sm:text-2xl font-bold rounded-xl input focus:scale-105 transition-transform"
                     value={code[i] || ''}
                     onPaste={(e) => {
                       const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);

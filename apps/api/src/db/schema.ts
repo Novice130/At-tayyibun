@@ -46,7 +46,7 @@ export const infoRequests = pgTable("info_requests", {
 }, (table) => [
 	index("info_requests_expires_at_idx").using("btree", table.expiresAt.asc().nullsLast().op("timestamp_ops")),
 	uniqueIndex("info_requests_one_time_token_key").using("btree", table.oneTimeToken.asc().nullsLast().op("text_ops")),
-	uniqueIndex("info_requests_requester_id_status_key").using("btree", table.requesterId.asc().nullsLast().op("enum_ops"), table.status.asc().nullsLast().op("enum_ops")),
+	uniqueIndex("info_requests_requester_pending_key").using("btree", table.requesterId.asc().nullsLast().op("uuid_ops")).where(sql`status = 'PENDING'`),
 	index("info_requests_target_id_status_idx").using("btree", table.targetId.asc().nullsLast().op("enum_ops"), table.status.asc().nullsLast().op("uuid_ops")),
 	foreignKey({
 			columns: [table.requesterId],

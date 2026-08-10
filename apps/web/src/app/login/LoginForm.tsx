@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 // Sentry temporarily disabled.
 // import * as Sentry from '@sentry/nextjs';
-import { signIn } from '@/lib/auth-client';
+import { authClient, signIn } from '@/lib/auth-client';
 
 export default function LoginForm() {
   const router = useRouter();
@@ -47,6 +47,20 @@ export default function LoginForm() {
         }
         throw new Error(authError.message);
       }
+
+      // With 2FA enabled there is no user on the response — the two-factor
+      // plugin performs its own full-page navigation to the challenge screen.
+      // Returning here avoids racing that navigation with a router.push.
+      if ((data as any)?.twoFactorRedirect) {
+        return;
+      }
+
+      // better-auth resolves this promise before its session store catches up
+      // (the client flips its session signal on a 10ms timer, then refetches).
+      // Pushing immediately lands on a page whose useSession() still reads the
+      // stale null, which bounced the user back to /login — the "works on the
+      // second attempt" bug. Await the session so the store is warm first.
+      await authClient.getSession();
 
       const role = (data as any)?.user?.role;
       if (role === 'ADMIN' || role === 'SUPER_ADMIN') {

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Param,
   Body,
 } from '@nestjs/common';
@@ -61,6 +62,17 @@ export class RequestsController {
     @CurrentUser('id') userId: string,
   ) {
     return this.requestsService.respondToRequest(userId, requestId, dto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Cancel your own pending info request' })
+  @ApiResponse({ status: 200, description: 'Request cancelled' })
+  @ApiResponse({ status: 403, description: 'Not your request to cancel' })
+  async cancelRequest(
+    @Param('id') requestId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.requestsService.cancelRequest(userId, requestId);
   }
 
   @Public()

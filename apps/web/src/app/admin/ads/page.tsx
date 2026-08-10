@@ -99,7 +99,7 @@ export default function AdminAdsPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Partner Advertisements</h1>
@@ -115,12 +115,12 @@ export default function AdminAdsPage() {
       ) : (
         <div className="bg-white rounded-xl border shadow-sm overflow-hidden text-sm">
           {loading ? (
-            <div className="p-20 flex flex-col items-center justify-center text-slate-500">
+            <div className="p-10 sm:p-20 flex flex-col items-center justify-center text-slate-500">
               <Loader className="w-8 h-8 animate-spin mb-4 text-primary" />
               <p className="font-medium">Loading advertisements...</p>
             </div>
           ) : ads.length === 0 ? (
-            <div className="flex flex-col items-center p-20 text-center">
+            <div className="flex flex-col items-center p-10 sm:p-20 text-center">
               <div className="w-20 h-20 bg-slate-50 text-slate-200 rounded-full flex items-center justify-center mb-6">
                 <Megaphone className="w-10 h-10" />
               </div>
@@ -170,7 +170,7 @@ export default function AdminAdsPage() {
 
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl border animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-md shadow-2xl border animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-6 text-slate-900">{editingId ? 'Update Ad' : 'New Ad Campaign'}</h2>
             <form onSubmit={handleSave} className="space-y-5">
               <div>

@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
-import { 
-  User, LogOut, Menu, X, MessageSquare, Bell, Shield, 
-  Home, Search, Inbox, ChevronDown 
+import {
+  User, LogOut, Menu, X, Shield,
+  Home, Search, Inbox, ChevronDown
 } from 'lucide-react';
 import { useSession, signOut } from '@/lib/auth-client';
+import { useIncomingRequestCount } from '@/lib/hooks';
 import { ThemeToggle } from './ThemeToggle';
 
 export function Navbar() {
@@ -18,6 +19,7 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const { count: pendingRequests } = useIncomingRequestCount();
 
   useEffect(() => {
     if (!userMenuOpen) return;
@@ -49,7 +51,6 @@ export function Navbar() {
     { href: '/', label: 'Home', icon: Home },
     { href: '/browse', label: 'Browse', icon: Search },
     { href: '/requests', label: 'Requests', icon: Inbox },
-    { href: '/messages', label: 'Messages', icon: MessageSquare },
   ];
 
   return (
@@ -73,6 +74,7 @@ export function Navbar() {
               {session && navLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive = pathname === link.href;
+                const badge = link.href === '/requests' ? pendingRequests : 0;
                 return (
                   <Link
                     key={link.href}
@@ -83,6 +85,14 @@ export function Navbar() {
                   >
                     {isActive && <Icon className="w-4 h-4" />}
                     {link.label}
+                    {badge > 0 && (
+                      <span
+                        className="ml-0.5 min-w-5 h-5 px-1.5 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[11px] font-bold leading-none"
+                        aria-label={`${badge} pending request${badge === 1 ? '' : 's'}`}
+                      >
+                        {badge > 9 ? '9+' : badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -169,10 +179,16 @@ export function Navbar() {
           <div className="md:hidden flex items-center gap-4">
             <ThemeToggle />
             <button
-              className="p-2 rounded-xl bg-surface-hover border border-border transition-transform active:scale-95"
+              className="relative min-w-11 min-h-11 flex items-center justify-center rounded-xl bg-surface-hover border border-border transition-transform active:scale-95"
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {/* Surface pending requests without needing the menu open */}
+              {session && pendingRequests > 0 && !mobileMenuOpen && (
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-[var(--color-bg)]" />
+              )}
             </button>
           </div>
         </div>
@@ -184,13 +200,14 @@ export function Navbar() {
           <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden" onClick={() => setMobileMenuOpen(false)} />
           <div className="absolute top-16 left-4 right-4 z-50 md:hidden animate-in slide-in-from-top-4 duration-300">
             <div className="p-4 rounded-3xl bg-surface-secondary border border-border shadow-2xl space-y-2">
-              {navLinks.map((link) => {
+              {session && navLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive = pathname === link.href;
+                const badge = link.href === '/requests' ? pendingRequests : 0;
                 return (
-                  <Link 
+                  <Link
                     key={link.href}
-                    href={link.href} 
+                    href={link.href}
                     onClick={() => setMobileMenuOpen(false)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${
                       isActive ? 'bg-gold-500/10 text-gold-500 font-bold' : 'hover:bg-surface-hover'
@@ -198,9 +215,42 @@ export function Navbar() {
                   >
                     <Icon className="w-5 h-5" />
                     {link.label}
+                    {badge > 0 && (
+                      <span
+                        className="ml-auto min-w-6 h-6 px-2 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-xs font-bold leading-none"
+                        aria-label={`${badge} pending request${badge === 1 ? '' : 's'}`}
+                      >
+                        {badge > 9 ? '9+' : badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
+              {!session && (
+                <>
+                  <Link
+                    href="/"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-surface-hover transition-all"
+                  >
+                    <Home className="w-5 h-5" /> Home
+                  </Link>
+                  <Link
+                    href="/browse"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-surface-hover transition-all"
+                  >
+                    <Search className="w-5 h-5" /> Browse
+                  </Link>
+                  <Link
+                    href="/about"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-surface-hover transition-all"
+                  >
+                    <User className="w-5 h-5" /> About
+                  </Link>
+                </>
+              )}
               {isAdmin && (
                 <Link 
                   href="/admin" 
@@ -211,19 +261,40 @@ export function Navbar() {
                 </Link>
               )}
               <div className="pt-2 border-t border-border mt-2">
-                <Link 
-                  href="/profile" 
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-surface-hover transition-all"
-                >
-                  <User className="w-5 h-5 text-gold-500" /> My Profile
-                </Link>
-                <button 
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-red-400 hover:bg-red-500/10 transition-all font-medium"
-                >
-                  <LogOut className="w-5 h-5" /> Logout
-                </button>
+                {session ? (
+                  <>
+                    <Link
+                      href="/profile"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-surface-hover transition-all"
+                    >
+                      <User className="w-5 h-5 text-gold-500" /> My Profile
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-red-400 hover:bg-red-500/10 transition-all font-medium"
+                    >
+                      <LogOut className="w-5 h-5" /> Logout
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/login"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-surface-hover transition-all"
+                    >
+                      Login
+                    </Link>
+                    <Link
+                      href="/signup"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="btn-primary w-full justify-center mt-2"
+                    >
+                      Get Started
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </div>

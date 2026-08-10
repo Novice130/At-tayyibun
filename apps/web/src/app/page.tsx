@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import Image from 'next/image';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { Heart, Shield, Users, Clock, ChevronRight, Star, Quote, Lock, Sparkles } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
+import { auth } from '@/lib/auth';
 
 const successStories = [
   {
@@ -47,7 +50,21 @@ const features = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Signed-in users have no use for the marketing page — and better-auth's
+  // default post-verification callback drops them here. Resolve the session on
+  // the server so they never see a flash of the logged-out landing page.
+  let signedIn = false;
+  try {
+    signedIn = !!(await auth.api.getSession({ headers: await headers() }));
+  } catch {
+    // Session lookup hits the database. This is the public landing page, so a
+    // DB hiccup must not take it down — fall through and render it logged-out.
+  }
+  if (signedIn) {
+    redirect('/browse');
+  }
+
   return (
     <div className="min-h-screen">
       <Navbar />
@@ -326,7 +343,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-3 gap-8 items-center">
             {/* Logo */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center md:justify-start gap-3">
               <Image
                 src="/at-tayyibun-logo.png"
                 alt="At-Tayyibun Logo"
@@ -346,7 +363,7 @@ export default function HomePage() {
             </div>
 
             {/* Copyright */}
-            <p className="text-sm text-right" style={{ color: 'var(--color-text-muted)' }}>
+            <p className="text-sm text-center md:text-right" style={{ color: 'var(--color-text-muted)' }}>
               &copy; {new Date().getFullYear()} At-Tayyibun. All rights reserved.
             </p>
           </div>

@@ -172,6 +172,10 @@ const options = {
   },
   emailVerification: {
     sendOnSignUp: true,
+    // The login screen tells users a fresh link was sent when sign-in is
+    // blocked by an unverified email. Without this flag that message was a lie
+    // and the user was left waiting on an email that never came.
+    sendOnSignIn: true,
     autoSignInAfterVerification: true,
     expiresIn: 60 * 60, // 1 hour
     async sendVerificationEmail({ user, url }) {
@@ -275,6 +279,11 @@ const options = {
     additionalFields: {
       publicId: { type: "string", required: false, input: false },
       role: { type: "string", required: false, input: false },
+      // Accepted at sign-up so the phone is persisted on users.phone. The only
+      // previous write path was the Twilio OTP endpoint, which is disabled —
+      // leaving every new account with a null phone, which in turn made the
+      // approved-contact-share email hand out an empty phone number.
+      phone: { type: "string", required: false, input: true },
     },
   },
 } satisfies BetterAuthOptions;

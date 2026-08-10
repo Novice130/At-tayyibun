@@ -95,7 +95,7 @@ export default function AdminCouponsPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-3xl font-bold mb-1" style={{ color: 'var(--color-text)' }}>
@@ -118,12 +118,12 @@ export default function AdminCouponsPage() {
       ) : (
         <div className="card overflow-hidden">
           {loading ? (
-            <div className="p-20 flex flex-col items-center justify-center" style={{ color: 'var(--color-text-secondary)' }}>
+            <div className="p-10 sm:p-20 flex flex-col items-center justify-center" style={{ color: 'var(--color-text-secondary)' }}>
               <Loader className="w-8 h-8 animate-spin mb-4 text-gold-500" />
               <p className="font-medium">Loading coupons…</p>
             </div>
           ) : coupons.length === 0 ? (
-            <div className="flex flex-col items-center p-20 text-center">
+            <div className="flex flex-col items-center p-10 sm:p-20 text-center">
               <div className="w-20 h-20 rounded-full flex items-center justify-center mb-6" style={{ backgroundColor: 'var(--color-gold-100)' }}>
                 <Ticket className="w-10 h-10 text-gold-500" />
               </div>
@@ -196,7 +196,7 @@ export default function AdminCouponsPage() {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-6 text-slate-900">
               {isEditing ? "Edit Coupon" : "Create New Coupon"}
             </h2>

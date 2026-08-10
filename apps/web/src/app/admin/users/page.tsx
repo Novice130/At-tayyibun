@@ -136,7 +136,7 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <header className="mb-6">
         <h1 className="font-heading text-3xl font-bold mb-1" style={{ color: 'var(--color-text)' }}>
           Users
@@ -171,7 +171,7 @@ export default function AdminUsersPage() {
       )}
 
       <div className="grid lg:grid-cols-[1fr_400px] gap-6">
-        <div className="card overflow-hidden">
+        <div className="card overflow-x-auto">
           {loading ? (
             <div className="p-6 flex items-center gap-2" style={{ color: 'var(--color-text-secondary)' }}>
               <Loader className="w-4 h-4 animate-spin" /> Loading…

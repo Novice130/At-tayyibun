@@ -2,15 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import {
-  ArrowLeft, Users, Inbox, Send, CheckCircle, XCircle, Clock,
-  Loader, User, MapPin, LogOut,
+  Users, Inbox, Send, CheckCircle, XCircle, Clock,
+  Loader, MapPin, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { useSession, signOut } from '@/lib/auth-client';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { useRequireSession } from '@/lib/hooks';
 import { Navbar } from '@/components/Navbar';
 
 interface RequestProfile {
@@ -60,20 +58,14 @@ function timeAgo(dateStr: string) {
 }
 
 export default function RequestsPage() {
-  const router = useRouter();
   const [tab, setTab] = useState<'incoming' | 'outgoing'>('incoming');
   const [incoming, setIncoming] = useState<InfoRequest[]>([]);
   const [outgoing, setOutgoing] = useState<InfoRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState<string | null>(null);
+  const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
 
-  const { data: session, isPending } = useSession();
-
-  useEffect(() => {
-    if (!isPending && !session) {
-      router.push('/login');
-    }
-  }, [session, isPending, router]);
+  const { session, loading: sessionLoading } = useRequireSession();
 
   useEffect(() => {
     if (session) {
@@ -105,14 +97,33 @@ export default function RequestsPage() {
         shareItems: approved ? ['phone', 'email'] : undefined,
       });
       await fetchRequests();
+      toast.success(
+        approved
+          ? 'Request accepted. Your contact details have been emailed to them.'
+          : 'Request declined.',
+      );
     } catch (err: any) {
-      alert(err.message || 'Failed to respond');
+      toast.error(err.message || 'Failed to respond');
     } finally {
       setResponding(null);
     }
   };
 
-  if (isPending || !session) return null;
+  const handleCancel = async (requestId: string) => {
+    setResponding(requestId);
+    try {
+      await api.delete(`/requests/${requestId}`);
+      setConfirmCancelId(null);
+      await fetchRequests();
+      toast.success('Request cancelled. You can now send a new one.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to cancel request');
+    } finally {
+      setResponding(null);
+    }
+  };
+
+  if (sessionLoading || !session) return null;
 
   const pendingIncoming = incoming.filter(r => r.status === 'PENDING');
 
@@ -179,39 +190,41 @@ export default function RequestsPage() {
                 const person = req.requester;
                 const profile = person?.profile;
                 return (
-                  <div key={req.id} className="card p-5">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-gradient-gold rounded-full flex items-center justify-center text-black font-bold text-lg flex-shrink-0">
-                        {profile?.firstName?.[0] || '?'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Link
-                            href={`/profiles/${person?.publicId}`}
-                            className="font-semibold hover:text-gold-400 transition"
-                          >
-                            {profile?.firstName || 'Unknown'}
-                          </Link>
-                          <StatusBadge status={req.status} />
+                  <div key={req.id} className="card p-4 sm:p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                      <div className="flex items-start gap-4 flex-1 min-w-0">
+                        <div className="w-12 h-12 bg-gradient-gold rounded-full flex items-center justify-center text-black font-bold text-lg flex-shrink-0">
+                          {profile?.firstName?.[0] || '?'}
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                          <span>{profile?.ethnicity}</span>
-                          {(profile?.city || profile?.state) && (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {[profile?.city, profile?.state].filter(Boolean).join(', ')}
-                            </span>
-                          )}
-                          <span>{timeAgo(req.createdAt)}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Link
+                              href={`/profiles/${person?.publicId}`}
+                              className="font-semibold hover:text-gold-400 transition"
+                            >
+                              {profile?.firstName || 'Unknown'}
+                            </Link>
+                            <StatusBadge status={req.status} />
+                          </div>
+                          <div className="flex items-center gap-x-3 gap-y-1 mt-1 text-sm flex-wrap" style={{ color: 'var(--color-text-secondary)' }}>
+                            <span>{profile?.ethnicity}</span>
+                            {(profile?.city || profile?.state) && (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="w-3 h-3" />
+                                {[profile?.city, profile?.state].filter(Boolean).join(', ')}
+                              </span>
+                            )}
+                            <span>{timeAgo(req.createdAt)}</span>
+                          </div>
                         </div>
                       </div>
 
                       {req.status === 'PENDING' && (
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex items-center gap-2 w-full sm:w-auto sm:flex-shrink-0">
                           <button
                             onClick={() => handleRespond(req.id, true)}
                             disabled={responding === req.id}
-                            className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1"
+                            className="bg-green-600 hover:bg-green-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center justify-center gap-1 flex-1 sm:flex-none disabled:opacity-50"
                           >
                             {responding === req.id ? (
                               <Loader className="w-4 h-4 animate-spin" />
@@ -223,7 +236,7 @@ export default function RequestsPage() {
                           <button
                             onClick={() => handleRespond(req.id, false)}
                             disabled={responding === req.id}
-                            className="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1"
+                            className="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center justify-center gap-1 flex-1 sm:flex-none disabled:opacity-50"
                           >
                             <XCircle className="w-4 h-4" />
                             Decline
@@ -256,7 +269,7 @@ export default function RequestsPage() {
                 const person = req.target;
                 const profile = person?.profile;
                 return (
-                  <div key={req.id} className="card p-5">
+                  <div key={req.id} className="card p-4 sm:p-5">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 bg-gradient-gold rounded-full flex items-center justify-center text-black font-bold text-lg flex-shrink-0">
                         {profile?.firstName?.[0] || '?'}
@@ -271,7 +284,7 @@ export default function RequestsPage() {
                           </Link>
                           <StatusBadge status={req.status} />
                         </div>
-                        <div className="flex items-center gap-3 mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                        <div className="flex items-center gap-x-3 gap-y-1 mt-1 text-sm flex-wrap" style={{ color: 'var(--color-text-secondary)' }}>
                           <span>{profile?.ethnicity}</span>
                           {(profile?.city || profile?.state) && (
                             <span className="flex items-center gap-1">
@@ -282,9 +295,47 @@ export default function RequestsPage() {
                           <span>Sent {timeAgo(req.createdAt)}</span>
                         </div>
                         {req.status === 'PENDING' && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Waiting for response...
-                          </p>
+                          <div className="mt-2">
+                            <p className="text-xs text-gray-500">
+                              Waiting for response...
+                            </p>
+                            {confirmCancelId === req.id ? (
+                              <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2">
+                                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                                  Cancel this request? They will no longer see it.
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleCancel(req.id)}
+                                    disabled={responding === req.id}
+                                    className="bg-red-600/20 hover:bg-red-600/30 text-red-400 px-3 py-2 rounded-lg text-xs font-medium transition flex items-center justify-center gap-1 disabled:opacity-50"
+                                  >
+                                    {responding === req.id ? (
+                                      <Loader className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                      <X className="w-3.5 h-3.5" />
+                                    )}
+                                    Yes, cancel
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmCancelId(null)}
+                                    className="px-3 py-2 rounded-lg text-xs font-medium transition"
+                                    style={{ color: 'var(--color-text-muted)' }}
+                                  >
+                                    Keep it
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmCancelId(req.id)}
+                                className="mt-2 text-xs font-medium text-red-400 hover:text-red-300 transition inline-flex items-center gap-1 py-1"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                Cancel request
+                              </button>
+                            )}
+                          </div>
                         )}
                         {req.status === 'APPROVED' && (
                           <p className="text-xs text-green-400 mt-1">

@@ -57,7 +57,12 @@ export class AuditService {
 
   async logInfoRequest(
     userId: string,
-    action: 'REQUEST_SENT' | 'REQUEST_APPROVED' | 'REQUEST_DENIED' | 'REQUEST_EXPIRED',
+    action:
+      | 'REQUEST_SENT'
+      | 'REQUEST_APPROVED'
+      | 'REQUEST_DENIED'
+      | 'REQUEST_EXPIRED'
+      | 'REQUEST_CANCELLED',
     targetUserId: string,
     requestId: string,
     allowedShares?: string[],

@@ -8,8 +8,9 @@ import {
   ChevronLeft, ChevronRight, User, MapPin, BookOpen,
   Briefcase, Heart, CheckCircle2, Loader2
 } from 'lucide-react';
-import { useSession } from '@/lib/auth-client';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { useRequireSession } from '@/lib/hooks';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -69,61 +70,115 @@ const STEPS = [
 
 export default function ProfileSetupPage() {
   const router = useRouter();
-  const { data: session, isPending } = useSession();
+  const { session, loading: sessionLoading } = useRequireSession();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>(EMPTY);
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [hydrating, setHydrating] = useState(true);
+  // Biodata keys this wizard doesn't own (guardian details captured at signup).
+  // Kept so submitting the wizard doesn't wipe them from the encrypted blob.
+  const [extraBiodata, setExtraBiodata] = useState<Record<string, unknown>>({});
 
-  useEffect(() => {
-    if (!isPending && !session) router.replace('/login');
-  }, [session, isPending, router]);
-
-  // First load after email verification: drain the sessionStorage seed the
-  // signup form left behind (gender + firstName) so the wizard pre-fills.
-  // No-op if there's nothing pending or it's already been applied.
-  useEffect(() => {
-    if (!session) return;
-    let seed: { firstName?: string; gender?: 'MALE' | 'FEMALE' } | null = null;
-    try {
-      const raw = sessionStorage.getItem('pending-profile-seed');
-      if (raw) seed = JSON.parse(raw);
-    } catch {}
-    if (!seed) return;
-    if (seed.gender) setGender(seed.gender);
-    if (seed.firstName) setForm(f => ({ ...f, firstName: seed!.firstName! }));
-    api.put('/profiles/me', {
-      ...(seed.firstName ? { firstName: seed.firstName } : {}),
-      ...(seed.gender ? { gender: seed.gender } : {}),
-    }).catch(() => { /* will be re-collected on Complete Profile submit */ });
-    try { sessionStorage.removeItem('pending-profile-seed'); } catch {}
-  }, [session]);
-
-  // Pre-fill gender from existing profile (set during signup)
+  // Drain the signup seed and then load the saved profile back into the form.
+  // These two used to be separate effects firing concurrently, which both raced
+  // each other and tripped the API's 3-requests-per-second throttle.
   useEffect(() => {
     if (!session) return;
-    api.get('/profiles/me')
-      .then((data: any) => {
-        if (!data?.profile) return;
-        const p = data.profile;
-        setGender(p.gender ?? null);
-        // Pre-seed (signup) profiles have placeholder dob/ethnicity — only trust
-        // those fields once the user has completed the wizard at least once.
-        if (p.profileComplete) {
-          setForm(f => ({
-            ...f,
-            firstName: p.firstName || f.firstName,
-            city: p.city || f.city,
-            state: p.state || f.state,
-            ethnicity: p.ethnicity || f.ethnicity,
-            dob: p.dob || f.dob,
-          }));
-        } else {
-          setForm(f => ({ ...f, firstName: p.firstName || f.firstName }));
+    let cancelled = false;
+
+    const hydrate = async () => {
+      let seed: {
+        firstName?: string;
+        gender?: 'MALE' | 'FEMALE';
+        creatorRole?: string;
+        guardianContactType?: string;
+        guardianName?: string;
+        guardianPhone?: string;
+        guardianEmail?: string;
+      } | null = null;
+      try {
+        const raw = localStorage.getItem('pending-profile-seed');
+        if (raw) seed = JSON.parse(raw);
+      } catch {}
+
+      if (seed) {
+        if (seed.gender) setGender(seed.gender);
+        if (seed.firstName) setForm(f => ({ ...f, firstName: seed!.firstName! }));
+        const guardian = Object.fromEntries(
+          (
+            [
+              ['creatorRole', seed.creatorRole],
+              ['guardianContactType', seed.guardianContactType],
+              ['guardianName', seed.guardianName],
+              ['guardianPhone', seed.guardianPhone],
+              ['guardianEmail', seed.guardianEmail],
+            ] as const
+          ).filter(([, v]) => !!v),
+        );
+        try {
+          await api.put('/profiles/me', {
+            ...(seed.firstName ? { firstName: seed.firstName } : {}),
+            ...(seed.gender ? { gender: seed.gender } : {}),
+            ...(Object.keys(guardian).length ? { biodata: guardian } : {}),
+          });
+          // Only drop the seed once it is actually persisted. Clearing it
+          // unconditionally meant a failed PUT silently lost the signup data.
+          localStorage.removeItem('pending-profile-seed');
+        } catch {
+          /* keep the seed so the next visit can retry */
         }
-      })
-      .catch(() => { /* no existing profile, start fresh */ });
+      }
+
+      try {
+        const data: any = await api.get('/profiles/me');
+        if (cancelled || !data?.profile) return;
+        const p = data.profile;
+        const bd: Record<string, any> = (p.biodata ?? {}) as Record<string, any>;
+        const OWNED = new Set([
+          'hideLocation', 'hideName', 'legalStatus', 'education', 'profession', 'relocate',
+          'religiousPractice', 'prayerFrequency', 'dietaryPreference', 'sect',
+          'partnerPreferences', 'dealBreakers', 'nikahIntent',
+        ]);
+        setExtraBiodata(
+          Object.fromEntries(Object.entries(bd).filter(([k]) => !OWNED.has(k))),
+        );
+        setGender(p.gender ?? null);
+        setForm(f => ({
+          ...f,
+          firstName: p.firstName || f.firstName,
+          lastName: p.lastName || f.lastName,
+          city: p.city || f.city,
+          state: p.state || f.state,
+          // Pre-seed (signup) profiles carry placeholder dob/ethnicity — only
+          // trust those once the wizard has been completed at least once.
+          ethnicity: p.profileComplete ? (p.ethnicity || f.ethnicity) : f.ethnicity,
+          dob: p.profileComplete ? (p.dob || f.dob) : f.dob,
+          about: p.bio || f.about,
+          hideLocation: bd.hideLocation ?? f.hideLocation,
+          hideName: bd.hideName ?? f.hideName,
+          legalStatus: bd.legalStatus || f.legalStatus,
+          education: bd.education || f.education,
+          profession: bd.profession || f.profession,
+          relocate: bd.relocate || f.relocate,
+          religiousPractice: bd.religiousPractice || f.religiousPractice,
+          prayerFrequency: bd.prayerFrequency || f.prayerFrequency,
+          dietaryPreference: bd.dietaryPreference || f.dietaryPreference,
+          sect: bd.sect || f.sect,
+          partnerPreferences: bd.partnerPreferences || f.partnerPreferences,
+          dealBreakers: bd.dealBreakers || f.dealBreakers,
+          nikahIntent: bd.nikahIntent ?? f.nikahIntent,
+        }));
+      } catch {
+        /* no existing profile, start fresh */
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    };
+
+    void hydrate();
+    return () => { cancelled = true; };
   }, [session]);
 
   const set = (key: keyof FormData, val: string | boolean) =>
@@ -186,6 +241,9 @@ export default function ProfileSetupPage() {
         state: form.state,
         bio: form.about.trim(),
         biodata: {
+          // Preserve keys this wizard doesn't manage (guardian details from
+          // signup) — the API replaces the whole encrypted blob on every write.
+          ...extraBiodata,
           hideLocation: form.hideLocation,
           hideName: form.hideName,
           legalStatus: form.legalStatus,
@@ -198,9 +256,13 @@ export default function ProfileSetupPage() {
           sect: form.sect.trim() || null,
           partnerPreferences: form.partnerPreferences.trim(),
           dealBreakers: form.dealBreakers.trim(),
+          // Validated on step 5 but previously never sent, so the consent was
+          // not recorded anywhere.
+          nikahIntent: form.nikahIntent,
         },
       });
-      router.push('/browse');
+      toast.success('Profile saved.');
+      router.push('/profile');
     } catch (err: any) {
       setError(err.message || 'Failed to save profile. Please try again.');
     } finally {
@@ -208,7 +270,7 @@ export default function ProfileSetupPage() {
     }
   };
 
-  if (isPending || !session) {
+  if (sessionLoading || !session || hydrating) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
         <Loader2 className="w-8 h-8 animate-spin text-gold-500" />
@@ -227,6 +289,15 @@ export default function ProfileSetupPage() {
           </Link>
           <span style={{ color: 'var(--color-border)' }}>·</span>
           <span className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Complete Your Profile</span>
+          {/* This page renders no Navbar, so on a phone there was no way back
+              into the app other than the logo. */}
+          <Link
+            href="/browse"
+            className="ml-auto text-sm font-medium whitespace-nowrap hover:text-gold-500 transition-colors"
+            style={{ color: 'var(--color-text-muted)' }}
+          >
+            Browse
+          </Link>
         </div>
       </div>
 
@@ -389,7 +460,7 @@ export default function ProfileSetupPage() {
 
             <div>
               <label className="block text-sm font-medium mb-1">Willingness to Relocate <span className="text-red-400">*</span></label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {['Yes', 'No', 'Open to Discussion'].map(v => (
                   <button key={v} type="button"
                     onClick={() => set('relocate', v)}
@@ -412,7 +483,7 @@ export default function ProfileSetupPage() {
 
             <div>
               <label className="block text-sm font-medium mb-2">Religious Practice <span className="text-red-400">*</span></label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {['Practicing', 'Striving', 'Moderate'].map(v => (
                   <button key={v} type="button"
                     onClick={() => set('religiousPractice', v)}
@@ -599,9 +670,9 @@ function maxDob(): string {
 function SummaryRow({ label, value, private: priv }: { label: string; value: string; private?: boolean }) {
   if (!value) return null;
   return (
-    <div className="flex justify-between gap-4">
-      <span style={{ color: 'var(--color-text-muted)' }}>{label}</span>
-      <span className="font-medium text-right" style={{ color: 'var(--color-text)' }}>
+    <div className="flex flex-col sm:flex-row sm:justify-between gap-0.5 sm:gap-4">
+      <span className="flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>{label}</span>
+      <span className="font-medium break-words sm:text-right" style={{ color: 'var(--color-text)' }}>
         {priv ? '••••• (private)' : value}
       </span>
     </div>

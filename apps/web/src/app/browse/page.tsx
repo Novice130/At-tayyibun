@@ -2,14 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { User, LogOut, Menu, X, MessageSquare, Bell, Loader, Lock, Shield } from 'lucide-react';
+import { toast } from 'sonner';
+import { Loader, Lock, X } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { ProfileCard } from '@/components/profile/ProfileCard';
 import { FilterBar } from '@/components/filters/FilterBar';
 import { api } from '@/lib/api';
-import { useSession, signOut } from '@/lib/auth-client';
+import { useRequireSession } from '@/lib/hooks';
 
 interface ActiveRequest {
   id: string;
@@ -22,18 +21,12 @@ interface ActiveRequest {
 }
 
 export default function BrowsePage() {
-  const router = useRouter();
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeRequest, setActiveRequest] = useState<ActiveRequest | null>(null);
   const [myGender, setMyGender] = useState<'MALE' | 'FEMALE' | null>(null);
-  const { data: session, isPending } = useSession();
-
-  useEffect(() => {
-    if (!isPending && !session) {
-      router.push('/login');
-    }
-  }, [session, isPending, router]);
+  const [cancelling, setCancelling] = useState(false);
+  const { session, loading: sessionLoading } = useRequireSession();
 
   useEffect(() => {
     if (!session) return;
@@ -73,6 +66,20 @@ export default function BrowsePage() {
     }
   };
 
+  const handleCancelRequest = async () => {
+    if (!activeRequest) return;
+    setCancelling(true);
+    try {
+      await api.delete(`/requests/${activeRequest.id}`);
+      setActiveRequest(null);
+      toast.success('Request cancelled. You can now send a new one.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to cancel request');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const handleFilter = (filters: { ethnicity: string; minAge: number | null; maxAge: number | null }) => {
     const opposite = myGender === 'MALE' ? 'FEMALE' : myGender === 'FEMALE' ? 'MALE' : null;
     const apiFilters: any = opposite ? { gender: opposite } : {};
@@ -82,7 +89,7 @@ export default function BrowsePage() {
     fetchProfiles(apiFilters);
   };
 
-  if (isPending || !session) return null;
+  if (sessionLoading || !session) return null;
 
   const hasActiveRequest = !!activeRequest;
 
@@ -99,17 +106,28 @@ export default function BrowsePage() {
 
         {/* Active request banner */}
         {hasActiveRequest && (
-          <div className="mb-6 p-4 rounded-xl bg-gold-500/10 border border-gold-500/20 flex items-center gap-3">
+          <div className="mb-6 p-4 rounded-xl bg-gold-500/10 border border-gold-500/20 flex flex-col sm:flex-row sm:items-center gap-3">
             <Lock className="w-5 h-5 text-gold-500 flex-shrink-0" />
             <div className="flex-1">
               <p className="text-sm text-gold-300">
                 You have a pending request for <strong>{activeRequest?.target?.profile?.firstName || activeRequest?.target?.publicId}</strong>.
-                You can browse profiles but cannot send new requests until they respond.
+                You can browse and view profiles, but cannot send a new request until they respond
+                — or until you cancel this one.
               </p>
             </div>
-            <Link href="/requests" className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0">
-              View Requests
-            </Link>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Link href="/requests" className="btn-secondary text-xs py-2 px-3 flex-1 sm:flex-none text-center">
+                View Requests
+              </Link>
+              <button
+                onClick={handleCancelRequest}
+                disabled={cancelling}
+                className="text-xs py-2 px-3 rounded-lg font-medium transition flex items-center justify-center gap-1 flex-1 sm:flex-none bg-red-600/20 hover:bg-red-600/30 text-red-400 disabled:opacity-50"
+              >
+                {cancelling ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                Cancel
+              </button>
+            </div>
           </div>
         )}
 
@@ -123,11 +141,7 @@ export default function BrowsePage() {
         ) : profiles.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {profiles.map((profile) => (
-              <ProfileCard
-                key={profile.publicId}
-                {...profile}
-                locked={hasActiveRequest && activeRequest?.target?.publicId !== profile.publicId}
-              />
+              <ProfileCard key={profile.publicId} {...profile} />
             ))}
           </div>
         ) : (

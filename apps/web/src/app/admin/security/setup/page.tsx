@@ -280,14 +280,14 @@ export default function MFASetupPage() {
               </div>
 
               <form onSubmit={handleVerifyOtp} className="w-full space-y-6">
-                <div className="flex justify-center gap-2">
+                <div className="flex justify-center gap-1.5 sm:gap-2">
                   {[0, 1, 2, 3, 4, 5].map((i) => (
                     <input
                       key={i}
                       type="text"
                       inputMode="numeric"
                       maxLength={1}
-                      className="w-12 h-14 text-center text-2xl font-bold rounded-xl input focus:scale-105 transition-transform"
+                      className="w-10 sm:w-12 h-14 text-center text-xl sm:text-2xl font-bold rounded-xl input focus:scale-105 transition-transform"
                       value={code[i] || ''}
                       onChange={(e) => {
                         const val = e.target.value;

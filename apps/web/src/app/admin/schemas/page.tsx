@@ -140,7 +140,7 @@ export default function AdminSchemasPage() {
   if (loading) return <div className="p-8 text-slate-500">Loading schemas...</div>;
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="space-y-6 p-4 sm:p-8">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Form Schemas</h1>

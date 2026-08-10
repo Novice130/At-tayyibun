@@ -157,6 +157,13 @@ export class ProfilesService {
       try { biodata = this.encryptionService.decryptJson(profile.biodataJsonEnc); } catch { /* keep empty */ }
     }
 
+    let bio: string | null = null;
+    if (profile?.bioEnc) {
+      // Match the tolerance used for lastName/biodata above — an undecryptable
+      // blob should blank one field, not 500 the whole profile page.
+      try { bio = this.encryptionService.decrypt(profile.bioEnc); } catch { /* keep null */ }
+    }
+
     return {
       id: user.id,
       publicId: user.publicId,
@@ -173,13 +180,13 @@ export class ProfilesService {
             dob: profile.dob,
             age: this.calculateAgeFromString(profile.dob),
             gender: profile.gender,
-      ethnicity: profile.ethnicity,
-      city:
-        profile.publicFields && typeof profile.publicFields === 'object' && (profile.publicFields as any)['hideLocation']
-          ? null
-          : profile.city,
-      state: profile.state,
-            bio: profile.bioEnc ? this.encryptionService.decrypt(profile.bioEnc) : null,
+            ethnicity: profile.ethnicity,
+            // This is the owner's own record — hideLocation controls what
+            // *others* see. Masking it here blanked the city in the edit wizard
+            // and rendered the profile header as ", TX".
+            city: profile.city,
+            state: profile.state,
+            bio,
             biodata,
             profileComplete: profile.profileComplete,
           }
@@ -211,16 +218,25 @@ export class ProfilesService {
       const db = this.drizzle.db;
       const [existingProfile] = await db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
 
+      // Guard on `!== undefined`, not truthiness: a truthiness check makes an
+      // empty string a no-op, so a user could never clear a field they had
+      // already filled in.
       const updateData: Record<string, unknown> = { updatedAt: new Date().toISOString() };
-      if (data.firstName) updateData.firstName = data.firstName;
-      if (data.lastName) updateData.lastNameEnc = this.encryptionService.encrypt(data.lastName);
-      if (data.dob) updateData.dob = data.dob.toISOString().slice(0, 10);
-      if (data.gender) updateData.gender = data.gender;
-      if (data.ethnicity) updateData.ethnicity = data.ethnicity;
-      if (data.city) updateData.city = data.city;
-      if (data.state) updateData.state = data.state;
-      if (data.bio) updateData.bioEnc = this.encryptionService.encrypt(data.bio);
-      if (data.biodata) updateData.biodataJsonEnc = this.encryptionService.encryptJson(data.biodata);
+      if (data.firstName !== undefined) updateData.firstName = data.firstName;
+      if (data.lastName !== undefined) {
+        updateData.lastNameEnc = data.lastName ? this.encryptionService.encrypt(data.lastName) : '';
+      }
+      if (data.dob !== undefined) updateData.dob = data.dob.toISOString().slice(0, 10);
+      if (data.gender !== undefined) updateData.gender = data.gender;
+      if (data.ethnicity !== undefined) updateData.ethnicity = data.ethnicity;
+      if (data.city !== undefined) updateData.city = data.city || null;
+      if (data.state !== undefined) updateData.state = data.state || null;
+      if (data.bio !== undefined) {
+        updateData.bioEnc = data.bio ? this.encryptionService.encrypt(data.bio) : null;
+      }
+      if (data.biodata !== undefined) {
+        updateData.biodataJsonEnc = this.encryptionService.encryptJson(data.biodata);
+      }
 
       // Profile is complete when every required field is present after this update.
       const after = {
@@ -233,11 +249,28 @@ export class ProfilesService {
       };
       const isComplete = !!(after.firstName && after.lastName && after.dob && after.gender && after.ethnicity && after.bio);
       updateData.profileComplete = isComplete;
-      updateData.publicFields = {
-        bio: data.bio ? data.bio.substring(0, 200) : null,
-        hideLocation: data.biodata?.hideLocation ?? false,
-        hideName: data.biodata?.hideName ?? false,
-      };
+
+      // Merge into the stored publicFields rather than replacing it. A partial
+      // PUT (e.g. the signup seed, which sends only firstName + gender) used to
+      // wipe the public bio and reset both privacy flags to false, so a saved
+      // profile would silently lose its bio on browse and un-hide the user's
+      // name and location.
+      const existingPublicFields =
+        existingProfile?.publicFields && typeof existingProfile.publicFields === 'object'
+          ? (existingProfile.publicFields as Record<string, unknown>)
+          : {};
+      const publicFields: Record<string, unknown> = { ...existingPublicFields };
+      if (data.bio !== undefined) {
+        publicFields.bio = data.bio ? data.bio.substring(0, 200) : null;
+      }
+      if (data.biodata !== undefined) {
+        if (data.biodata.hideLocation !== undefined) publicFields.hideLocation = !!data.biodata.hideLocation;
+        if (data.biodata.hideName !== undefined) publicFields.hideName = !!data.biodata.hideName;
+      }
+      publicFields.hideLocation = publicFields.hideLocation ?? false;
+      publicFields.hideName = publicFields.hideName ?? false;
+      publicFields.bio = publicFields.bio ?? null;
+      updateData.publicFields = publicFields;
 
       if (existingProfile) {
         await db.update(profiles).set(updateData).where(eq(profiles.userId, userId));

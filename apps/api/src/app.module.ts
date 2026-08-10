@@ -54,22 +54,29 @@ import { ThrottlerGuard } from "@nestjs/throttler";
       inject: [ConfigService],
     }),
 
-    // Rate limiting (global defaults)
+    // Rate limiting (global defaults).
+    //
+    // These are per-IP. The previous "short" bucket of 3/second was below what
+    // a single legitimate page load needs — /browse alone issues /profiles/me,
+    // /profiles and /requests/active in parallel, plus the navbar's request
+    // count — so normal navigation could 429 itself. It is also shared across
+    // everyone behind one NAT. Abuse control for the sensitive operations lives
+    // on the endpoints themselves (e.g. POST /requests is @Throttle 10/hour).
     ThrottlerModule.forRoot([
       {
         name: "short",
         ttl: 1000,
-        limit: 3,
+        limit: 20,
       },
       {
         name: "medium",
         ttl: 10000,
-        limit: 20,
+        limit: 100,
       },
       {
         name: "long",
         ttl: 60000,
-        limit: 100,
+        limit: 300,
       },
     ]),
 

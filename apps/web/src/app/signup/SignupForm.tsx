@@ -154,16 +154,42 @@ export default function SignupForm() {
         password: formData.password,
         name: formData.firstName,
         image: formData.avatar,
-      });
-      if (authError) throw new Error(authError.message);
+        // Persisted via the `phone` additionalField declared in lib/auth.ts.
+        phone: e164,
+        // Land verified users in the wizard instead of better-auth's default
+        // callback, which dropped them on the marketing home page.
+        callbackURL: '/profile/setup',
+      } as any);
+      if (authError) {
+        // users.phone carries a unique index; surface that as a real message
+        // rather than a raw driver error.
+        if (/duplicate|unique/i.test(authError.message ?? '')) {
+          throw new Error('That email or phone number is already registered.');
+        }
+        throw new Error(authError.message);
+      }
 
       // requireEmailVerification: true — signUp does NOT auto-create a session.
       // Stash the pre-seed; /profile/setup will drain it after the user clicks
       // the verification link and autoSignInAfterVerification creates the cookie.
+      //
+      // localStorage, not sessionStorage: the verification link is opened from
+      // an email client, which almost always means a NEW tab — and sometimes a
+      // different browser. sessionStorage is per-browsing-context, so the seed
+      // was reliably empty by the time the wizard looked for it.
       try {
-        sessionStorage.setItem(
+        localStorage.setItem(
           'pending-profile-seed',
-          JSON.stringify({ firstName: formData.firstName, gender: formData.gender }),
+          JSON.stringify({
+            firstName: formData.firstName,
+            gender: formData.gender,
+            // Collected by this form but previously discarded entirely.
+            creatorRole: formData.creatorRole,
+            guardianContactType: formData.guardianContactType,
+            guardianName: formData.guardianName,
+            guardianPhone: formData.guardianPhone,
+            guardianEmail: formData.guardianEmail,
+          }),
         );
       } catch {}
 

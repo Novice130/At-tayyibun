@@ -151,7 +151,7 @@ export default function AdminCampaignsPage() {
   if (error) return <div className="p-8 text-red-500">{error}</div>;
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="space-y-6 p-4 sm:p-8">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Email Campaigns</h1>
