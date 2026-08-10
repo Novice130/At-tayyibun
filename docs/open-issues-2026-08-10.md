@@ -224,20 +224,26 @@ Re-checked on 2026-08-10 against `application.one` for `9E23qdq8WrdmisgYgis94`.
 The API app's deployment history contains a webhook-driven row for **every**
 push that day, each finishing `done`:
 
-| time (UTC) | commit | description prefix |
+| time (UTC) | commit | row |
 |---|---|---|
-| 13:02 | `4cbed2e` | `Hash:` — the **manual** deploy, ended `cancelled` |
-| 13:12 | `4cbed2e` | `Commit:` — webhook, done 13:16 |
-| 13:16 | `75f8f90` | `Commit:` — webhook, done 13:16 |
-| 13:38 | `15490e5` | `Commit:` — webhook, done 13:39 |
-| 15:27 | `b6a8221` | `Commit:` — webhook, done 15:28 |
+| 13:02 | `4cbed2e` | `Hash:` — ended `cancelled` |
+| 13:12 | `4cbed2e` | `Commit:` — done 13:16 |
+| 13:16 | `75f8f90` | `Commit:` — done 13:16 |
+| 13:38 | `15490e5` | `Commit:` — done 13:39 |
+| 15:27 | `b6a8221` | `Commit:` — done 15:28 |
+| 16:55 | `a6b07c1` | `Hash:` — from a plain `git push`, no manual trigger |
 
-Dokploy writes `Hash: <sha>` for a manual deploy and `Commit: <sha>` for a
-webhook one, which is what separates the two 13:0x–13:1x rows. So the API did
-receive the push for the merge; what actually happened is that the manual
-deploy was fired first, was cancelled, and the webhook row that arrived ten
-minutes later was read as absent. The two pushes after it deployed the API
-without any intervention.
+I first read the `Hash:` / `Commit:` prefixes as marking manual vs webhook
+deploys. **That heuristic is wrong** — the `a6b07c1` push at 16:55 produced a
+`Hash:`-prefixed API row with no manual trigger at all. Do not use the prefix to
+infer the trigger.
+
+The evidence that survives is simpler and stronger: pushes on 2026-08-10 that
+nobody deployed by hand — `75f8f90`, `15490e5`, `b6a8221`, `a6b07c1` — each
+produced an API deployment row within seconds of the push. The API auto-deploys.
+What happened on the merge was most likely that the manual deploy at 13:02 was
+fired first and cancelled, and the row that arrived ten minutes later was read
+as absent.
 
 **Revised guidance:** merges deploy both apps. Still worth probing a
 new-build-only route after a release, but do not plan on deploying the API by
