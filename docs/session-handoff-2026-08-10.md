@@ -5,7 +5,9 @@ building a Flutter Android client distributed as a signed APK on Cloudflare R2.
 
 Branch: **`fix/client-reports-and-android-app`** (3 commits, branched off `main`).
 
-> ⚠️ **Not yet pushed at time of writing.** See [Outstanding actions](#outstanding-actions).
+> **Pushed and merged to `main` on 2026-08-10**, which triggered the Dokploy
+> deploy. Migration `0001` was applied to production first. See
+> [Outstanding actions](#outstanding-actions) for what is still open.
 
 ---
 
@@ -287,7 +289,10 @@ correct platform binaries).
 - **No successful login anywhere** — no test credentials were available. Everything
   behind auth in the mobile app (browse, profile detail, requests, profile save) has
   never been exercised. The plumbing is proven; the authenticated screens are not.
-- **Migration `0001` has not been applied** to any database.
+- ~~**Migration `0001` has not been applied** to any database.~~ Applied to the
+  production Neon database on 2026-08-10; index and row counts verified after the
+  transaction committed. The second-decline 500 path itself has still not been
+  exercised end to end.
 - **No Google sign-in has ever completed.** Verified up to the account picker:
   the app built with the real web client id, logcat showed
   `[GetGoogleIdOperation] Operation succeeded` and
@@ -314,25 +319,34 @@ SWC binary, that is why.
 
 ## Outstanding actions
 
-1. **Push the branch, then merge to `main` to deploy.** It is committed locally but
-   not on the remote:
-   ```bash
-   git push -u origin fix/client-reports-and-android-app
-   ```
-   Dokploy auto-deploys **only from `main`** (`DEPLOYMENT_NOTES.md`). Pushing this
-   feature branch will **not** deploy anything — it needs a merge/PR into `main`.
-   Do step 2 first: deploying the API before the migration runs leaves the
-   second-decline 500 in place.
-2. **Run migration `0001`** before deploying the API, or declining a second request
-   will keep 500-ing. There is no migration step in the deploy —
-   `Dockerfile.api` ends at `CMD ["node", "dist/src/main"]` — so nothing applies
-   it automatically.
+1. ~~**Push the branch, then merge to `main` to deploy.**~~ **Done 2026-08-10.**
+   Branch pushed, then `main` fast-forwarded `70ff087..4cbed2e` and pushed, which
+   fired the Dokploy `push` trigger for both apps.
+2. ~~**Run migration `0001`**~~ **Done 2026-08-10, before the merge.** Applied
+   directly against the production Neon database (the same `DATABASE_URL` the
+   Dokploy API app uses) in a single transaction, because `drizzle-kit migrate`
+   was not usable: `drizzle.__drizzle_migrations` does not exist on that database,
+   so drizzle would have tried to replay `0000` against a live schema. Result:
+   old `info_requests_requester_id_status_key` dropped, five `PENDING` rows already
+   past `expires_at` flipped to `EXPIRED` (no requester held two pending rows), and
+   the partial unique index `info_requests_requester_pending_key ON (requester_id)
+   WHERE status = 'PENDING'` created and verified.
+   There is still no migration step in the deploy — `Dockerfile.api` ends at
+   `CMD ["node", "dist/src/main"]` — so `0002` onwards needs the same treatment.
 3. **Rotate the Google client secret.** The original was pasted into a chat
    transcript and must be considered compromised. Google Cloud → Clients → web
-   client → Add secret, then delete the old one.
+   client → Add secret, then delete the old one. **Deliberately deferred by the
+   owner** until the app is fully shipped; web Google sign-in stays broken until
+   then, which bounds the exposure.
 4. **Set the Google env vars in Dokploy on the WEB app** (`kR_VYSPSAMuzU6peeBtt9`),
    not the API — `auth.ts` runs inside the Next.js server:
-   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (the rotated value).
+   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (the rotated value). **Not set** —
+   deferred with step 3. Confirmed harmless to deploy without them: better-auth
+   only throws `CLIENT_ID_AND_SECRET_REQUIRED` inside `createAuthorizationURL`
+   (`@better-auth/core/social-providers/google.mjs`), i.e. when the Google button
+   is clicked — not at `betterAuth()` init, so the rest of the site is unaffected.
+   `verifyIdToken` checks `audience: options.clientId` only, so setting
+   `GOOGLE_CLIENT_ID` alone is enough to unblock the Android path.
    `apps/web/.env.local` holds the client id plus a `ROTATE-ME` placeholder for
    local development.
 5. **Publish the OAuth consent screen**, or Google sign-in only works for listed
