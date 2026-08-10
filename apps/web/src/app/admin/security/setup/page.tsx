@@ -370,7 +370,10 @@ export default function MFASetupPage() {
 
       {showPasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="card w-full max-w-md p-8 animate-in zoom-in-95 duration-200 bg-surface-secondary shadow-2xl border border-border/50">
+          <div
+            className="card w-full max-w-md p-6 sm:p-8 animate-in zoom-in-95 duration-200 shadow-2xl max-h-[90vh] overflow-y-auto"
+            style={{ backgroundColor: 'var(--color-surface)' }}
+          >
             <div className="flex flex-col items-center text-center mb-6">
               <div className="p-3 rounded-full bg-gold-500/10 text-gold-500 mb-4">
                 <Shield className="w-8 h-8" />

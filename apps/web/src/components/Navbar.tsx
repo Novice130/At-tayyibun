@@ -54,6 +54,7 @@ export function Navbar() {
   ];
 
   return (
+    <>
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
@@ -125,7 +126,10 @@ export function Navbar() {
                     className="flex items-center gap-2 p-1 rounded-full hover:bg-surface-hover transition-all border border-transparent hover:border-border"
                   >
                     <div className="w-8 h-8 rounded-full bg-gradient-gold p-0.5 shadow-lg shadow-gold-500/10">
-                      <div className="w-full h-full rounded-full bg-surface-secondary flex items-center justify-center overflow-hidden">
+                      <div
+                        className="w-full h-full rounded-full flex items-center justify-center overflow-hidden"
+                        style={{ backgroundColor: 'var(--color-surface)' }}
+                      >
                         {user?.image ? (
                           <img src={user.image} alt="Profile" className="w-full h-full object-cover" />
                         ) : (
@@ -138,7 +142,13 @@ export function Navbar() {
 
                   {userMenuOpen && (
                     <>
-                      <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-surface-secondary border border-border shadow-2xl z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                      <div
+                        className="absolute right-0 mt-2 w-56 rounded-2xl border shadow-2xl z-20 overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+                        style={{
+                          backgroundColor: 'var(--color-surface)',
+                          borderColor: 'var(--color-border)',
+                        }}
+                      >
                         <div className="p-4 border-b border-border">
                           <p className="font-bold truncate">{user?.name || 'User'}</p>
                           <p className="text-xs text-secondary truncate">{user?.email}</p>
@@ -193,13 +203,31 @@ export function Navbar() {
           </div>
         </div>
       </div>
+      </nav>
 
-      {/* Mobile menu */}
+      {/* Mobile menu.
+          Rendered as a sibling of <nav>, not inside it: the nav carries the
+          `glass` class, whose backdrop-filter makes it a containing block for
+          fixed-position descendants. Nested here, `fixed inset-0` was being
+          clipped to the navbar's own box, so the dim overlay covered only the
+          top strip and the page showed straight through the menu. */}
       {mobileMenuOpen && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden" onClick={() => setMobileMenuOpen(false)} />
-          <div className="absolute top-16 left-4 right-4 z-50 md:hidden animate-in slide-in-from-top-4 duration-300">
-            <div className="p-4 rounded-3xl bg-surface-secondary border border-border shadow-2xl space-y-2">
+          <div
+            className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="fixed top-16 left-4 right-4 z-[70] md:hidden animate-in slide-in-from-top-4 duration-300">
+            <div
+              className="p-4 rounded-3xl shadow-2xl space-y-2 border max-h-[calc(100vh-5.5rem)] overflow-y-auto"
+              // Explicit colours: `bg-surface-secondary` is not a real class —
+              // it exists in neither globals.css nor the Tailwind palette, so the
+              // panel was rendering fully transparent.
+              style={{
+                backgroundColor: 'var(--color-surface)',
+                borderColor: 'var(--color-border)',
+              }}
+            >
               {session && navLinks.map((link) => {
                 const Icon = link.icon;
                 const isActive = pathname === link.href;
@@ -300,6 +328,6 @@ export function Navbar() {
           </div>
         </>
       )}
-    </nav>
+    </>
   );
 }
