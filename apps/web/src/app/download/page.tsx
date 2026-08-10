@@ -6,10 +6,12 @@ import { Navbar } from '@/components/Navbar';
 // committed at apps/web/public/downloads/. There is no build step that reads the
 // APK, so bumping the app means editing these three constants.
 const APK_PATH = '/downloads/at-tayyibun.apk';
-const APK_VERSION = '0.1.1 (build 2)';
+const APK_VERSION = '0.1.2 (build 3)';
+// 37,636,176 bytes — coincidentally the same as build 2, which differed only in
+// Dart code that fits inside the snapshot's existing padding.
 const APK_SIZE = '35.9 MB';
 const APK_SHA256 =
-  '931920c8b5a729538c03c21f1172d7e00bdf3e2e922c84880e390386ed145279';
+  '6c452def8a99dc47d73d89dafe5b0d3f46ae5571ec8f131e73505bfb627eee1e';
 
 export const metadata: Metadata = {
   title: 'Download the Android app | At-Tayyibun',
