@@ -1,8 +1,20 @@
 # Open issues — as of 2026-08-10 (post-deploy)
 
 Written so this survives a lost session. Everything below is **unfixed** unless
-marked otherwise — as of 2026-08-10 all of section A is fixed and awaiting a
-deploy, and B8 is done. Companion to `docs/session-handoff-2026-08-10.md`, which
+marked otherwise — as of 2026-08-10 all of section A is fixed and **deployed**,
+B3 turned out to be a misreading, and B4 and B8 are done.
+
+The section A deploy is `a6b07c1`, live on both containers: the API container
+came up 16:59:50 UTC and the web container 17:04:00. The web build was verified
+by fetching the deployed LoginForm chunk (`849.d5bac0205ea071db.js`, sha256
+`51325f4f…8ee82`) and confirming it is byte-identical to a local build of the
+same commit and carries the new `?new=1` callback. Note that chunk is a dynamic
+import, so it is not listed in `/login`'s HTML — checking only the eagerly
+loaded chunks will wrongly suggest the old build is still being served.
+
+The mobile fixes (A4, A5, A6, A8) are **not** in users' hands: they need a new
+APK build and a refreshed version, size and SHA-256 in
+`apps/web/src/app/download/page.tsx`. Companion to `docs/session-handoff-2026-08-10.md`, which
 describes the work that shipped; this file is only what is still wrong or still
 owed.
 
@@ -232,6 +244,7 @@ push that day, each finishing `done`:
 | 13:38 | `15490e5` | `Commit:` — done 13:39 |
 | 15:27 | `b6a8221` | `Commit:` — done 15:28 |
 | 16:55 | `a6b07c1` | `Hash:` — from a plain `git push`, no manual trigger |
+| 16:59 | `a6b07c1` | the **web** row for the same push, four minutes later |
 
 I first read the `Hash:` / `Commit:` prefixes as marking manual vs webhook
 deploys. **That heuristic is wrong** — the `a6b07c1` push at 16:55 produced a
@@ -240,16 +253,24 @@ infer the trigger.
 
 The evidence that survives is simpler and stronger: pushes on 2026-08-10 that
 nobody deployed by hand — `75f8f90`, `15490e5`, `b6a8221`, `a6b07c1` — each
-produced an API deployment row within seconds of the push. The API auto-deploys.
-What happened on the merge was most likely that the manual deploy at 13:02 was
-fired first and cancelled, and the row that arrived ten minutes later was read
-as absent.
+produced an API deployment row. The API auto-deploys.
+
+**The mechanism behind the original confusion: the two apps deploy in series,
+API first.** On the `a6b07c1` push the API row was created at 16:55:37 and the
+web row not until 16:59:40 — a four-minute gap, the API build holding the
+builder. Look at the wrong app inside that window and it reads as "never
+received the webhook". On the 13:02 merge the manual deploy was fired first and
+cancelled, and the row that arrived later was read as absent.
+
+**Practical rule:** after a push, give the second app several minutes before
+concluding anything, and confirm with the deployment row rather than with the
+served output.
 
 **Revised guidance:** merges deploy both apps. Still worth probing a
 new-build-only route after a release, but do not plan on deploying the API by
 hand.
 
-### B4. There is no migration step in the deploy — **code written, one manual step outstanding**
+### B4. There is no migration step in the deploy — **DONE 2026-08-10**
 
 `Dockerfile.api` ended at `CMD ["node", "dist/src/main"]`. Migration `0001` had
 to be applied by hand, and `drizzle-kit migrate` was **not** usable: the
@@ -270,10 +291,19 @@ Now in the repository:
   `node dist/src/migrate && exec node dist/src/main`, so a failed migration
   stops the release instead of leaving a new build on an old schema.
 
-**Outstanding:** run `bootstrap-migrations.sql` against production once, *before*
-the next API deploy. Until it is run, the new image will exit at startup with
-the "does not exist on this database" error — which is the intended failure, not
-a regression, but it does mean the bootstrap must go first.
+**Done 2026-08-10.** The bootstrap ran against production at ~16:50 UTC, after
+confirming 0001 really was applied (`info_requests_requester_pending_key`
+present and partial, the pre-0001 `info_requests_requester_id_status_key` gone,
+and the five hand-expired rows still `EXPIRED`). Two rows seeded, newest
+`created_at` 1786331713344. The deployed API container then logged:
+
+```
+16:59:45  [migrate] up to date
+16:59:50  Nest application successfully started
+```
+
+so the migration step is live and applies nothing pending. `0002` onward needs
+no manual treatment — generate it, commit it, push.
 
 ```
 psql "$DATABASE_URL" -f apps/api/scripts/bootstrap-migrations.sql
@@ -363,18 +393,14 @@ Not regressions — these were already true and remain unaddressed.
 
 ## D. Suggested order
 
-Steps 1, 2 and 4 of the original order are done (all of section A). What is left:
+All of section A is written and deployed, and B3, B4 and B8 are closed. What is
+left:
 
-1. **Deploy section A.** Web carries A1, A2, A3, A7 and A8; the API carries the
-   `createRequest` guard. Per the revised B3, one push deploys both.
-   The mobile fixes (A4, A5, A6, A8) need a new APK build and a refreshed
-   checksum on `/download`, whose version, size and SHA-256 are hardcoded
-   constants in `apps/web/src/app/download/page.tsx`.
+1. **Ship the mobile fixes.** A4, A5, A6 and A8 are in the repository but not in
+   any published APK. Needs a release build, then the version, size and SHA-256
+   constants in `apps/web/src/app/download/page.tsx` updated to match.
 2. B1 + B2, which unblock Google sign-in end to end, then B5's first real login
    test. Note A2 changed where a Google sign-in lands, so that test now exercises
    the wizard.
-3. B4's one remaining manual step — run `bootstrap-migrations.sql` against
-   production **before** the API deploys with the new Dockerfile. (B3 turned out
-   to be a misreading; nothing to do.)
-4. The remainder of B: B5 (device testing), B6 (keystore backup), B7 (token
-   rotation).
+3. The remainder of B: B5 (device testing), B6 (keystore backup), B7 and B9
+   (credential rotation, to be done in one pass with B1).
