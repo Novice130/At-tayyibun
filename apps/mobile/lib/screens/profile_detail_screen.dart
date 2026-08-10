@@ -1,0 +1,297 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../core/api_exception.dart';
+import '../models/info_request.dart';
+import '../models/profile.dart';
+import '../providers.dart';
+import '../widgets/profile_avatar.dart';
+import '../widgets/states.dart';
+
+class ProfileDetailScreen extends ConsumerStatefulWidget {
+  const ProfileDetailScreen({super.key, required this.publicId});
+
+  final String publicId;
+
+  @override
+  ConsumerState<ProfileDetailScreen> createState() =>
+      _ProfileDetailScreenState();
+}
+
+class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
+  ProfileSummary? _profile;
+  InfoRequest? _active;
+  bool _loading = true;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final profile =
+          await ref.read(profilesRepositoryProvider).byPublicId(widget.publicId);
+      final active = await ref.read(requestsRepositoryProvider).active();
+      if (!mounted) return;
+      setState(() {
+        _profile = profile;
+        _active = active;
+        _loading = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
+    }
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _sendRequest() async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(requestsRepositoryProvider).send(widget.publicId);
+      ref.invalidate(activeRequestProvider);
+      ref.invalidate(outgoingRequestsProvider);
+      await _load();
+      _toast('Request sent. You will get an email when they respond.');
+    } on ApiException catch (e) {
+      if (e.isConflict) {
+        await _load();
+        _toast('You already have a pending request. Cancel it to send another.');
+      } else {
+        _toast(e.message);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _cancelRequest() async {
+    final id = _active?.id;
+    if (id == null) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(requestsRepositoryProvider).cancel(id);
+      ref.invalidate(activeRequestProvider);
+      ref.invalidate(outgoingRequestsProvider);
+      await _load();
+      _toast('Request cancelled. You can now send a new one.');
+    } on ApiException catch (e) {
+      _toast(e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (_loading) {
+      return const Scaffold(body: LoadingView());
+    }
+    if (_error != null || _profile == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: ErrorView(message: _error ?? 'Profile not found', onRetry: _load),
+      );
+    }
+
+    final p = _profile!;
+    final pendingForThis = _active?.counterpart?.publicId == widget.publicId;
+    final hasOtherPending = _active != null && !pendingForThis;
+
+    return Scaffold(
+      appBar: AppBar(title: Text(p.displayName)),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Center(
+              child: SizedBox(
+                width: 140,
+                height: 140,
+                child: ProfileAvatar(
+                  url: p.avatarUrl,
+                  fallbackLabel: p.displayName,
+                  size: 140,
+                  borderRadius: BorderRadius.circular(70),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              p.isAnonymous
+                  ? '${p.displayName} · ${p.age}'
+                  : '${p.displayName}, ${p.age}',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                _Meta(
+                  icon: Icons.person_outline,
+                  label: p.gender == 'MALE' ? 'Brother' : 'Sister',
+                ),
+                _Meta(icon: Icons.public, label: p.ethnicity),
+                if (p.location.isNotEmpty)
+                  _Meta(icon: Icons.location_on_outlined, label: p.location),
+              ],
+            ),
+            if (p.bio != null && p.bio!.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('About', style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      Text(p.bio!, style: theme.textTheme.bodyMedium),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.lock_outline,
+                            size: 18, color: theme.colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Text('Contact Information',
+                            style: theme.textTheme.titleMedium),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    if (pendingForThis)
+                      ..._pendingForThis(theme, p)
+                    else if (hasOtherPending)
+                      ..._lockedByOther(theme, p)
+                    else
+                      ..._canRequest(theme, p),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _pendingForThis(ThemeData theme, ProfileSummary p) => [
+        Text(
+          'Your contact request has been sent to ${p.displayName}. '
+          "You'll receive an email when they respond.",
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'You can keep browsing while you wait. To request someone else '
+          'instead, cancel this request first.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+          ),
+        ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : _cancelRequest,
+          icon: const Icon(Icons.close),
+          label: const Text('Cancel Request'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: theme.colorScheme.error,
+          ),
+        ),
+      ];
+
+  List<Widget> _lockedByOther(ThemeData theme, ProfileSummary p) => [
+        Text(
+          'You already have a pending request for '
+          '${_active?.counterpart?.displayName ?? 'another profile'}. '
+          'Cancel it to request ${p.displayName} instead.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : _cancelRequest,
+          icon: const Icon(Icons.close),
+          label: const Text('Cancel Pending Request'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: theme.colorScheme.error,
+          ),
+        ),
+      ];
+
+  List<Widget> _canRequest(ThemeData theme, ProfileSummary p) => [
+        Text(
+          'Contact details are private. Send a request and ${p.displayName} '
+          'will decide whether to share their phone number and email with you.',
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: _busy ? null : _sendRequest,
+          icon: _busy
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.send),
+          label: const Text('Request Contact Info'),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'You can only have one active request at a time — you can cancel it '
+          'whenever you like.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
+        ),
+      ];
+}
+
+class _Meta extends StatelessWidget {
+  const _Meta({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: theme.colorScheme.onSurface.withValues(alpha: 0.7)),
+        const SizedBox(width: 6),
+        Text(label, style: theme.textTheme.bodyMedium),
+      ],
+    );
+  }
+}
