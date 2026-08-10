@@ -1,0 +1,34 @@
+# 39 files were once silently rewritten to CRLF and had to be normalised back.
+# Normalise line endings in the repository so an editor or tool on another
+# platform cannot do it again.
+* text=auto eol=lf
+
+# Shell scripts and Gradle wrappers must stay LF even on Windows checkouts.
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Windows-only scripts stay CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+gradlew.bat text eol=crlf
+
+# Binary — never touch, never diff as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.apk binary
+*.aab binary
+*.jks binary
+*.keystore binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+
+# Lockfiles: keep them out of diffs and merge conflicts by hand.
+pnpm-lock.yaml -diff linguist-generated
+package-lock.json -diff linguist-generated
