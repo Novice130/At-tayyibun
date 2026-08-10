@@ -12,9 +12,17 @@ same commit and carries the new `?new=1` callback. Note that chunk is a dynamic
 import, so it is not listed in `/login`'s HTML — checking only the eagerly
 loaded chunks will wrongly suggest the old build is still being served.
 
-The mobile fixes (A4, A5, A6, A8) are **not** in users' hands: they need a new
-APK build and a refreshed version, size and SHA-256 in
-`apps/web/src/app/download/page.tsx`. Companion to `docs/session-handoff-2026-08-10.md`, which
+The mobile fixes (A4, A5, A6, A8) shipped in APK **v0.1.2+3** (`a935a4a`),
+sha256 `6c452def…eee1e`. Build it the same way or the artifact doubles in size:
+
+```
+flutter build apk --release --target-platform android-arm,android-arm64 \
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=<web client id>.apps.googleusercontent.com
+```
+
+A default `flutter build apk` also emits x86_64 and comes out at 58 MB rather
+than 37.6 MB. The web client id can be recovered from any published APK with
+`strings lib/arm64-v8a/libapp.so` if it is not to hand. Companion to `docs/session-handoff-2026-08-10.md`, which
 describes the work that shipped; this file is only what is still wrong or still
 owed.
 
@@ -320,8 +328,10 @@ files with LF endings, which the new root `.gitattributes` pins.
   authenticated screen (browse, profile detail, requests, profile save) is
   unexercised. The plumbing is proven; the screens are not.
 - **No Google sign-in has ever completed** on either platform.
-- The published APK (`931920c8…`, v0.1.1+2) is a later build than the one the
-  handoff originally described, and has not been re-tested on a device since.
+- The published APK is now `6c452def…`, **v0.1.2+3**, carrying the A4/A5/A6/A8
+  fixes. It has never been installed on a device. Every screen it changes —
+  browse paging, profile detail retry — is exactly the untested surface above,
+  so this is the build the first real device test should use.
 
 ### B6. Back up the release keystore
 
@@ -396,9 +406,7 @@ Not regressions — these were already true and remain unaddressed.
 All of section A is written and deployed, and B3, B4 and B8 are closed. What is
 left:
 
-1. **Ship the mobile fixes.** A4, A5, A6 and A8 are in the repository but not in
-   any published APK. Needs a release build, then the version, size and SHA-256
-   constants in `apps/web/src/app/download/page.tsx` updated to match.
+1. **Test v0.1.2+3 on a device** — see B5. It is published and unexercised.
 2. B1 + B2, which unblock Google sign-in end to end, then B5's first real login
    test. Note A2 changed where a Google sign-in lands, so that test now exercises
    the wizard.
