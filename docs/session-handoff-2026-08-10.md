@@ -100,15 +100,23 @@ directed to the website.
 
 ## 3. Distribution
 
-**Live link:** https://pub-dcd3d717132b4d69b8e132eb667cf0ef.r2.dev/at-tayyibun-v0.1.1.apk
+**R2 was used briefly and then removed** — the site is hosted on Hetzner, which
+already has storage, so R2 was redundant. As of the end of this session:
 
-- 36.9 MB · SHA-256 `e285711689f39b6fdf1e47e999db56de1248053f39bbe2b30fb0d0213c521811`
-- Bucket `at-tayyibun-downloads` on Cloudflare account `6b8df46475fc4b356cd5979c1418780f`
-- **The bucket is publicly readable.** Anyone with the URL can download. `wrangler`
-  auto-accepted the public-access prompt in non-interactive mode. Only the APK is in it.
-- v0.1.0 was deleted — it was the broken no-INTERNET build.
-- Wrangler is already authenticated; config lives at
+- Object deleted, public dev-url disabled, and bucket `at-tayyibun-downloads`
+  deleted entirely. The old `pub-dcd3d717132b4d69b8e132eb667cf0ef.r2.dev` URL now
+  returns 401.
+- The pre-existing `novicetutor-app` bucket (a different project) was left untouched.
+- Wrangler remains authenticated on this machine; config lives at
   `~/Library/Preferences/.wrangler` (not `~/.wrangler`).
+
+**The APK is therefore not hosted anywhere right now.** The build artifact is at
+`apps/mobile/build/app/outputs/flutter-apk/app-release.apk` (gitignored) and can be
+rebuilt at any time — see `apps/mobile/README.md`. To distribute it from Hetzner,
+serve it with `Content-Type: application/vnd.android.package-archive`.
+
+Last built: v0.1.1, 36.9 MB, SHA-256
+`e285711689f39b6fdf1e47e999db56de1248053f39bbe2b30fb0d0213c521811`.
 
 Android 14+ blocks unknown-source installs by default — users must allow it for
 their browser.
@@ -184,10 +192,15 @@ correct platform binaries).
 
 ## Outstanding actions
 
-1. **Push the branch.** It is committed locally but not on the remote:
+1. **Push the branch, then merge to `main` to deploy.** It is committed locally but
+   not on the remote:
    ```bash
    git push -u origin fix/client-reports-and-android-app
    ```
+   Dokploy auto-deploys **only from `main`** (`DEPLOYMENT_NOTES.md`). Pushing this
+   feature branch will **not** deploy anything — it needs a merge/PR into `main`.
+   Do step 2 first: deploying the API before the migration runs leaves the
+   second-decline 500 in place.
 2. **Run migration `0001`** before deploying the API, or declining a second request
    will keep 500-ing.
 3. `pnpm install` on a machine (or after clearing `node_modules`) to make the JS
