@@ -32,7 +32,13 @@ class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    // _error has to be cleared here, not only on success: build() returns
+    // ErrorView whenever _error != null, so "Try again" fetched fine and then
+    // kept showing the old error until the route was popped.
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final profile =
           await ref.read(profilesRepositoryProvider).byPublicId(widget.publicId);
@@ -47,6 +53,15 @@ class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
       if (!mounted) return;
       setState(() {
         _error = e.message;
+        _loading = false;
+      });
+    } catch (_) {
+      // ApiClient._send only converts DioException, so anything thrown while
+      // decoding the payload (a missing field in fromJson) escaped as a
+      // TypeError and left the spinner running forever.
+      if (!mounted) return;
+      setState(() {
+        _error = 'Something went wrong. Please try again.';
         _loading = false;
       });
     }

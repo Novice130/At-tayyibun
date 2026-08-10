@@ -1,7 +1,8 @@
 # Open issues — as of 2026-08-10 (post-deploy)
 
 Written so this survives a lost session. Everything below is **unfixed** unless
-marked otherwise. Companion to `docs/session-handoff-2026-08-10.md`, which
+marked otherwise — as of 2026-08-10 all of section A is fixed and awaiting a
+deploy, and B8 is done. Companion to `docs/session-handoff-2026-08-10.md`, which
 describes the work that shipped; this file is only what is still wrong or still
 owed.
 
@@ -18,6 +19,12 @@ Ordered by severity. Each was traced through the code; none were reproduced at
 runtime, so treat the failure scenarios as arguments, not observations.
 
 ### A1. HIGH — a stale signup seed silently wipes the encrypted biodata blob
+
+**FIXED 2026-08-10.** The hydrate effect now GETs the profile *before* touching
+the seed and applies it only when `profileComplete` is false; the seed is
+stamped with the signup email and a timestamp and is discarded when either the
+account or the 7-day age check fails; the guardian keys are merged over the
+existing `biodata` instead of replacing it.
 
 **Where:** `apps/web/src/app/profile/setup/page.tsx` (hydrate effect, ~line 121)
 against `apps/api/src/modules/profiles/profiles.service.ts` (`updateMyProfile`).
@@ -46,6 +53,13 @@ replace on `biodata` in the API would be defence in depth.
 
 ### A2. MEDIUM — Google sign-ups never get a profile, and their requests notify nobody
 
+**FIXED 2026-08-10.** `signIn.social` now uses `callbackURL:
+'/profile/setup?new=1'`, and the wizard redirects to `/browse` when the profile
+is already complete *and* `?new=1` is present (it is also the Edit Profile
+target, so the redirect cannot be unconditional). `createRequest` now rejects
+with a 400 when either side has no profile, instead of writing a row nobody is
+told about. The no-phone-number gap for Google accounts remains open.
+
 **Where:** `apps/web/src/lib/auth.ts` (~line 196, `socialProviders.google`) and
 `apps/api/src/modules/requests/requests.service.ts` (`createRequest`).
 
@@ -68,6 +82,10 @@ that `users.phone`'s unique index provides.
 
 ### A3. MEDIUM — `signIn.social` errors are swallowed; the button hangs forever
 
+**FIXED 2026-08-10.** The handler destructures `{error}`, clears
+`googleLoading` and shows the message. Production still cannot complete Google
+sign-in until B1 — but it now says so instead of hanging.
+
 **Where:** `apps/web/src/app/login/LoginForm.tsx` (~line 33).
 
 better-auth's client returns `{data, error}` and does not throw unless
@@ -85,6 +103,8 @@ and `auth.ts` casts it with `as string`, so the provider registers as broken and
 
 ### A4. MEDIUM — mobile "Try again" can never clear the error state
 
+**FIXED 2026-08-10.** `_load` resets `_error` alongside `_loading`.
+
 **Where:** `apps/mobile/lib/screens/profile_detail_screen.dart` (~line 34).
 
 `_load()` sets `_loading = true` but never resets `_error`, and `build` returns
@@ -95,6 +115,10 @@ but the error screen stays until the route is popped and re-entered.
 **Fix:** add `_error = null` to the `setState` at the top of `_load`.
 
 ### A5. LOW/MEDIUM — a failed page-2 fetch discards the grid and skips a page
+
+**FIXED 2026-08-10.** Failures route through `_handleLoadFailure`, which rolls
+`_page` back and shows a snackbar when the failure was a load-more, and only
+sets `_error` for a failed first page.
 
 **Where:** `apps/mobile/lib/screens/browse_screen.dart` (~line 94, `_onScroll`).
 
@@ -108,6 +132,9 @@ footer rather than by setting `_error`.
 
 ### A6. LOW — a malformed payload hangs the mobile spinner forever
 
+**FIXED 2026-08-10.** Both screens have a bare `catch (_)` that sets an error
+state and clears the spinner.
+
 **Where:** `apps/mobile/lib/screens/browse_screen.dart` (~line 62); same shape in
 `profile_detail_screen._load`.
 
@@ -120,6 +147,11 @@ screen shows `LoadingView` indefinitely.
 
 ### A7. LOW — the navbar badge goes stale exactly where it matters
 
+**FIXED 2026-08-10.** The badge lives in the Navbar's own hook instance, so the
+requests page calling its own `refresh` would have changed nothing; it now
+dispatches a window event (`notifyRequestsChanged`) that every instance of the
+hook listens for.
+
 **Where:** `apps/web/src/lib/hooks.ts` (~line 80, `useIncomingRequestCount`) and
 `apps/web/src/app/requests/page.tsx`.
 
@@ -130,6 +162,9 @@ count keeps showing the old number until the user navigates away and back.
 **Fix:** call `refresh()` from `handleRespond` / `handleCancel`.
 
 ### A8. LOW — `toE164` is unbounded but `users.phone` is `varchar(20)`
+
+**FIXED 2026-08-10.** The `+` branch is bounded to E.164's 15 digits on web and
+mobile. The unreliable `duplicate|unique` message match is still there.
 
 **Where:** `apps/web/src/app/signup/SignupForm.tsx` (~line 128); identical logic
 at `apps/mobile/lib/screens/signup_screen.dart:42`.
@@ -221,10 +256,12 @@ no backup. Losing it makes updating a Play Store listing impossible forever.
 
 Also pasted into a chat transcript.
 
-### B8. Add a `.gitattributes`
+### B8. Add a `.gitattributes` — **DONE 2026-08-10**
 
-39 files were silently converted to CRLF once and normalised back to LF. Nothing
-prevents a recurrence.
+39 files were silently converted to CRLF once and normalised back to LF.
+A repository-root `.gitattributes` now pins `* text=auto eol=lf`, keeps `.bat` /
+`.cmd` / `gradlew.bat` on CRLF, and marks binaries. The 45 files still stored
+CRLF in the index were renormalised in the same commit.
 
 ---
 
@@ -265,12 +302,17 @@ Not regressions — these were already true and remain unaddressed.
 
 ## D. Suggested order
 
-1. A2 and A3 together — they are the same user journey, and A3 is what makes the
-   current broken state invisible.
-2. A1 — silent data loss, and the longer the seeds sit in users' `localStorage`
-   the more of them are armed.
-3. B1 + B2, which unblock Google sign-in end to end, then B5's first real login
-   test.
-4. A4–A8 as a cleanup batch.
-5. B3 and B4, which are deploy-reliability work and will keep costing time on
+Steps 1, 2 and 4 of the original order are done (all of section A). What is left:
+
+1. **Deploy section A.** Web carries A1, A2, A3, A7 and A8; the API carries the
+   `createRequest` guard — and per B3, assume the API will not deploy itself.
+   The mobile fixes (A4, A5, A6, A8) need a new APK build and a refreshed
+   checksum on `/download`, whose version, size and SHA-256 are hardcoded
+   constants in `apps/web/src/app/download/page.tsx`.
+2. B1 + B2, which unblock Google sign-in end to end, then B5's first real login
+   test. Note A2 changed where a Google sign-in lands, so that test now exercises
+   the wizard.
+3. B3 and B4, which are deploy-reliability work and will keep costing time on
    every future release.
+4. The remainder of B: B5 (device testing), B6 (keystore backup), B7 (token
+   rotation).

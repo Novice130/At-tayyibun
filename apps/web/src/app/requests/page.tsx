@@ -8,7 +8,7 @@ import {
   Loader, MapPin, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { useRequireSession } from '@/lib/hooks';
+import { useRequireSession, notifyRequestsChanged } from '@/lib/hooks';
 import { Navbar } from '@/components/Navbar';
 
 interface RequestProfile {
@@ -97,6 +97,10 @@ export default function RequestsPage() {
         shareItems: approved ? ['phone', 'email'] : undefined,
       });
       await fetchRequests();
+      // The navbar badge counts pending incoming requests and otherwise only
+      // refetches on navigation, so it kept showing the old number on the one
+      // page where the number changes.
+      notifyRequestsChanged();
       toast.success(
         approved
           ? 'Request accepted. Your contact details have been emailed to them.'
@@ -115,6 +119,7 @@ export default function RequestsPage() {
       await api.delete(`/requests/${requestId}`);
       setConfirmCancelId(null);
       await fetchRequests();
+      notifyRequestsChanged();
       toast.success('Request cancelled. You can now send a new one.');
     } catch (err: any) {
       toast.error(err.message || 'Failed to cancel request');

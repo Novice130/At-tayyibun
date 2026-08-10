@@ -66,6 +66,67 @@ const STEPS = [
   { label: 'Confirm', icon: CheckCircle2 },
 ];
 
+// ─── Signup seed ─────────────────────────────────────────────────────────────
+
+const SEED_KEY = 'pending-profile-seed';
+// The seed lives in localStorage, which never expires, so it has to expire
+// itself. A week is far longer than the 1 h verification link it exists to
+// survive.
+const SEED_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+interface SignupSeed {
+  firstName?: string;
+  gender?: 'MALE' | 'FEMALE';
+  creatorRole?: string;
+  guardianContactType?: string;
+  guardianName?: string;
+  guardianPhone?: string;
+  guardianEmail?: string;
+  email?: string;
+  createdAt?: number;
+}
+
+/**
+ * Return the signup seed only when it is safe to apply, and drop it otherwise.
+ *
+ * A seed that outlives its signup is destructive: applying it PUTs a biodata
+ * blob holding nothing but the guardian keys, and the API replaces the blob
+ * wholesale. Signing up in one browser and completing the wizard in another
+ * left an armed seed in the first, so a later visit there silently reset the
+ * profile. Three conditions have to hold:
+ *   - the profile is not already complete (the wizard's own output outranks it)
+ *   - the seed belongs to the signed-in account
+ *   - the seed is recent
+ * Seeds failing the last two are deleted; they can never become valid again.
+ */
+function readSeed(sessionEmail?: string | null, profileComplete?: boolean): SignupSeed | null {
+  let seed: SignupSeed | null = null;
+  try {
+    const raw = localStorage.getItem(SEED_KEY);
+    if (raw) seed = JSON.parse(raw);
+  } catch {
+    /* unparseable — treated as absent below and cleared */
+  }
+  if (!seed) return null;
+
+  const stale = !seed.createdAt || Date.now() - seed.createdAt > SEED_MAX_AGE_MS;
+  const foreign = !!seed.email && !!sessionEmail && seed.email !== sessionEmail;
+  if (stale || foreign) {
+    try { localStorage.removeItem(SEED_KEY); } catch {}
+    return null;
+  }
+
+  // Once the wizard has been completed the seed can never usefully be applied
+  // again — its firstName and gender are the signup-time guesses the wizard
+  // has since replaced — so drop it rather than leave it armed.
+  if (profileComplete) {
+    try { localStorage.removeItem(SEED_KEY); } catch {}
+    return null;
+  }
+
+  return seed;
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function ProfileSetupPage() {
@@ -89,19 +150,30 @@ export default function ProfileSetupPage() {
     let cancelled = false;
 
     const hydrate = async () => {
-      let seed: {
-        firstName?: string;
-        gender?: 'MALE' | 'FEMALE';
-        creatorRole?: string;
-        guardianContactType?: string;
-        guardianName?: string;
-        guardianPhone?: string;
-        guardianEmail?: string;
-      } | null = null;
+      // Read the saved profile BEFORE touching the seed. The seed PUT replaces
+      // the encrypted biodata blob wholesale, so applying it to an already
+      // completed profile wipes education, profession, partner preferences and
+      // the rest. Ordering the GET first is what makes the profileComplete
+      // gate below trustworthy.
+      let data: any = null;
       try {
-        const raw = localStorage.getItem('pending-profile-seed');
-        if (raw) seed = JSON.parse(raw);
-      } catch {}
+        data = await api.get('/profiles/me');
+      } catch {
+        /* no existing profile, start fresh */
+      }
+      if (cancelled) return;
+      const p = data?.profile ?? null;
+
+      // A social sign-in lands here with ?new=1 to route profile-less accounts
+      // into the wizard. Anyone who already finished it belongs in /browse —
+      // but /profile/setup is also the "Edit Profile" target, so only the
+      // post-OAuth landing redirects.
+      if (p?.profileComplete && new URLSearchParams(window.location.search).has('new')) {
+        router.replace('/browse');
+        return;
+      }
+
+      const seed = readSeed(session.user?.email, p?.profileComplete);
 
       if (seed) {
         if (seed.gender) setGender(seed.gender);
@@ -121,20 +193,19 @@ export default function ProfileSetupPage() {
           await api.put('/profiles/me', {
             ...(seed.firstName ? { firstName: seed.firstName } : {}),
             ...(seed.gender ? { gender: seed.gender } : {}),
-            ...(Object.keys(guardian).length ? { biodata: guardian } : {}),
+            ...(Object.keys(guardian).length
+              ? { biodata: { ...((p?.biodata ?? {}) as Record<string, unknown>), ...guardian } }
+              : {}),
           });
           // Only drop the seed once it is actually persisted. Clearing it
           // unconditionally meant a failed PUT silently lost the signup data.
-          localStorage.removeItem('pending-profile-seed');
+          localStorage.removeItem(SEED_KEY);
         } catch {
           /* keep the seed so the next visit can retry */
         }
       }
 
-      try {
-        const data: any = await api.get('/profiles/me');
-        if (cancelled || !data?.profile) return;
-        const p = data.profile;
+      if (p) {
         const bd: Record<string, any> = (p.biodata ?? {}) as Record<string, any>;
         const OWNED = new Set([
           'hideLocation', 'hideName', 'legalStatus', 'education', 'profession', 'relocate',
@@ -170,11 +241,9 @@ export default function ProfileSetupPage() {
           dealBreakers: bd.dealBreakers || f.dealBreakers,
           nikahIntent: bd.nikahIntent ?? f.nikahIntent,
         }));
-      } catch {
-        /* no existing profile, start fresh */
-      } finally {
-        if (!cancelled) setHydrating(false);
       }
+
+      if (!cancelled) setHydrating(false);
     };
 
     void hydrate();

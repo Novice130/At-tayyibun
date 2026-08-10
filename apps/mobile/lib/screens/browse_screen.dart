@@ -83,11 +83,35 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
       });
     } on ApiException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _loading = false;
-        _loadingMore = false;
-      });
+      _handleLoadFailure(e.message);
+    } catch (_) {
+      // ApiClient._send only converts DioException. A TypeError out of
+      // BrowsePage.fromJson (a row missing publicId, say) escaped both this
+      // method and the spinner, which then never stopped.
+      if (!mounted) return;
+      _handleLoadFailure('Something went wrong. Please try again.');
+    }
+  }
+
+  /// A failed *first* page has nothing to show, so it becomes the error screen.
+  /// A failed load-more still has a full grid behind it — replacing that with
+  /// ErrorView threw away everything the user had scrolled through, and left
+  /// _page advanced past the page that failed, so the retry skipped it.
+  void _handleLoadFailure(String message) {
+    final wasLoadMore = _loadingMore;
+    setState(() {
+      if (wasLoadMore) {
+        _page = _page > 1 ? _page - 1 : 1;
+      } else {
+        _error = message;
+      }
+      _loading = false;
+      _loadingMore = false;
+    });
+    if (wasLoadMore) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     }
   }
 

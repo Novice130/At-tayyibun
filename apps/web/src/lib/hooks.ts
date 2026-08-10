@@ -73,6 +73,21 @@ interface IncomingRequestRow {
   status: string;
 }
 
+const REQUESTS_CHANGED = 'at-tayyibun:requests-changed';
+
+/**
+ * Tell the navbar badge that the pending-request set has changed.
+ *
+ * The badge lives in the Navbar's own instance of `useIncomingRequestCount`,
+ * so the requests page calling its own `refresh` would update nothing. A window
+ * event is what crosses that gap: accept or decline every pending request and
+ * the count clears immediately instead of at the next navigation.
+ */
+export function notifyRequestsChanged() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(REQUESTS_CHANGED));
+}
+
 /**
  * Count of pending incoming requests, for the Requests nav badge.
  * Refetches on navigation so the badge clears once the user acts on them.
@@ -100,6 +115,12 @@ export function useIncomingRequestCount() {
   useEffect(() => {
     void refresh();
   }, [refresh, pathname]);
+
+  useEffect(() => {
+    const onChanged = () => void refresh();
+    window.addEventListener(REQUESTS_CHANGED, onChanged);
+    return () => window.removeEventListener(REQUESTS_CHANGED, onChanged);
+  }, [refresh]);
 
   return { count, refresh };
 }

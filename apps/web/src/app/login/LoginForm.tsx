@@ -30,7 +30,23 @@ export default function LoginForm() {
       // Full-page redirect to Google and back to /auth/callback/google.
       // On success better-auth redirects to callbackURL itself, so there is
       // nothing to await here — the page navigates away.
-      await signIn.social({ provider: 'google', callbackURL: '/browse' });
+      //
+      // /profile/setup, not /browse: social sign-ups arrive with no profile at
+      // all, and nothing else routes a profile-less user to the wizard. The
+      // wizard sends users who already have a complete profile onward.
+      //
+      // The client returns {data, error} and only throws when
+      // fetchOptions.throw is set, so an ignored return value left this button
+      // stuck on "Redirecting…" forever — which is exactly what a misconfigured
+      // provider (CLIENT_ID_AND_SECRET_REQUIRED) produces.
+      const { error: authError } = await signIn.social({
+        provider: 'google',
+        callbackURL: '/profile/setup?new=1',
+      });
+      if (authError) {
+        setError(authError.message || 'Could not start Google sign-in. Please try again.');
+        setGoogleLoading(false);
+      }
     } catch (err: any) {
       setError(err?.message || 'Could not start Google sign-in. Please try again.');
       setGoogleLoading(false);

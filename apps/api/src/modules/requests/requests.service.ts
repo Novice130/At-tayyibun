@@ -44,6 +44,18 @@ export class RequestsService {
     if (!target) throw new NotFoundException('User not found');
     if (target.id === requesterId) throw new BadRequestException('Cannot request your own information');
 
+    // Both sides must have a profile before a request is worth creating. The
+    // notification email below is skipped when either is missing, so without
+    // this guard the row was still written — consuming the requester's single
+    // pending-request slot — while the target was never told about it.
+    const requester = await this.getUserWithProfile(eq(users.id, requesterId));
+    if (!requester?.profile) {
+      throw new BadRequestException('Please complete your profile before sending a request.');
+    }
+    if (!target.profile) {
+      throw new BadRequestException('This member has not finished setting up their profile yet.');
+    }
+
     const [existing] = await this.drizzle.db
       .select({ id: infoRequests.id })
       .from(infoRequests)
@@ -69,20 +81,16 @@ export class RequestsService {
       })
       .returning();
 
-    const requester = await this.getUserWithProfile(eq(users.id, requesterId));
-
-    if (requester?.profile && target.profile) {
-      try {
-        await this.emailService.sendContactRequestEmail(
-          target.email,
-          target.profile.firstName,
-          requester.profile.firstName,
-          requester.profile.ethnicity,
-          [requester.profile.city, requester.profile.state].filter(Boolean).join(', '),
-        );
-      } catch (error) {
-        console.error('Failed to send contact request email:', error);
-      }
+    try {
+      await this.emailService.sendContactRequestEmail(
+        target.email,
+        target.profile.firstName,
+        requester.profile.firstName,
+        requester.profile.ethnicity,
+        [requester.profile.city, requester.profile.state].filter(Boolean).join(', '),
+      );
+    } catch (error) {
+      console.error('Failed to send contact request email:', error);
     }
 
     await this.auditService.logInfoRequest(requesterId, 'REQUEST_SENT', target.id, request.id);

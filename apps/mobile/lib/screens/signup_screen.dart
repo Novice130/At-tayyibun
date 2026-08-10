@@ -43,7 +43,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     final digits = raw.replaceAll(RegExp(r'\D'), '');
     if (digits.length == 10) return '+1$digits';
     if (digits.length == 11 && digits.startsWith('1')) return '+$digits';
-    if (raw.trim().startsWith('+') && digits.length >= 7) return '+$digits';
+    // Upper bound is E.164's 15 digits, which also fits users.phone
+    // varchar(20). Unbounded input reached Postgres and failed as a 500.
+    if (raw.trim().startsWith('+') && digits.length >= 7 && digits.length <= 15) {
+      return '+$digits';
+    }
     return null;
   }
 

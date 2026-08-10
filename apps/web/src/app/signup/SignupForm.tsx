@@ -125,11 +125,17 @@ export default function SignupForm() {
   };
 
   // Normalize a free-typed US phone to E.164 (+1XXXXXXXXXX). Twilio requires E.164.
+  // 15 digits is the E.164 maximum, and it also keeps the result inside
+  // users.phone's varchar(20). Without the upper bound a pasted number with an
+  // extension went to Postgres as-is and came back as an opaque 500:
+  // "value too long for type character varying(20)".
   const toE164 = (raw: string): string | null => {
     const digits = raw.replace(/\D/g, '');
     if (digits.length === 10) return `+1${digits}`;
     if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-    if (raw.trim().startsWith('+') && digits.length >= 7) return `+${digits}`;
+    if (raw.trim().startsWith('+') && digits.length >= 7 && digits.length <= 15) {
+      return `+${digits}`;
+    }
     return null;
   };
 
@@ -189,6 +195,12 @@ export default function SignupForm() {
             guardianName: formData.guardianName,
             guardianPhone: formData.guardianPhone,
             guardianEmail: formData.guardianEmail,
+            // Stamped so /profile/setup can tell a seed that belongs to the
+            // signed-in account from one left behind by an earlier signup in
+            // this browser, and can expire it. localStorage never does either
+            // on its own, and an applied stale seed overwrites the profile.
+            email: formData.email,
+            createdAt: Date.now(),
           }),
         );
       } catch {}
