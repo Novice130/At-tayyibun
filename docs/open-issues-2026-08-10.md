@@ -218,16 +218,30 @@ Still in Testing mode, so Google sign-in only works for explicitly listed test
 users. Scopes are `email`, `profile`, `openid` — all non-sensitive, so no Google
 review is required. Needs a Google Console login.
 
-### B3. The API app does not receive the GitHub push webhook
+### B3. The API app does not receive the GitHub push webhook — **NOT REPRODUCIBLE; the earlier conclusion was wrong**
 
-On the 2026-08-10 merge, the web app deployed from the push but the API app
-produced **no deployment row at all** and the deployment queue was empty. It had
-to be deployed manually via `application-deploy` on `9E23qdq8WrdmisgYgis94`.
-Both apps share one GitHub app installation and both have `autoDeploy: true`,
-`triggerType: 'push'`, `branch: 'main'`, so the cause is unknown.
+Re-checked on 2026-08-10 against `application.one` for `9E23qdq8WrdmisgYgis94`.
+The API app's deployment history contains a webhook-driven row for **every**
+push that day, each finishing `done`:
 
-**Assume every future merge deploys web only** until this is diagnosed. Verify
-the API actually moved by probing a route that only exists in the new build.
+| time (UTC) | commit | description prefix |
+|---|---|---|
+| 13:02 | `4cbed2e` | `Hash:` — the **manual** deploy, ended `cancelled` |
+| 13:12 | `4cbed2e` | `Commit:` — webhook, done 13:16 |
+| 13:16 | `75f8f90` | `Commit:` — webhook, done 13:16 |
+| 13:38 | `15490e5` | `Commit:` — webhook, done 13:39 |
+| 15:27 | `b6a8221` | `Commit:` — webhook, done 15:28 |
+
+Dokploy writes `Hash: <sha>` for a manual deploy and `Commit: <sha>` for a
+webhook one, which is what separates the two 13:0x–13:1x rows. So the API did
+receive the push for the merge; what actually happened is that the manual
+deploy was fired first, was cancelled, and the webhook row that arrived ten
+minutes later was read as absent. The two pushes after it deployed the API
+without any intervention.
+
+**Revised guidance:** merges deploy both apps. Still worth probing a
+new-build-only route after a release, but do not plan on deploying the API by
+hand.
 
 ### B4. There is no migration step in the deploy
 
@@ -255,6 +269,21 @@ no backup. Losing it makes updating a Play Store listing impossible forever.
 ### B7. Rotate the GitHub personal access token
 
 Also pasted into a chat transcript.
+
+### B9. The Dokploy API app's env block has been read into a chat transcript
+
+Reading `application.one` to diagnose B3 returned the API app's whole `env`
+string, so `DATABASE_URL` (including the Neon role password), `BETTER_AUTH_SECRET`,
+`ENCRYPTION_KEY` and `RESEND_API_KEY` are now in the same exposure class as B1
+and B7. Nothing indicates misuse; the honest position is that they are no longer
+secret-by-default.
+
+`ENCRYPTION_KEY` is the awkward one — rotating it means re-encrypting every
+`biodataJsonEnc` blob, not just setting a new value, so it needs a migration
+script rather than an env edit. The other three rotate cleanly (Neon password
+reset, a new `BETTER_AUTH_SECRET` — which invalidates every session — and a new
+Resend key). Same call as B1: the owner may reasonably defer these until ship
+day, but they should be done in one pass with B1 and B7 rather than forgotten.
 
 ### B8. Add a `.gitattributes` — **DONE 2026-08-10**
 
@@ -305,7 +334,7 @@ Not regressions — these were already true and remain unaddressed.
 Steps 1, 2 and 4 of the original order are done (all of section A). What is left:
 
 1. **Deploy section A.** Web carries A1, A2, A3, A7 and A8; the API carries the
-   `createRequest` guard — and per B3, assume the API will not deploy itself.
+   `createRequest` guard. Per the revised B3, one push deploys both.
    The mobile fixes (A4, A5, A6, A8) need a new APK build and a refreshed
    checksum on `/download`, whose version, size and SHA-256 are hardcoded
    constants in `apps/web/src/app/download/page.tsx`.
