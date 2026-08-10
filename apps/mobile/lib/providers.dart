@@ -64,6 +64,14 @@ class AuthController extends StateNotifier<AuthState> {
     return result;
   }
 
+  Future<SignInResult> signInWithGoogle() async {
+    final result = await _repo.signInWithGoogle();
+    if (result is SignInSuccess) {
+      state = AuthState(status: AuthStatus.signedIn, user: result.user);
+    }
+    return result;
+  }
+
   Future<void> signOut() async {
     await _repo.signOut();
     state = const AuthState(status: AuthStatus.signedOut);

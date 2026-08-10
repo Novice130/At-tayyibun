@@ -163,6 +163,26 @@ const options = {
       },
     },
   },
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+    },
+  },
+  account: {
+    accountLinking: {
+      // Without this, someone who registered with a password and later taps
+      // "Continue with Google" on the same address ends up with two accounts —
+      // the one duplicate class social login can actually prevent.
+      enabled: true,
+      // Google verifies email ownership, so its assertion is safe to link on.
+      trustedProviders: ["google"],
+      // Only ever link when the addresses match. Linking across different
+      // emails would let a Google account attach itself to someone else's
+      // profile.
+      allowDifferentEmails: false,
+    },
+  },
   emailAndPassword: {
     enabled: true,
     // Phone OTP via Twilio is wired but commented out at the signup step

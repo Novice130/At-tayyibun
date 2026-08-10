@@ -17,6 +17,18 @@ const String kSessionCookie = 'better-auth.session_token';
 /// Browse page size. The API hard-caps this at 50.
 const int kBrowsePageSize = 20;
 
+/// The **web** OAuth client id from Google Cloud Console — not the Android one.
+///
+/// Passing it as `serverClientId` makes Google mint an ID token whose audience
+/// is the web client, which is exactly what the server verifies
+/// (better-auth checks `audience: options.clientId`, a single value). An
+/// Android client id here would produce a token the server rejects.
+///
+/// Injected at build time so it never lands in the repo:
+///   flutter build apk --dart-define=GOOGLE_SERVER_CLIENT_ID=xxx.apps.googleusercontent.com
+const String kGoogleServerClientId =
+    String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
+
 const List<String> kEthnicities = [
   'South Asian',
   'Arab',
