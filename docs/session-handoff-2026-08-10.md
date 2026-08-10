@@ -217,13 +217,33 @@ already has storage, so R2 was redundant. As of the end of this session:
 - Wrangler remains authenticated on this machine; config lives at
   `~/Library/Preferences/.wrangler` (not `~/.wrangler`).
 
-**The APK is therefore not hosted anywhere right now.** The build artifact is at
-`apps/mobile/build/app/outputs/flutter-apk/app-release.apk` (gitignored) and can be
-rebuilt at any time — see `apps/mobile/README.md`. To distribute it from Hetzner,
-serve it with `Content-Type: application/vnd.android.package-archive`.
+**The APK is now served from the web app itself**, on the Hetzner box, at:
 
-Last built: v0.1.1, 36.9 MB, SHA-256
-`e285711689f39b6fdf1e47e999db56de1248053f39bbe2b30fb0d0213c521811`.
+```
+https://attayyibun.com/downloads/at-tayyibun.apk
+```
+
+It lives at `apps/web/public/downloads/at-tayyibun.apk` and is **committed to the
+repo**. `Dockerfile.web` already does `COPY --from=builder /app/apps/web/public
+./apps/web/public`, so it ships with every deploy and needs no mount, no extra
+service, and no Traefik rule. Next.js serves `.apk` as
+`application/vnd.android.package-archive` from its own mime table.
+
+The trade-off accepted here: ~37 MB of binary enters git history per release. If
+that becomes a problem, move the file to a Dokploy volume mount (keeps the same
+URL) or cut GitHub Releases instead.
+
+To publish a new build: rebuild, overwrite that path, refresh the `.sha256`
+sidecar, commit, merge to `main`. The filename is deliberately unversioned so the
+download link never changes.
+
+Currently published: v0.1.1+2, 37,636,176 bytes, SHA-256
+`931920c8b5a729538c03c21f1172d7e00bdf3e2e922c84880e390386ed145279` (also written
+to `at-tayyibun.apk.sha256` next to it). This is **not** the binary this document
+originally described (`e2857116…`) — that one predated Google Sign-In. Verified by
+`strings` on `lib/arm64-v8a/libapp.so`: the published APK carries the web client
+id `659173631996-bi5c9d3i4qk6pksee92abkn3t4vheeo9`, so it was built with the
+required `--dart-define=GOOGLE_SERVER_CLIENT_ID`.
 
 Android 14+ blocks unknown-source installs by default — users must allow it for
 their browser.
