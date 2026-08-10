@@ -243,14 +243,40 @@ without any intervention.
 new-build-only route after a release, but do not plan on deploying the API by
 hand.
 
-### B4. There is no migration step in the deploy
+### B4. There is no migration step in the deploy — **code written, one manual step outstanding**
 
-`Dockerfile.api` ends at `CMD ["node", "dist/src/main"]`. Migration `0001` had to
-be applied by hand, and `drizzle-kit migrate` was **not** usable: the production
-database has no `drizzle.__drizzle_migrations` table, so drizzle would have tried
-to replay `0000` against a live schema. `0002` onward needs the same manual
-treatment — run the SQL in a transaction — or an init container that runs
-migrations before the API starts.
+`Dockerfile.api` ended at `CMD ["node", "dist/src/main"]`. Migration `0001` had
+to be applied by hand, and `drizzle-kit migrate` was **not** usable: the
+production database has no `drizzle.__drizzle_migrations` table, so drizzle
+would have tried to replay `0000` against a live schema.
+
+Now in the repository:
+
+- `apps/api/src/migrate.ts` — applies pending migrations with drizzle-orm's own
+  migrator (drizzle-kit is a devDependency and is pruned out of the runner
+  image; `drizzle-orm` and `pg` are production dependencies). It **refuses to
+  run** when `drizzle.__drizzle_migrations` is absent, rather than replaying
+  `0000`.
+- `apps/api/scripts/bootstrap-migrations.sql` — seeds the ledger with `0000` and
+  `0001` marked applied, in a transaction that aborts if the table is already
+  populated.
+- `Dockerfile.api` — copies `drizzle/` into the runner and runs
+  `node dist/src/migrate && exec node dist/src/main`, so a failed migration
+  stops the release instead of leaving a new build on an old schema.
+
+**Outstanding:** run `bootstrap-migrations.sql` against production once, *before*
+the next API deploy. Until it is run, the new image will exit at startup with
+the "does not exist on this database" error — which is the intended failure, not
+a regression, but it does mean the bootstrap must go first.
+
+```
+psql "$DATABASE_URL" -f apps/api/scripts/bootstrap-migrations.sql
+```
+
+The migrator matches on `created_at` (each journal entry's `when`), so what
+makes the seeded rows correct is those two values; the hashes are recorded to
+match what the migrator would have written. They are sha256 over the migration
+files with LF endings, which the new root `.gitattributes` pins.
 
 ### B5. Untested paths
 
@@ -341,7 +367,8 @@ Steps 1, 2 and 4 of the original order are done (all of section A). What is left
 2. B1 + B2, which unblock Google sign-in end to end, then B5's first real login
    test. Note A2 changed where a Google sign-in lands, so that test now exercises
    the wizard.
-3. B3 and B4, which are deploy-reliability work and will keep costing time on
-   every future release.
+3. B4's one remaining manual step — run `bootstrap-migrations.sql` against
+   production **before** the API deploys with the new Dockerfile. (B3 turned out
+   to be a misreading; nothing to do.)
 4. The remainder of B: B5 (device testing), B6 (keystore backup), B7 (token
    rotation).

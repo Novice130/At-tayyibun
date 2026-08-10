@@ -47,6 +47,9 @@ RUN addgroup --system --gid 1001 nodejs \
 
 COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/apps/api/package.json ./package.json
+# The migration SQL and journal are read at runtime by dist/src/migrate.js,
+# which resolves them at ../../drizzle relative to itself.
+COPY --from=builder /app/apps/api/drizzle ./drizzle
 COPY --from=prod-deps /app/node_modules ./node_modules
 
 USER nestjs
@@ -55,4 +58,8 @@ EXPOSE 3001
 ENV PORT=3001
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "dist/src/main"]
+# Migrations run before the server, in their own process, and a failure stops
+# the container rather than letting a new build start against an old schema.
+# The migrate script refuses to run at all if drizzle's ledger is missing —
+# see apps/api/scripts/bootstrap-migrations.sql.
+CMD ["sh", "-c", "node dist/src/migrate && exec node dist/src/main"]
