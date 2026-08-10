@@ -1,6 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Flutter's template declares INTERNET only in the debug and profile
+         manifests, so release builds ship without it and every network call
+         fails. This app is useless offline — it must be declared here. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
-        android:label="at_tayyibun"
+        android:label="At-Tayyibun"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
