@@ -54,6 +54,111 @@ expires stale/duplicate PENDING rows first so it applies cleanly to existing dat
 
 ---
 
+## 1b. The lockfile produced a build that could not deploy
+
+Separate from the client reports, and the most urgent thing found this session.
+
+`better-auth` resolves to **1.5.6** (`apps/web/package.json` says `^1.1.13`). It
+declares `peerDependencies: { zod: ^4.0.0 }` and calls the v4-only `z.email()`.
+`apps/web` pinned `zod: ^3.24.1`, so pnpm satisfied both by nesting zod 3.25.76
+under `apps/web`, and webpack handed that copy to better-auth's modules.
+
+Result: `export 'email' was not found in 'zod'` — and because the navbar imports
+the auth client, **every page failed to compile**. `next build` could not
+succeed from the committed lockfile, so the next Docker deploy would have failed
+regardless of what was merged.
+
+Fixed by moving the declared range to `^4.3.6` (commit `698eb2d`). `apps/web`
+has zero direct zod imports — and `react-hook-form` / `@hookform/resolvers` are
+declared but entirely unused — so there is no application-code impact. The
+lockfile diff is 14 lines and retains every platform's SWC binaries (12 linux,
+6 darwin, 6 win32), so Linux Docker builds are unaffected.
+
+`next build` now completes; all 22 routes compile.
+
+**Two things I initially reported here were wrong and are corrected for the
+record:** there is no React 18/19 duplication (root is cleanly 19.0.0; the
+`react@18.3.1` strings in `.pnpm` directory names are pnpm's peer-suffix naming,
+not installed copies), and an observed `useReducer` null error was test
+contamination — several dev-server restarts silently hit `EADDRINUSE` and were
+serving a stale process. Only the zod conflict was real.
+
+---
+
+## 1c. Mobile menu was rendering transparent
+
+The client reported the mobile menu "running over the home page". Two
+independent causes, both fixed in `1c093e1`:
+
+1. `bg-surface-secondary` is not a real class — it exists in neither
+   `globals.css` (which defines `.bg-surface` / `.bg-surface-hover`) nor
+   `tailwind.config.ts`. The panel therefore had **no background at all**. The
+   same dead class was also making the desktop user dropdown and the admin 2FA
+   modal transparent.
+2. The dim backdrop was nested inside `<nav>`, which carries the `glass` class.
+   `backdrop-filter` makes an element a containing block for fixed-position
+   descendants, so `fixed inset-0` was clipped to the navbar's own box and only
+   dimmed the top strip.
+
+The overlay now renders as a sibling of `<nav>`, every affected surface sets its
+colour explicitly from the CSS custom properties, and the panel height is capped
+so a long menu scrolls.
+
+Verified in a real browser (Playwright, 390×844): panel background
+`rgb(255,255,255)`, border `rgb(232,228,221)`, the element painted inside the
+panel is a menu link rather than hero text, and no horizontal overflow.
+
+---
+
+## 1d. Google Sign-In (web + Android)
+
+Commit `5f7d8c9`.
+
+**Web** uses the standard redirect flow via `signIn.social`. The previously dead
+Google button on the login screen is wired up; the Facebook button was removed
+because it had no handler and no configured provider.
+
+**Android deliberately does not use the redirect flow.** The app authenticates
+with a cookie in its own jar, so a redirect completed in a Custom Tab would set
+the cookie on the browser instead. It uses Google's native SDK to obtain an ID
+token and posts it to `/auth/sign-in/social`, which returns the session cookie
+straight to the app.
+
+**The critical detail:** the ID token must be minted with the **web** client id
+as `serverClientId`. better-auth verifies `audience: options.clientId` — a
+single value — so a token issued for the Android client id is always rejected.
+The Android client id appears nowhere in the code; it only needs to exist so
+Google will issue tokens to the app.
+
+Account linking is enabled with `trustedProviders: ['google']` and
+`allowDifferentEmails: false`, so a user who registered with a password and
+later used Google on the same address does not end up with two accounts.
+
+OAuth clients (project `attayyibun-auth`):
+- Web client id: `659173631996-bi5c9d3i4qk6pksee92abkn3t4vheeo9.apps.googleusercontent.com`
+- Android client id: `659173631996-v043u83qkebdirej7qos9o75drs4iam7.apps.googleusercontent.com`
+- Redirect URIs: `https://attayyibun.com/auth/callback/google` and
+  `http://localhost:3000/auth/callback/google` (note `/auth/`, not `/api/auth/` —
+  Traefik routes `/api/*` to the NestJS container)
+- Android client SHA-1 is the **release** keystore. Debug builds need the debug
+  SHA-1 added to the same client or they fail with a developer error.
+
+Build command:
+```bash
+flutter build apk --release --target-platform android-arm,android-arm64 \
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=<WEB_CLIENT_ID>.apps.googleusercontent.com
+```
+
+> ⚠️ **The OAuth consent screen is still in Testing mode.** Until it is
+> published, Google sign-in works only for accounts explicitly listed as test
+> users. Scopes are `email`, `profile`, `openid` — all non-sensitive, so
+> publishing needs no Google review.
+
+> ⚠️ **Accounts created via Google arrive with no phone number.** That bypasses
+> the phone-verification duplicate prevention discussed separately.
+
+---
+
 ## 2. Flutter Android app
 
 Commits `4a8e62c` + `7b4079d`. Lives at `apps/mobile/`. See `apps/mobile/README.md`
@@ -182,11 +287,28 @@ correct platform binaries).
 - **No successful login anywhere** — no test credentials were available. Everything
   behind auth in the mobile app (browse, profile detail, requests, profile save) has
   never been exercised. The plumbing is proven; the authenticated screens are not.
-- **The web/API fixes have never been run.** `node_modules` is unusable on this
-  machine, so `pnpm dev` and `pnpm build` were never executed. Type-checking passed;
-  nothing was exercised at runtime.
 - **Migration `0001` has not been applied** to any database.
-- The web mobile-layout fixes were never viewed in a browser.
+- **No Google sign-in has ever completed.** Verified up to the account picker:
+  the app built with the real web client id, logcat showed
+  `[GetGoogleIdOperation] Operation succeeded` and
+  `TYPE_GOOGLE_ID_TOKEN_CREDENTIAL meets all filtering conditions` (so Google
+  accepts the `serverClientId`), and Google's native sign-in screen launched.
+  Cancelling returned cleanly with no crash. Finishing it requires typing a real
+  Google account password, so the last hop — ID token → `/auth/sign-in/social` →
+  session cookie — is untested. The web redirect flow is entirely untested.
+- Most of the web/API fixes have still never been exercised at runtime. The
+  `node_modules` situation is now resolved (see below) and `next build` passes,
+  but only the home page and the mobile menu were actually loaded in a browser.
+
+### Correction to an earlier version of this document
+
+An earlier revision said the web app could not be run on this machine at all.
+That is no longer true: `node_modules` was reinstalled for macOS, the zod
+conflict was fixed, and `next build` now succeeds. One manual step was needed —
+`@next/swc-darwin-arm64@15.1.4` was side-loaded by hand because the lockfile's
+optional-dependency entries did not produce it. That directory is untracked, so
+a future `pnpm install` may wipe it; if builds suddenly complain about a missing
+SWC binary, that is why.
 
 ---
 
@@ -202,14 +324,26 @@ correct platform binaries).
    Do step 2 first: deploying the API before the migration runs leaves the
    second-decline 500 in place.
 2. **Run migration `0001`** before deploying the API, or declining a second request
-   will keep 500-ing.
-3. `pnpm install` on a machine (or after clearing `node_modules`) to make the JS
-   toolchain usable, then actually run the web app and verify the fixes.
-4. Test a real login on the Android app with valid credentials.
-5. Back up the release keystore.
-6. Consider a custom domain for the APK instead of the public `r2.dev` URL.
-7. Add a `.gitattributes` — 39 files had been silently converted to CRLF; they were
+   will keep 500-ing. There is no migration step in the deploy —
+   `Dockerfile.api` ends at `CMD ["node", "dist/src/main"]` — so nothing applies
+   it automatically.
+3. **Rotate the Google client secret.** The original was pasted into a chat
+   transcript and must be considered compromised. Google Cloud → Clients → web
+   client → Add secret, then delete the old one.
+4. **Set the Google env vars in Dokploy on the WEB app** (`kR_VYSPSAMuzU6peeBtt9`),
+   not the API — `auth.ts` runs inside the Next.js server:
+   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (the rotated value).
+   `apps/web/.env.local` holds the client id plus a `ROTATE-ME` placeholder for
+   local development.
+5. **Publish the OAuth consent screen**, or Google sign-in only works for listed
+   test users.
+6. Test a real login on the Android app, and a real Google sign-in on both
+   platforms.
+7. Back up the release keystore.
+8. Add a `.gitattributes` — 39 files had been silently converted to CRLF; they were
    normalised back to LF this session, but nothing prevents a recurrence.
+9. **Rotate the GitHub personal access token** that was pasted into the chat
+   transcript.
 
 ---
 
