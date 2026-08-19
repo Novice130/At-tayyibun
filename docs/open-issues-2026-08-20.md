@@ -4,13 +4,34 @@ Supersedes `docs/open-issues-2026-08-19.md`. All eight review findings in
 section 1 of that document are now fixed; what remains is deployment, manual
 portal work, and device testing.
 
-Verification state of this working tree: `nest build` ✓, `next build` ✓,
-`flutter analyze` clean ✓, `flutter test` green ✓. `apps/api` has no jest specs
-at all (`pnpm --filter api test` exits 1 with "No tests found") — pre-existing.
+Verification state: `nest build` ✓, `next build` ✓, `flutter analyze` clean ✓,
+`flutter test` green ✓. `apps/api` has no jest specs at all
+(`pnpm --filter api test` exits 1 with "No tests found") — pre-existing.
+
+**Git state:** committed as `005feeb` and **pushed to `origin/main`** on
+2026-08-20. That push also carried up three previously unpushed local commits:
+`1a75a6c` (security-hardening baseline), `243789f` (iOS launch plan
+implementation) and `11db179` (the 08-19 handoff). `.commandcode/taste/taste.md`
+is deliberately left unstaged — unrelated pre-existing edit.
+
+⚠️ **Consequence of that push:** if Dokploy autoDeploy is on for the API, the
+deploy runs the migrator, which applies `0002_blocks_reports_terms.sql` to the
+production Neon database — creating `blocks`, `reports`, the `ReportStatus`
+enum and `users.terms_accepted_at`, **and** running
+`UPDATE users SET image = 'https://attayyibun.com' || image WHERE image LIKE '/avatars/%'`
+against live rows. Intended, but it is a one-way data rewrite. Web and API
+should be deployed together. Verify per section 2 before assuming it ran.
+
+**Pushing from this machine:** the `origin` remote is HTTPS and fails with
+`Password authentication is not supported for Git operations`; `gh` is not
+installed. SSH works (`git@github.com` authenticates as `Novice130`), so either
+push by URL (`git push git@github.com:Novice130/At-tayyibun.git main`) or fix it
+permanently with
+`git remote set-url origin git@github.com:Novice130/At-tayyibun.git`.
 
 ---
 
-## 1. Fixed in this session (uncommitted working tree)
+## 1. Fixed in this session (commit `005feeb`)
 
 1. **pnpm-lock.yaml synced.** `corepack pnpm install` at the repo root picked up
    the hand-added `jose` and `tsx` in `apps/api/package.json`. Docker's
