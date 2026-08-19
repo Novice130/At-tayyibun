@@ -50,6 +50,23 @@ const config: Config = {
         error: '#EF4444',
         success: '#10B981',
         warning: '#F59E0B',
+        // shadcn-style semantic tokens (used by components/ui/*). Mapped to
+        // the existing gold/cream/dark palette with dark-mode variants so the
+        // primitives render in both themes instead of resolving to nothing.
+        foreground: 'hsl(var(--fg))',
+        card: 'hsl(var(--card))',
+        'card-foreground': 'hsl(var(--card-fg))',
+        popover: 'hsl(var(--popover))',
+        'popover-foreground': 'hsl(var(--popover-fg))',
+        'primary-foreground': 'hsl(var(--primary-fg))',
+        'secondary-foreground': 'hsl(var(--secondary-fg))',
+        muted: 'hsl(var(--muted))',
+        'muted-foreground': 'hsl(var(--muted-fg))',
+        destructive: 'hsl(var(--destructive))',
+        'destructive-foreground': 'hsl(var(--destructive-fg))',
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

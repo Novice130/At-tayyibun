@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, MiddlewareConsumer, NestModule } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
@@ -24,6 +24,7 @@ import {
 // Guards & Interceptors
 import { BetterAuthGuard } from "./common/guards/better-auth.guard";
 import { AuditLogInterceptor } from "./common/interceptors/audit-log.interceptor";
+import { OriginCheckMiddleware } from "./common/middleware/origin-check.middleware";
 import { ThrottlerGuard } from "@nestjs/throttler";
 
 @Module({
@@ -62,23 +63,34 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     // count — so normal navigation could 429 itself. It is also shared across
     // everyone behind one NAT. Abuse control for the sensitive operations lives
     // on the endpoints themselves (e.g. POST /requests is @Throttle 10/hour).
-    ThrottlerModule.forRoot([
-      {
-        name: "short",
-        ttl: 1000,
-        limit: 20,
-      },
-      {
-        name: "medium",
-        ttl: 10000,
-        limit: 100,
-      },
-      {
-        name: "long",
-        ttl: 60000,
-        limit: 300,
-      },
-    ]),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          name: "short",
+          ttl: 1000,
+          limit: 20,
+        },
+        {
+          name: "medium",
+          ttl: 10000,
+          limit: 100,
+        },
+        {
+          name: "long",
+          ttl: 60000,
+          limit: 300,
+        },
+        {
+          // Dedicated bucket for credential/OTP endpoints. Wired to env knobs
+          // so operators can tune it without a code change.
+          name: "auth",
+          ttl: config.get<number>('RATE_LIMIT_LOGIN_WINDOW_MS', 60000),
+          limit: config.get<number>('RATE_LIMIT_LOGIN_MAX', 5),
+        },
+      ],
+    }),
 
     // Database
     DrizzleModule,
@@ -117,4 +129,10 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // CSRF defense: rejects cookie-authenticated state-changing requests whose
+    // Origin does not match WEB_URL or that lack a non-browser marker header.
+    consumer.apply(OriginCheckMiddleware).forRoutes('*');
+  }
+}

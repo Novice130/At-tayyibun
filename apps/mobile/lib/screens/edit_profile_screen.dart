@@ -23,8 +23,6 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
-  final _pageKeys = List.generate(5, (_) => GlobalKey<FormState>());
-
   int _step = 0;
   bool _loading = true;
   bool _saving = false;
@@ -264,7 +262,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Form(
-                  key: _pageKeys[_step],
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [

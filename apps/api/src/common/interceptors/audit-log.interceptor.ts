@@ -9,16 +9,17 @@ import { AuditService } from '../../services/audit.service';
  */
 @Injectable()
 export class AuditLogInterceptor implements NestInterceptor {
-  // Actions to audit
+  // Actions to audit. Auth flows live in the Next.js app (better-auth), so
+  // those are covered by the web side; this list covers the cookie-guarded
+  // API's sensitive routes.
   private readonly auditedPaths = [
-    { method: 'POST', path: '/auth/login', action: 'LOGIN_ATTEMPT' },
-    { method: 'POST', path: '/auth/signup', action: 'SIGNUP' },
-    { method: 'POST', path: '/requests', action: 'INFO_REQUEST_CREATED' },
-    { method: 'PUT', path: '/requests', action: 'INFO_REQUEST_RESPONSE' },
-    { method: 'DELETE', path: '/users', action: 'ACCOUNT_DELETE' },
-    { method: 'POST', path: '/admin', action: 'ADMIN_ACTION' },
-    { method: 'PUT', path: '/admin', action: 'ADMIN_ACTION' },
-    { method: 'DELETE', path: '/admin', action: 'ADMIN_ACTION' },
+    { method: 'POST', path: '/api/requests', action: 'INFO_REQUEST_CREATED' },
+    { method: 'PUT', path: '/api/requests', action: 'INFO_REQUEST_RESPONSE' },
+    { method: 'POST', path: '/api/requests', action: 'INFO_REQUEST_ACTION' },
+    { method: 'POST', path: '/api/admin', action: 'ADMIN_ACTION' },
+    { method: 'PUT', path: '/api/admin', action: 'ADMIN_ACTION' },
+    { method: 'PATCH', path: '/api/admin', action: 'ADMIN_ACTION' },
+    { method: 'DELETE', path: '/api/admin', action: 'ADMIN_ACTION' },
   ];
 
   constructor(private readonly auditService: AuditService) {}

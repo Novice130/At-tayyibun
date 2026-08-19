@@ -12,7 +12,8 @@ export const pool =
   globalForDb.dbPool ??
   new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    // Verify TLS certificates; never disable — it defeats the purpose of TLS.
+    ssl: { rejectUnauthorized: true },
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,

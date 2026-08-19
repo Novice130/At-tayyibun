@@ -3,6 +3,12 @@ import { AdminSchemasService } from '../services/admin-schemas.service';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import {
+  CreateSchemaDto,
+  UpdateSchemaDto,
+  CreateSchemaFieldDto,
+  UpdateSchemaFieldDto,
+} from '../dto';
 
 @Controller('admin/schemas')
 @UseGuards(RolesGuard)
@@ -16,12 +22,12 @@ export class AdminSchemasController {
   }
 
   @Post()
-  async createSchema(@CurrentUser() admin: any, @Body() payload: any) {
+  async createSchema(@CurrentUser() admin: any, @Body() payload: CreateSchemaDto) {
     return this.schemasService.createSchema(admin.id, payload);
   }
 
   @Patch(':id')
-  async updateSchema(@CurrentUser() admin: any, @Param('id') id: string, @Body() payload: any) {
+  async updateSchema(@CurrentUser() admin: any, @Param('id') id: string, @Body() payload: UpdateSchemaDto) {
     return this.schemasService.updateSchema(admin.id, id, payload);
   }
 
@@ -37,12 +43,12 @@ export class AdminSchemasController {
   }
 
   @Post(':id/fields')
-  async createField(@CurrentUser() admin: any, @Param('id') schemaId: string, @Body() payload: any) {
+  async createField(@CurrentUser() admin: any, @Param('id') schemaId: string, @Body() payload: CreateSchemaFieldDto) {
     return this.schemasService.createField(admin.id, schemaId, payload);
   }
 
   @Patch('fields/:fieldId')
-  async updateField(@CurrentUser() admin: any, @Param('fieldId') fieldId: string, @Body() payload: any) {
+  async updateField(@CurrentUser() admin: any, @Param('fieldId') fieldId: string, @Body() payload: UpdateSchemaFieldDto) {
     return this.schemasService.updateField(admin.id, fieldId, payload);
   }
 

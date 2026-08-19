@@ -141,7 +141,7 @@ export default function ProfileDetailPage() {
     <div className="min-h-screen pb-12" style={{ backgroundColor: 'var(--color-bg)' }}>
       <Navbar />
 
-      <main className="max-w-3xl mx-auto px-4 pt-24">
+      <main id="main-content" className="max-w-3xl mx-auto px-4 pt-24">
         <Link href="/browse" className="inline-flex items-center gap-2 text-secondary hover:text-gold-500 mb-6 transition-colors group">
           <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
           Back to Browse

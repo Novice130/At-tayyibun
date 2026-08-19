@@ -16,7 +16,9 @@ export class DrizzleService implements OnModuleDestroy {
     if (!url) throw new Error('DATABASE_URL is not set');
     this.pool = new Pool({
       connectionString: url,
-      ssl: { rejectUnauthorized: false },
+      // Neon serves standard CA-signed certs; verify them. Never disable
+      // verification — it defeats the purpose of TLS.
+      ssl: { rejectUnauthorized: true },
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,

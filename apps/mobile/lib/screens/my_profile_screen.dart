@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/api_exception.dart';
 import '../models/profile.dart';
 import '../providers.dart';
 import '../widgets/states.dart';
@@ -61,7 +62,9 @@ class MyProfileScreen extends ConsumerWidget {
         child: async.when(
           loading: () => const LoadingView(),
           error: (e, _) => ErrorView(
-            message: e.toString(),
+            message: e is ApiException
+                ? e.message
+                : 'Something went wrong. Please try again.',
             onRetry: () => ref.invalidate(myProfileProvider),
           ),
           data: (me) => RefreshIndicator(
@@ -124,10 +127,10 @@ class _Body extends StatelessWidget {
                     p.firstName.isEmpty
                         ? '?'
                         : p.firstName.characters.first.toUpperCase(),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A2E),
+                      color: theme.colorScheme.onPrimary,
                     ),
                   ),
                 ),

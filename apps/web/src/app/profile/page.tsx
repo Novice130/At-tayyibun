@@ -93,7 +93,7 @@ export default function ProfilePage() {
     <div className="min-h-screen pb-12" style={{ backgroundColor: 'var(--color-bg)' }}>
       <Navbar />
 
-      <main className="max-w-4xl mx-auto px-4 pt-24">
+      <main id="main-content" className="max-w-4xl mx-auto px-4 pt-24">
         {error ? (
           <div className="text-center text-red-500 p-8">{error}</div>
         ) : (

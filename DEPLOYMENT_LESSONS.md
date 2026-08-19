@@ -5,6 +5,14 @@ Scope: At-Tayyibun API (NestJS) + Web (Next.js) on Dokploy
 
 ---
 
+> **SECURITY UPDATE (2026-08-13):** All secrets previously exposed in the working
+> tree (Neon password, BETTER_AUTH_SECRET, ENCRYPTION_KEY, Resend keys, Sentry token,
+> Android keystore passwords) were scrubbed to placeholders and are now **awaiting
+> rotation** — see `docs/SECURITY-ROTATION.md` for the checklist. Treat every old value
+> as compromised until rotated.
+
+---
+
 ## Symptoms observed
 
 - Dokploy dashboard showed an endless cycle of deployments, each ending in `Cancelled`.

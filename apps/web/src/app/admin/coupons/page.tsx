@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Loader, Plus, Edit2, Trash2, Ticket, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,13 +73,15 @@ export default function AdminCouponsPage() {
       setSubmitting(true);
       if (isEditing) {
         await api.patch(`/admin/coupons/${currentCoupon.id}`, currentCoupon);
+        toast.success('Coupon updated');
       } else {
         await api.post("/admin/coupons", currentCoupon);
+        toast.success('Coupon created');
       }
       handleCloseModal();
       fetchCoupons();
     } catch (err: any) {
-      alert(err.message || "Failed to save coupon");
+      toast.error(err.message || "Failed to save coupon");
     } finally {
       setSubmitting(false);
     }
@@ -88,9 +91,10 @@ export default function AdminCouponsPage() {
     if (!confirm("Are you sure you want to delete this coupon?")) return;
     try {
       await api.delete(`/admin/coupons/${id}`);
+      toast.success('Coupon deleted');
       fetchCoupons();
     } catch (err: any) {
-      alert(err.message || "Failed to delete coupon");
+      toast.error(err.message || "Failed to delete coupon");
     }
   };
 
@@ -196,14 +200,14 @@ export default function AdminCouponsPage() {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-6 text-slate-900">
+          <div className="bg-surface rounded-2xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-theme animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-6 text-primary">
               {isEditing ? "Edit Coupon" : "Create New Coupon"}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-5">
               {!isEditing && (
                 <div>
-                  <label className="block text-sm font-semibold mb-1.5 text-slate-700">Partner ID</label>
+                  <label className="block text-sm font-semibold mb-1.5 text-secondary">Partner ID</label>
                   <Input
                     type="text"
                     required
@@ -213,9 +217,9 @@ export default function AdminCouponsPage() {
                   />
                 </div>
               )}
-              
+
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Coupon Code</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">Coupon Code</label>
                 <Input
                   type="text"
                   required
@@ -226,7 +230,7 @@ export default function AdminCouponsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Description (Optional)</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">Description (Optional)</label>
                 <Textarea
                   placeholder="Offer details..."
                   value={currentCoupon.description || ""}
@@ -235,7 +239,7 @@ export default function AdminCouponsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Redirect URL</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">Redirect URL</label>
                 <Input
                   type="url"
                   required
@@ -247,7 +251,7 @@ export default function AdminCouponsPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold mb-1.5 text-slate-700">Valid From</label>
+                  <label className="block text-sm font-semibold mb-1.5 text-secondary">Valid From</label>
                   <Input
                     type="datetime-local"
                     value={currentCoupon.validFrom ? new Date(currentCoupon.validFrom).toISOString().slice(0, 16) : ""}
@@ -255,7 +259,7 @@ export default function AdminCouponsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-1.5 text-slate-700">Valid Until</label>
+                  <label className="block text-sm font-semibold mb-1.5 text-secondary">Valid Until</label>
                   <Input
                     type="datetime-local"
                     value={currentCoupon.validUntil ? new Date(currentCoupon.validUntil).toISOString().slice(0, 16) : ""}
@@ -268,11 +272,11 @@ export default function AdminCouponsPage() {
                 <input
                   type="checkbox"
                   id="isActive"
-                  className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                  className="w-4 h-4 rounded border-input text-gold-500 focus:ring-gold-500"
                   checked={currentCoupon.isActive || false}
                   onChange={(e) => setCurrentCoupon({ ...currentCoupon, isActive: e.target.checked })}
                 />
-                <label htmlFor="isActive" className="text-sm font-semibold text-slate-700 cursor-pointer">Active and Visible</label>
+                <label htmlFor="isActive" className="text-sm font-semibold text-secondary cursor-pointer">Active and Visible</label>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">

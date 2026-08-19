@@ -77,6 +77,7 @@ export class RequestsController {
 
   @Public()
   @Get('shared/:token')
+  @Throttle({ long: { limit: 30, ttl: 60000 } })
   @ApiOperation({ summary: 'View shared info via one-time link' })
   @ApiResponse({ status: 200, description: 'Shared info' })
   @ApiResponse({ status: 404, description: 'Invalid or used link' })

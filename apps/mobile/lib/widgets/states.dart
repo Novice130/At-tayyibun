@@ -97,11 +97,30 @@ class StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final (label, color, icon) = switch (status) {
-      'PENDING' => ('Pending', const Color(0xFFD9A420), Icons.schedule),
-      'APPROVED' => ('Approved', const Color(0xFF2FA84F), Icons.check_circle),
-      'DENIED' => ('Declined', const Color(0xFFE5484D), Icons.cancel),
-      _ => ('Expired', const Color(0xFF8A8A98), Icons.timer_off),
+      // Light variants are tuned for cream/white surfaces; darker text colors
+      // keep the badge legible against the dark navy theme.
+      'PENDING' => (
+          'Pending',
+          isDark ? const Color(0xFFE8C547) : const Color(0xFFD9A420),
+          Icons.schedule
+        ),
+      'APPROVED' => (
+          'Approved',
+          isDark ? const Color(0xFF4CD07D) : const Color(0xFF2FA84F),
+          Icons.check_circle
+        ),
+      'DENIED' => (
+          'Declined',
+          isDark ? const Color(0xFFFF6B6B) : const Color(0xFFE5484D),
+          Icons.cancel
+        ),
+      _ => (
+          'Expired',
+          isDark ? const Color(0xFFA0A0B8) : const Color(0xFF8A8A98),
+          Icons.timer_off
+        ),
     };
 
     return Container(
@@ -130,6 +149,8 @@ class StatusBadge extends StatelessWidget {
 String timeAgo(DateTime? date) {
   if (date == null) return '';
   final diff = DateTime.now().difference(date);
+  // Future timestamps (clock skew) are reported as "just now" rather than
+  // returning an empty string for negative durations.
   if (diff.inMinutes < 1) return 'just now';
   if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
   if (diff.inHours < 24) return '${diff.inHours}h ago';

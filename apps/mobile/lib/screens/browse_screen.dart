@@ -271,11 +271,19 @@ class _ProfileCard extends StatelessWidget {
 
 /// Shows the one outstanding request and offers to cancel it. Browsing stays
 /// fully open while a request is pending — only sending a new one is blocked.
-class _ActiveRequestBanner extends ConsumerWidget {
+class _ActiveRequestBanner extends ConsumerStatefulWidget {
   const _ActiveRequestBanner();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ActiveRequestBanner> createState() =>
+      _ActiveRequestBannerState();
+}
+
+class _ActiveRequestBannerState extends ConsumerState<_ActiveRequestBanner> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
     final active = ref.watch(activeRequestProvider);
     return active.maybeWhen(
       data: (request) {
@@ -302,27 +310,38 @@ class _ActiveRequestBanner extends ConsumerWidget {
                 ),
               ),
               TextButton(
-                onPressed: () async {
-                  try {
-                    await ref
-                        .read(requestsRepositoryProvider)
-                        .cancel(request.id);
-                    ref.invalidate(activeRequestProvider);
-                    ref.invalidate(outgoingRequestsProvider);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Request cancelled.')),
-                      );
-                    }
-                  } on ApiException catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(e.message)),
-                      );
-                    }
-                  }
-                },
-                child: const Text('Cancel'),
+                // Busy flag stops double-taps from firing two cancel calls.
+                onPressed: _busy
+                    ? null
+                    : () async {
+                        setState(() => _busy = true);
+                        // Capture the messenger before the async gap so the
+                        // snackbar doesn't need a post-await context check.
+                        final messenger = ScaffoldMessenger.of(context);
+                        try {
+                          await ref
+                              .read(requestsRepositoryProvider)
+                              .cancel(request.id);
+                          ref.invalidate(activeRequestProvider);
+                          ref.invalidate(outgoingRequestsProvider);
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text('Request cancelled.')),
+                          );
+                        } on ApiException catch (e) {
+                          messenger.showSnackBar(
+                            SnackBar(content: Text(e.message)),
+                          );
+                        } finally {
+                          if (mounted) setState(() => _busy = false);
+                        }
+                      },
+                child: _busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Cancel'),
               ),
             ],
           ),

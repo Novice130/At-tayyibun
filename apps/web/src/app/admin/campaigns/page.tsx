@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,10 +113,11 @@ export default function AdminCampaignsPage() {
     try {
       setSubmitting(true);
       await api.post("/admin/campaigns", draft);
+      toast.success('Campaign created');
       closeModal();
       fetchCampaigns();
     } catch (err: any) {
-      alert(err.message || "Failed to save campaign");
+      toast.error(err.message || "Failed to save campaign");
     } finally {
       setSubmitting(false);
     }
@@ -125,9 +127,10 @@ export default function AdminCampaignsPage() {
     if (!confirm("Dispatch this campaign now? Emails are queued immediately and cannot be recalled.")) return;
     try {
       await api.post(`/admin/campaigns/${id}/dispatch`);
+      toast.success('Campaign queued for dispatch');
       fetchCampaigns();
     } catch (err: any) {
-      alert(err.message || "Failed to dispatch campaign");
+      toast.error(err.message || "Failed to dispatch campaign");
     }
   };
 
@@ -135,9 +138,10 @@ export default function AdminCampaignsPage() {
     if (!confirm("Delete this campaign?")) return;
     try {
       await api.delete(`/admin/campaigns/${id}`);
+      toast.success('Campaign deleted');
       fetchCampaigns();
     } catch (err: any) {
-      alert(err.message || "Failed to delete campaign");
+      toast.error(err.message || "Failed to delete campaign");
     }
   };
 
@@ -147,50 +151,50 @@ export default function AdminCampaignsPage() {
     return <Badge variant="warning">DRAFT</Badge>;
   };
 
-  if (loading) return <div className="p-8 text-slate-500">Loading campaigns...</div>;
-  if (error) return <div className="p-8 text-red-500">{error}</div>;
+  if (loading) return <div className="p-8 text-muted">Loading campaigns...</div>;
+  if (error) return <div className="p-8 text-red-500 dark:text-red-400">{error}</div>;
 
   return (
     <div className="space-y-6 p-4 sm:p-8">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Email Campaigns</h1>
-          <p className="text-slate-500 mt-1 text-sm">Create and dispatch campaigns. Queued for background send via BullMQ.</p>
+          <h1 className="text-3xl font-bold text-primary">Email Campaigns</h1>
+          <p className="text-muted mt-1 text-sm">Create and dispatch campaigns. Queued for background send via BullMQ.</p>
         </div>
         <Button onClick={openCreate}>Create Campaign</Button>
       </div>
 
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+      <div className="bg-surface rounded-xl border border-theme shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-slate-50 border-b">
+            <thead className="bg-surface-hover border-b border-theme">
               <tr>
-                <th className="p-4 font-medium text-slate-700">Name</th>
-                <th className="p-4 font-medium text-slate-700">Subject</th>
-                <th className="p-4 font-medium text-slate-700">Status</th>
-                <th className="p-4 font-medium text-slate-700">Recipients</th>
-                <th className="p-4 font-medium text-slate-700">Scheduled / Sent</th>
-                <th className="p-4 font-medium text-right text-slate-700">Actions</th>
+                <th className="p-4 font-medium text-secondary">Name</th>
+                <th className="p-4 font-medium text-secondary">Subject</th>
+                <th className="p-4 font-medium text-secondary">Status</th>
+                <th className="p-4 font-medium text-secondary">Recipients</th>
+                <th className="p-4 font-medium text-secondary">Scheduled / Sent</th>
+                <th className="p-4 font-medium text-right text-secondary">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-theme">
               {campaigns.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                <tr key={c.id} className="hover:bg-surface-hover/50 transition-colors">
                   <td className="p-4 font-semibold text-primary">{c.name || "—"}</td>
-                  <td className="p-4 text-slate-600">{c.subject}</td>
+                  <td className="p-4 text-secondary">{c.subject}</td>
                   <td className="p-4">{statusBadge(c.status)}</td>
-                  <td className="p-4 text-xs text-slate-600">
+                  <td className="p-4 text-xs text-secondary">
                     {c.status === "DRAFT" ? "—" : `${c.sentCount} / ${c.totalRecipients}`}
                   </td>
-                  <td className="p-4 text-xs text-slate-500">
+                  <td className="p-4 text-xs text-muted">
                     <div className="space-y-1">
                       <div>
-                        <span className="text-slate-400">Sched:</span>{" "}
+                        <span className="text-muted">Sched:</span>{" "}
                         {c.scheduledAt ? format(new Date(c.scheduledAt), "MMM d, yyyy HH:mm") : "N/A"}
                       </div>
                       {c.sentAt && (
                         <div>
-                          <span className="text-slate-400">Sent:</span>{" "}
+                          <span className="text-muted">Sent:</span>{" "}
                           {format(new Date(c.sentAt), "MMM d, yyyy HH:mm")}
                         </div>
                       )}
@@ -215,7 +219,7 @@ export default function AdminCampaignsPage() {
               ))}
               {campaigns.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-slate-500">
+                  <td colSpan={6} className="p-12 text-center text-muted">
                     No campaigns yet.
                   </td>
                 </tr>
@@ -227,11 +231,11 @@ export default function AdminCampaignsPage() {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-6 text-slate-900">New Email Campaign</h2>
+          <div className="bg-surface rounded-2xl max-w-lg w-full p-8 shadow-2xl border border-theme max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-6 text-primary">New Email Campaign</h2>
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Campaign Name</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">Campaign Name</label>
                 <Input
                   type="text"
                   required
@@ -242,7 +246,7 @@ export default function AdminCampaignsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Email Subject</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">Email Subject</label>
                 <Input
                   type="text"
                   required
@@ -253,7 +257,7 @@ export default function AdminCampaignsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">HTML Template</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">HTML Template</label>
                 <Textarea
                   required
                   rows={6}
@@ -264,7 +268,7 @@ export default function AdminCampaignsPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2 text-slate-700">Target Roles</label>
+                <label className="block text-sm font-semibold mb-2 text-secondary">Target Roles</label>
                 <div className="flex flex-wrap gap-2">
                   {ROLE_OPTIONS.map((r) => {
                     const active = draft.targetAudience.roles?.includes(r) ?? false;
@@ -273,10 +277,11 @@ export default function AdminCampaignsPage() {
                         type="button"
                         key={r}
                         onClick={() => toggleRole(r!)}
+                        aria-pressed={active}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
                           active
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                            ? "bg-gold-500 text-black border-gold-500"
+                            : "bg-surface text-secondary border-theme hover:bg-surface-hover"
                         }`}
                       >
                         {r}
@@ -284,11 +289,11 @@ export default function AdminCampaignsPage() {
                     );
                   })}
                 </div>
-                <p className="text-xs text-slate-400 mt-1">Empty = all roles</p>
+                <p className="text-xs text-muted mt-1">Empty = all roles</p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-2 text-slate-700">Target Membership Tiers</label>
+                <label className="block text-sm font-semibold mb-2 text-secondary">Target Membership Tiers</label>
                 <div className="flex flex-wrap gap-2">
                   {TIER_OPTIONS.map((t) => {
                     const active = draft.targetAudience.membershipTiers?.includes(t) ?? false;
@@ -297,10 +302,11 @@ export default function AdminCampaignsPage() {
                         type="button"
                         key={t}
                         onClick={() => toggleTier(t)}
+                        aria-pressed={active}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${
                           active
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                            ? "bg-gold-500 text-black border-gold-500"
+                            : "bg-surface text-secondary border-theme hover:bg-surface-hover"
                         }`}
                       >
                         {t}
@@ -308,11 +314,11 @@ export default function AdminCampaignsPage() {
                     );
                   })}
                 </div>
-                <p className="text-xs text-slate-400 mt-1">Empty = all tiers</p>
+                <p className="text-xs text-muted mt-1">Empty = all tiers</p>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Scheduled For (optional)</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">Scheduled For (optional)</label>
                 <Input
                   type="datetime-local"
                   value={draft.scheduledAt ? new Date(draft.scheduledAt).toISOString().slice(0, 16) : ""}
@@ -325,7 +331,7 @@ export default function AdminCampaignsPage() {
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t">
+              <div className="flex justify-end gap-3 pt-4 border-t border-theme">
                 <Button type="button" variant="ghost" onClick={closeModal}>
                   Cancel
                 </Button>

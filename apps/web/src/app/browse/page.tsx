@@ -89,7 +89,13 @@ export default function BrowsePage() {
     fetchProfiles(apiFilters);
   };
 
-  if (sessionLoading || !session) return null;
+  if (sessionLoading || !session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
+        <Loader className="w-10 h-10 text-gold-500 animate-spin" aria-label="Loading" />
+      </div>
+    );
+  }
 
   const hasActiveRequest = !!activeRequest;
 
@@ -98,7 +104,7 @@ export default function BrowsePage() {
       <Navbar />
 
       {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 pt-24 pb-12">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 pt-24 pb-12">
         <div className="mb-8">
           <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>Browse Profiles</h1>
           <p style={{ color: 'var(--color-text-secondary)' }}>Find your righteous spouse</p>
@@ -131,7 +137,7 @@ export default function BrowsePage() {
           </div>
         )}
 
-        <FilterBar onFilter={handleFilter} />
+        <FilterBar onFilter={handleFilter} loading={loading} />
 
         {/* Profiles grid */}
         {loading ? (

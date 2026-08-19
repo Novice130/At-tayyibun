@@ -372,10 +372,11 @@ export default function ProfileSetupPage() {
 
       <div className="max-w-2xl mx-auto px-4 pt-8">
         {/* Step indicator */}
-        <div className="flex items-center gap-1 mb-8">
+        <div className="flex items-center gap-1 mb-8" role="progressbar" aria-valuemin={1} aria-valuemax={STEPS.length} aria-valuenow={step + 1} aria-label={`Step ${step + 1} of ${STEPS.length}`}>
           {STEPS.map((s, i) => (
             <div key={i} className="flex items-center gap-1 flex-1 min-w-0">
               <div
+                aria-current={i === step ? 'step' : undefined}
                 className={`flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold transition-all flex-shrink-0 ${
                   i < step ? 'bg-gold-500 text-black' :
                   i === step ? 'bg-gold-500/20 text-gold-500 ring-2 ring-gold-500' :
@@ -610,6 +611,7 @@ export default function ProfileSetupPage() {
               </p>
               <textarea
                 rows={5}
+                maxLength={2000}
                 className="input resize-none"
                 placeholder="e.g. A kind-hearted and ambitious person who loves reading, outdoor activities, and is committed to lifelong learning…"
                 value={form.about}

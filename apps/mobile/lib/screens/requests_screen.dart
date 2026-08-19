@@ -167,7 +167,12 @@ class _RequestList extends StatelessWidget {
   Widget build(BuildContext context) {
     return async.when(
       loading: () => const LoadingView(),
-      error: (e, _) => ErrorView(message: e.toString(), onRetry: onRefresh),
+      error: (e, _) => ErrorView(
+        message: e is ApiException
+            ? e.message
+            : 'Something went wrong. Please try again.',
+        onRetry: onRefresh,
+      ),
       data: (items) {
         if (items.isEmpty) {
           return RefreshIndicator(
@@ -227,8 +232,8 @@ class _RequestCardShell extends StatelessWidget {
                   backgroundColor: theme.colorScheme.primary,
                   child: Text(
                     name.isEmpty ? '?' : name.characters.first.toUpperCase(),
-                    style: const TextStyle(
-                      color: Color(0xFF1A1A2E),
+                    style: TextStyle(
+                      color: theme.colorScheme.onPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
                     ),

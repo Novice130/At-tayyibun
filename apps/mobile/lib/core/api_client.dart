@@ -49,6 +49,13 @@ class ApiClient {
           if (isAuthRoute && isMutation) {
             options.headers['Origin'] = kOriginHeader;
           }
+          // The API's CSRF middleware requires either a trusted Origin or
+          // this marker header on cookie-authenticated mutations. A browser
+          // cannot set this header on a cross-site form, so it is our
+          // non-browser client proof.
+          if (!isAuthRoute && isMutation) {
+            options.headers['X-Requested-With'] = 'attayyibun-android';
+          }
           return handler.next(options);
         },
       ),

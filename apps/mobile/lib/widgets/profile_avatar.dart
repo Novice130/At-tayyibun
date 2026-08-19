@@ -35,6 +35,9 @@ class ProfileAvatar extends StatelessWidget {
         height: size,
         fit: BoxFit.cover,
         placeholderBuilder: (_) => placeholder,
+        // Broken/unreachable avatar URLs used to render a blank box — fall
+        // back to the initial so the UI never shows an empty avatar.
+        errorBuilder: (_, _, _) => placeholder,
       ),
     );
   }

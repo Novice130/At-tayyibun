@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
+import { escapeHtml } from '../common/utils/html';
 
 export interface EmailOptions {
   to: string;
@@ -80,8 +81,9 @@ export class EmailService {
    * Send welcome email after signup
    */
   async sendWelcomeEmail(email: string, firstName: string): Promise<void> {
+    const safeFirstName = escapeHtml(firstName);
     const html = this.wrapInLayout(`
-      <h2 style="color: #1a1a2e; margin-bottom: 16px;">Welcome to At-Tayyibun, ${firstName}!</h2>
+      <h2 style="color: #1a1a2e; margin-bottom: 16px;">Welcome to At-Tayyibun, ${safeFirstName}!</h2>
       <p>Assalamu Alaikum wa Rahmatullahi wa Barakatuh,</p>
       <p>We are delighted to welcome you to <strong>At-Tayyibun</strong> - a privacy-first Muslim matrimony platform built on trust, respect, and Islamic values.</p>
       <div style="background: #f8f4ed; padding: 20px; border-radius: 8px; margin: 24px 0; border-left: 4px solid #D4AF37;">
@@ -108,10 +110,11 @@ export class EmailService {
    * Send email verification link
    */
   async sendVerificationEmail(email: string, firstName: string, verificationToken: string): Promise<void> {
-    const verifyUrl = `${this.webUrl}/verify-email?token=${verificationToken}`;
+    const verifyUrl = `${this.webUrl}/verify-email?token=${encodeURIComponent(verificationToken)}`;
+    const safeFirstName = escapeHtml(firstName);
     const html = this.wrapInLayout(`
       <h2 style="color: #1a1a2e; margin-bottom: 16px;">Verify Your Email</h2>
-      <p>Assalamu Alaikum ${firstName},</p>
+      <p>Assalamu Alaikum ${safeFirstName},</p>
       <p>Please verify your email address to activate your At-Tayyibun account.</p>
       <div style="text-align: center; margin: 32px 0;">
         <a href="${verifyUrl}" style="display: inline-block; background: linear-gradient(135deg, #D4AF37, #8B7500); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold;">Verify My Email</a>
@@ -136,15 +139,19 @@ export class EmailService {
     requesterEthnicity: string,
     requesterCity: string,
   ): Promise<void> {
+    const safeTargetName = escapeHtml(targetName);
+    const safeRequesterName = escapeHtml(requesterName);
+    const safeRequesterEthnicity = escapeHtml(requesterEthnicity);
+    const safeRequesterCity = escapeHtml(requesterCity);
     const html = this.wrapInLayout(`
       <h2 style="color: #1a1a2e; margin-bottom: 16px;">New Contact Request</h2>
-      <p>Assalamu Alaikum ${targetName},</p>
+      <p>Assalamu Alaikum ${safeTargetName},</p>
       <p>Someone is interested in connecting with you on At-Tayyibun!</p>
       <div style="background: #f8f4ed; padding: 20px; border-radius: 8px; margin: 24px 0; border-left: 4px solid #D4AF37;">
         <h3 style="margin-top: 0; color: #8B7500;">Request From:</h3>
-        <p style="margin: 4px 0;"><strong>Name:</strong> ${requesterName}</p>
-        <p style="margin: 4px 0;"><strong>Ethnicity:</strong> ${requesterEthnicity}</p>
-        <p style="margin: 4px 0;"><strong>Location:</strong> ${requesterCity}</p>
+        <p style="margin: 4px 0;"><strong>Name:</strong> ${safeRequesterName}</p>
+        <p style="margin: 4px 0;"><strong>Ethnicity:</strong> ${safeRequesterEthnicity}</p>
+        <p style="margin: 4px 0;"><strong>Location:</strong> ${safeRequesterCity}</p>
       </div>
       <p>You can accept or decline this request from your dashboard:</p>
       <a href="${this.webUrl}/requests" style="display: inline-block; background: linear-gradient(135deg, #D4AF37, #8B7500); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 8px;">View Request</a>
@@ -152,7 +159,7 @@ export class EmailService {
 
     await this.sendEmail({
       to: targetEmail,
-      subject: `At-Tayyibun: ${requesterName} wants to connect with you`,
+      subject: `At-Tayyibun: ${safeRequesterName} wants to connect with you`,
       html,
     });
   }
@@ -167,31 +174,36 @@ export class EmailService {
     shares: { photo?: string; phone?: string; email?: string },
     expiresIn = '24 hours',
   ): Promise<void> {
+    const safeRecipientName = escapeHtml(recipientName);
+    const safeSharedBy = escapeHtml(sharedBy);
     const sharedItems: string[] = [];
     if (shares.photo) {
-      sharedItems.push(`<p><strong>Photo:</strong> <a href="${shares.photo}" style="color: #D4AF37;">View Photo</a> (expires in ${expiresIn})</p>`);
+      // Photo is a generated signed URL, not user input, but escape it in
+      // attributes anyway (defense in depth).
+      const safePhoto = escapeHtml(shares.photo);
+      sharedItems.push(`<p><strong>Photo:</strong> <a href="${safePhoto}" style="color: #D4AF37;">View Photo</a> (expires in ${escapeHtml(expiresIn)})</p>`);
     }
     if (shares.phone) {
-      sharedItems.push(`<p><strong>Phone:</strong> ${shares.phone}</p>`);
+      sharedItems.push(`<p><strong>Phone:</strong> ${escapeHtml(shares.phone)}</p>`);
     }
     if (shares.email) {
-      sharedItems.push(`<p><strong>Email:</strong> ${shares.email}</p>`);
+      sharedItems.push(`<p><strong>Email:</strong> ${escapeHtml(shares.email)}</p>`);
     }
 
     const html = this.wrapInLayout(`
       <h2 style="color: #1a1a2e; margin-bottom: 16px;">Contact Information Shared</h2>
-      <p>Assalamu Alaikum ${recipientName},</p>
-      <p><strong>${sharedBy}</strong> has approved your request and shared the following information with you:</p>
+      <p>Assalamu Alaikum ${safeRecipientName},</p>
+      <p><strong>${safeSharedBy}</strong> has approved your request and shared the following information with you:</p>
       <div style="background: #f8f4ed; padding: 20px; border-radius: 8px; margin: 24px 0; border-left: 4px solid #D4AF37;">
         ${sharedItems.join('')}
       </div>
-      <p style="color: #888; font-size: 13px;">Photo links expire in ${expiresIn} for your privacy and security.</p>
+      <p style="color: #888; font-size: 13px;">Photo links expire in ${escapeHtml(expiresIn)} for your privacy and security.</p>
       <p>May Allah bless your journey towards finding a righteous spouse.</p>
     `);
 
     await this.sendEmail({
       to: recipientEmail,
-      subject: `At-Tayyibun: ${sharedBy} has shared their information with you`,
+      subject: `At-Tayyibun: ${safeSharedBy} has shared their information with you`,
       html,
     });
   }
@@ -203,9 +215,10 @@ export class EmailService {
     requesterEmail: string,
     requesterName: string,
   ): Promise<void> {
+    const safeRequesterName = escapeHtml(requesterName);
     const html = this.wrapInLayout(`
       <h2 style="color: #1a1a2e; margin-bottom: 16px;">Request Update</h2>
-      <p>Assalamu Alaikum ${requesterName},</p>
+      <p>Assalamu Alaikum ${safeRequesterName},</p>
       <p>Your recent contact request was not accepted. Don't be discouraged - there are many wonderful profiles waiting for you.</p>
       <p>You are now free to send a new contact request to another profile.</p>
       <a href="${this.webUrl}/browse" style="display: inline-block; background: linear-gradient(135deg, #D4AF37, #8B7500); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 8px;">Browse Profiles</a>

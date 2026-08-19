@@ -3,6 +3,7 @@ import { AdminCampaignsService } from '../services/admin-campaigns.service';
 import { RolesGuard } from '../../../common/guards/roles.guard';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { CreateCampaignDto } from '../dto';
 
 @Controller('admin/campaigns')
 @UseGuards(RolesGuard)

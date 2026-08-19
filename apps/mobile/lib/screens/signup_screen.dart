@@ -163,6 +163,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     TextFormField(
                       controller: _name,
                       textCapitalization: TextCapitalization.words,
+                      autofillHints: const [AutofillHints.givenName],
                       decoration: const InputDecoration(
                         labelText: 'First name',
                         prefixIcon: Icon(Icons.person_outline),
@@ -175,6 +176,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     TextFormField(
                       controller: _email,
                       keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
                       decoration: const InputDecoration(
                         labelText: 'Email',
                         prefixIcon: Icon(Icons.mail_outline),
@@ -187,6 +189,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     TextFormField(
                       controller: _phone,
                       keyboardType: TextInputType.phone,
+                      autofillHints: const [AutofillHints.telephoneNumber],
                       decoration: const InputDecoration(
                         labelText: 'Phone number',
                         hintText: '(555) 123-4567',
@@ -200,6 +203,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     TextFormField(
                       controller: _password,
                       obscureText: _obscure,
+                      autofillHints: const [AutofillHints.newPassword],
                       decoration: InputDecoration(
                         labelText: 'Password',
                         prefixIcon: const Icon(Icons.lock_outline),

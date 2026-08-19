@@ -8,6 +8,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { Public } from '../../common/decorators';
@@ -56,6 +57,7 @@ export class AuthController {
 
   @Post('phone/send')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Save phone on user and send Twilio Verify OTP' })
   async sendPhoneOtp(@Req() req: Request, @Body() dto: SendPhoneOtpDto) {
     const user = req.user as { id: string };
@@ -65,6 +67,7 @@ export class AuthController {
 
   @Post('phone/verify')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ auth: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Verify Twilio OTP and mark user phone-verified' })
   async verifyPhoneOtp(@Req() req: Request, @Body() dto: VerifyPhoneDto) {
     const user = req.user as { id: string };

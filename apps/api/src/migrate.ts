@@ -37,7 +37,8 @@ async function main() {
   // whole-schema migration — as pending.
   const pool = new Pool({
     connectionString: url,
-    ssl: { rejectUnauthorized: false },
+    // Verify TLS certificates; never disable — it defeats the purpose of TLS.
+    ssl: { rejectUnauthorized: true },
     max: 1,
     connectionTimeoutMillis: 10000,
   });

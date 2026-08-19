@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,9 +91,10 @@ export default function AdminSchemasPage() {
     if (!confirm(`Activate "${schema.name}" v${schema.version}? All other schemas will be deactivated.`)) return;
     try {
       await api.put(`/admin/schemas/${schema.id}/activate`);
+      toast.success('Schema activated');
       fetchSchemas();
     } catch (err: any) {
-      alert(err.message || "Failed to activate schema");
+      toast.error(err.message || "Failed to activate schema");
     }
   };
 
@@ -101,13 +103,15 @@ export default function AdminSchemasPage() {
     try {
       if (currentSchema.id) {
         await api.patch(`/admin/schemas/${currentSchema.id}`, currentSchema);
+        toast.success('Schema updated');
       } else {
         await api.post("/admin/schemas", currentSchema);
+        toast.success('Schema created');
       }
       setIsSchemaModalOpen(false);
       fetchSchemas();
     } catch (err: any) {
-      alert(err.message || "Failed to save schema");
+      toast.error(err.message || "Failed to save schema");
     }
   };
 
@@ -117,13 +121,15 @@ export default function AdminSchemasPage() {
     try {
       if (currentField.id) {
         await api.patch(`/admin/schemas/fields/${currentField.id}`, currentField);
+        toast.success('Field updated');
       } else {
         await api.post(`/admin/schemas/${selectedSchema.id}/fields`, currentField);
+        toast.success('Field created');
       }
       setIsFieldModalOpen(false);
       fetchFields(selectedSchema.id);
     } catch (err: any) {
-      alert(err.message || "Failed to save field");
+      toast.error(err.message || "Failed to save field");
     }
   };
 
@@ -131,20 +137,21 @@ export default function AdminSchemasPage() {
     if (!confirm("Delete field?")) return;
     try {
       await api.delete(`/admin/schemas/fields/${id}`);
+      toast.success('Field deleted');
       if (selectedSchema) fetchFields(selectedSchema.id);
     } catch (err: any) {
-      alert(err.message || "Failed to delete field");
+      toast.error(err.message || "Failed to delete field");
     }
   };
 
-  if (loading) return <div className="p-8 text-slate-500">Loading schemas...</div>;
+  if (loading) return <div className="p-8 text-muted">Loading schemas...</div>;
 
   return (
     <div className="space-y-6 p-4 sm:p-8">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Form Schemas</h1>
-          <p className="text-slate-500 mt-1 text-sm">Design and version signup questionnaires. Exactly one schema can be active.</p>
+          <h1 className="text-3xl font-bold text-primary">Form Schemas</h1>
+          <p className="text-muted mt-1 text-sm">Design and version signup questionnaires. Exactly one schema can be active.</p>
         </div>
         {!selectedSchema && (
           <Button
@@ -164,22 +171,22 @@ export default function AdminSchemasPage() {
       </div>
 
       {!selectedSchema ? (
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+        <div className="bg-surface rounded-xl border shadow-sm border border-theme overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 border-b">
+              <thead className="bg-surface-hover border-b border-theme">
                 <tr>
-                  <th className="p-4 font-medium text-slate-700">Name</th>
-                  <th className="p-4 font-medium text-slate-700">Version</th>
-                  <th className="p-4 font-medium text-slate-700">Status</th>
-                  <th className="p-4 font-medium text-right text-slate-700">Actions</th>
+                  <th className="p-4 font-medium text-secondary">Name</th>
+                  <th className="p-4 font-medium text-secondary">Version</th>
+                  <th className="p-4 font-medium text-secondary">Status</th>
+                  <th className="p-4 font-medium text-right text-secondary">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-theme">
                 {schemas.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={s.id} className="hover:bg-surface-hover transition-colors">
                     <td className="p-4 font-semibold text-primary">{s.name}</td>
-                    <td className="p-4 text-slate-600">
+                    <td className="p-4 text-secondary">
                       <Badge variant="secondary">v{s.version}</Badge>
                     </td>
                     <td className="p-4">
@@ -213,7 +220,7 @@ export default function AdminSchemasPage() {
                 ))}
                 {schemas.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="p-12 text-center text-slate-500">
+                    <td colSpan={4} className="p-12 text-center text-muted">
                       No schemas yet.
                     </td>
                   </tr>
@@ -225,7 +232,7 @@ export default function AdminSchemasPage() {
       ) : (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-slate-800">Fields for {selectedSchema.name} v{selectedSchema.version}</h2>
+            <h2 className="text-xl font-bold text-primary">Fields for {selectedSchema.name} v{selectedSchema.version}</h2>
             <Button
               onClick={() => {
                 setCurrentField({
@@ -240,25 +247,25 @@ export default function AdminSchemasPage() {
             </Button>
           </div>
 
-          <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+          <div className="bg-surface rounded-xl border shadow-sm border border-theme overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 border-b">
+                <thead className="bg-surface-hover border-b border-theme">
                   <tr>
-                    <th className="p-4 font-medium text-slate-700">Order</th>
-                    <th className="p-4 font-medium text-slate-700">Field Name</th>
-                    <th className="p-4 font-medium text-slate-700">Label</th>
-                    <th className="p-4 font-medium text-slate-700">Type</th>
-                    <th className="p-4 font-medium text-slate-700">Required</th>
-                    <th className="p-4 font-medium text-slate-700 text-right">Actions</th>
+                    <th className="p-4 font-medium text-secondary">Order</th>
+                    <th className="p-4 font-medium text-secondary">Field Name</th>
+                    <th className="p-4 font-medium text-secondary">Label</th>
+                    <th className="p-4 font-medium text-secondary">Type</th>
+                    <th className="p-4 font-medium text-secondary">Required</th>
+                    <th className="p-4 font-medium text-secondary text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-theme">
                   {fields.map((f) => (
-                    <tr key={f.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-4 font-mono text-xs text-slate-500">{f.displayOrder}</td>
-                      <td className="p-4 font-mono text-xs text-slate-500">{f.fieldName}</td>
-                      <td className="p-4 text-slate-700">{f.label}</td>
+                    <tr key={f.id} className="hover:bg-surface-hover transition-colors">
+                      <td className="p-4 font-mono text-xs text-muted">{f.displayOrder}</td>
+                      <td className="p-4 font-mono text-xs text-muted">{f.fieldName}</td>
+                      <td className="p-4 text-secondary">{f.label}</td>
                       <td className="p-4">
                         <Badge variant="outline">{f.fieldType}</Badge>
                       </td>
@@ -266,7 +273,7 @@ export default function AdminSchemasPage() {
                         {f.required ? (
                           <span className="text-rose-600 text-xs font-bold uppercase">Yes</span>
                         ) : (
-                          <span className="text-slate-400 text-xs uppercase">No</span>
+                          <span className="text-muted text-xs uppercase">No</span>
                         )}
                       </td>
                       <td className="p-4 text-right">
@@ -290,7 +297,7 @@ export default function AdminSchemasPage() {
                   ))}
                   {fields.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="p-12 text-center text-slate-500">
+                      <td colSpan={6} className="p-12 text-center text-muted">
                         No fields yet.
                       </td>
                     </tr>
@@ -304,11 +311,11 @@ export default function AdminSchemasPage() {
 
       {isSchemaModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-8 shadow-2xl">
-            <h2 className="text-2xl font-bold mb-6 text-slate-900">{currentSchema.id ? "Edit" : "Create"} Schema</h2>
+          <div className="bg-surface rounded-2xl max-w-sm w-full p-8 shadow-2xl border border-theme">
+            <h2 className="text-2xl font-bold mb-6 text-primary">{currentSchema.id ? "Edit" : "Create"} Schema</h2>
             <form onSubmit={handleSaveSchema} className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Name</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">Name</label>
                 <Input
                   required
                   type="text"
@@ -318,7 +325,7 @@ export default function AdminSchemasPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Version</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">Version</label>
                 <Input
                   type="number"
                   min="1"
@@ -326,7 +333,7 @@ export default function AdminSchemasPage() {
                   onChange={(e) => setCurrentSchema({ ...currentSchema, version: parseInt(e.target.value) })}
                 />
               </div>
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-muted">
                 Use the "Activate" button in the list to publish a schema (atomic flip).
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t">
@@ -342,11 +349,11 @@ export default function AdminSchemasPage() {
 
       {isFieldModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl font-bold mb-6 text-slate-900">{currentField.id ? "Edit" : "Add"} Field</h2>
+          <div className="bg-surface rounded-2xl max-w-md w-full p-8 shadow-2xl border border-theme max-h-[90vh] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-6 text-primary">{currentField.id ? "Edit" : "Add"} Field</h2>
             <form onSubmit={handleSaveField} className="space-y-5">
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Field Name (key)</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">Field Name (key)</label>
                 <Input
                   required
                   type="text"
@@ -357,7 +364,7 @@ export default function AdminSchemasPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Label</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">Label</label>
                 <Input
                   required
                   type="text"
@@ -368,7 +375,7 @@ export default function AdminSchemasPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Placeholder</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">Placeholder</label>
                 <Input
                   type="text"
                   value={currentField.placeholder || ""}
@@ -377,7 +384,7 @@ export default function AdminSchemasPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold mb-1.5 text-slate-700">Input Type</label>
+                <label className="block text-sm font-semibold mb-1.5 text-secondary">Input Type</label>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={currentField.fieldType || "text"}
@@ -398,10 +405,10 @@ export default function AdminSchemasPage() {
                     checked={currentField.required || false}
                     onChange={(e) => setCurrentField({ ...currentField, required: e.target.checked })}
                   />
-                  <label htmlFor="required" className="text-sm font-semibold text-slate-700 cursor-pointer">Required</label>
+                  <label htmlFor="required" className="text-sm font-semibold text-secondary cursor-pointer">Required</label>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold mb-1.5 text-slate-700">Display Order</label>
+                  <label className="block text-sm font-semibold mb-1.5 text-secondary">Display Order</label>
                   <Input
                     type="number"
                     value={currentField.displayOrder ?? 0}

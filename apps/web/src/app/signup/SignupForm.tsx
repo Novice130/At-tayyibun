@@ -7,8 +7,6 @@ import { Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, Users, Loader, Shiel
 import Image from 'next/image';
 import { signUp, useSession } from '@/lib/auth-client';
 import { api } from '@/lib/api';
-// Sentry temporarily disabled.
-// import * as Sentry from '@sentry/nextjs';
 
 
 const MALE_AVATARS = Array.from({ length: 13 }, (_, i) => `/avatars/male/male-${i + 1}.jpg`);
@@ -472,7 +470,7 @@ export default function SignupForm() {
               <div>
                 <label className="block text-sm font-medium mb-2">Contact Person&apos;s Name</label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
                   <input
                     type="text"
                     required
@@ -488,7 +486,7 @@ export default function SignupForm() {
               <div>
                 <label className="block text-sm font-medium mb-2">Contact Phone Number</label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
                   <input
                     type="tel"
                     required
@@ -498,7 +496,7 @@ export default function SignupForm() {
                     onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })}
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-muted mt-1">
                   This number will be shared when a contact request is approved.
                 </p>
               </div>
@@ -507,7 +505,7 @@ export default function SignupForm() {
               <div>
                 <label className="block text-sm font-medium mb-2">Contact Email (optional)</label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
                   <input
                     type="email"
                     className="input pl-10"
@@ -647,7 +645,7 @@ export default function SignupForm() {
                 {formData.creatorRole === 'SELF' ? 'First Name' : 'Candidate\'s First Name'}
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
                 <input
                   type="text"
                   required
@@ -663,7 +661,7 @@ export default function SignupForm() {
             <div>
               <label className="block text-sm font-medium mb-2">Account Email</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
                 <input
                   type="email"
                   required
@@ -679,7 +677,7 @@ export default function SignupForm() {
             <div>
               <label className="block text-sm font-medium mb-2">Account Phone Number (US)</label>
               <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
                 <input
                   type="tel"
                   required
@@ -689,7 +687,7 @@ export default function SignupForm() {
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">One phone number per account</p>
+              <p className="text-xs text-muted mt-1">One phone number per account</p>
             </div>
 
             {/* Gender */}
@@ -729,7 +727,7 @@ export default function SignupForm() {
             <div>
               <label className="block text-sm font-medium mb-2">Password</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
@@ -742,12 +740,13 @@ export default function SignupForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted mt-1">
                 Include uppercase, lowercase, number, and special character
               </p>
             </div>

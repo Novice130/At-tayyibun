@@ -89,6 +89,13 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen" style={{ backgroundColor: 'var(--color-bg)', color: 'var(--color-text)' }}>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg"
+          style={{ backgroundColor: 'var(--color-gold-500)', color: '#1a1a2e' }}
+        >
+          Skip to content
+        </a>
         <ThemeProvider>
           {children}
           <Toaster />

@@ -3,7 +3,7 @@ import { Pool } from 'pg';
 const url = process.env.DATABASE_URL;
 if (!url) { console.error('DATABASE_URL not set'); process.exit(1); }
 
-const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: false } });
+const pool = new Pool({ connectionString: url, ssl: { rejectUnauthorized: true } });
 
 async function main() {
   const sections: Record<string, string> = {

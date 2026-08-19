@@ -14,6 +14,12 @@ import { AdminService } from './admin.service';
 import { Roles, CurrentUser } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
 import { Role } from '../../common/types/role';
+import {
+  SetRankBoostDto,
+  UpdateUserAdminDto,
+  AddAdminDto,
+  ToggleMembershipDto,
+} from './dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth()
@@ -53,7 +59,7 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Boost updated' })
   async setRankBoost(
     @Param('id') userId: string,
-    @Body() dto: { boost: number },
+    @Body() dto: SetRankBoostDto,
     @CurrentUser('id') adminId: string,
   ) {
     return this.adminService.setRankBoost(adminId, userId, dto.boost);
@@ -64,7 +70,7 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'User updated' })
   async updateUser(
     @Param('id') userId: string,
-    @Body() dto: { membershipTier?: 'FREE' | 'SILVER' | 'GOLD'; isVerified?: boolean; name?: string },
+    @Body() dto: UpdateUserAdminDto,
     @CurrentUser('id') adminId: string,
   ) {
     return this.adminService.updateUser(adminId, userId, dto);
@@ -85,7 +91,7 @@ export class AdminController {
   @ApiOperation({ summary: 'Add admin user (SUPER_ADMIN only)' })
   @ApiResponse({ status: 200, description: 'Admin added' })
   async addAdmin(
-    @Body() dto: { userId: string },
+    @Body() dto: AddAdminDto,
     @CurrentUser('id') superAdminId: string,
   ) {
     return this.adminService.addAdmin(superAdminId, dto.userId);
@@ -107,7 +113,7 @@ export class AdminController {
   @ApiOperation({ summary: 'Toggle membership system' })
   @ApiResponse({ status: 200, description: 'Setting updated' })
   async toggleMembership(
-    @Body() dto: { enabled: boolean },
+    @Body() dto: ToggleMembershipDto,
     @CurrentUser('id') adminId: string,
   ) {
     return this.adminService.toggleMembership(adminId, dto.enabled);

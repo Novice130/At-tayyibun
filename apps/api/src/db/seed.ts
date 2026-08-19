@@ -445,7 +445,11 @@ async function main() {
   await db.delete(schema.account);
   await db.delete(schema.users);
 
-  const password = await hashPassword('Test@123');
+  // Test-only accounts. The password comes from the environment so a
+  // production database can never be seeded with a well-known credential.
+  const password = await hashPassword(
+    process.env.SEED_TEST_PASSWORD || 'Test@123',
+  );
 
   const allProfiles = [...maleProfiles, ...femaleProfiles];
   console.log(`Creating ${allProfiles.length} profiles...`);
@@ -503,7 +507,7 @@ async function main() {
   }
 
   console.log(`\nSeed complete — ${allProfiles.length} profiles (${maleProfiles.length} male, ${femaleProfiles.length} female)`);
-  console.log('\nTest accounts (password: Test@123)');
+  console.log('\nTest accounts created. Passwords match SEED_TEST_PASSWORD (default Test@123).');
   console.log('--- Male ---');
   maleProfiles.forEach((p, i) => console.log(`  ${p.firstName.toLowerCase()}${i}@example.com  (${p.firstName} ${p.lastName}, ${p.age}, ${p.ethnicity}, ${p.tier})`));
   console.log('--- Female ---');

@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { MapPin, Heart } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 
 interface ProfileCardProps {
   publicId: string;
@@ -55,16 +55,6 @@ export function ProfileCard({
           <h3 className={`font-semibold text-lg ${firstName ? '' : 'font-mono text-sm tracking-tight'}`} style={{ color: 'var(--color-text)' }}>
             {displayName}{firstName ? `, ${age}` : ` · ${age}`}
           </h3>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-            }}
-            aria-label={`Save ${displayName}`}
-            className="min-w-11 min-h-11 -mr-2 flex items-center justify-center rounded-full transition"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
-            <Heart className="w-5 h-5 hover:text-gold-500" />
-          </button>
         </div>
 
         <p className="text-sm" style={{ color: 'var(--color-gold-500)' }}>{ethnicity}</p>

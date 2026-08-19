@@ -26,6 +26,23 @@
     --color-nav-bg: rgba(250, 248, 245, 0.92);
     --color-card-shadow: rgba(0, 0, 0, 0.06);
     --color-glass-bg: rgba(250, 248, 245, 0.85);
+
+    /* shadcn token layer (HSL channels) — light */
+    --bg: 40 33% 97%;
+    --fg: 240 31% 14%;
+    --card: 0 0% 100%;
+    --card-fg: 240 31% 14%;
+    --popover: 0 0% 100%;
+    --popover-fg: 240 31% 14%;
+    --primary-fg: 240 31% 10%;
+    --secondary-fg: 240 31% 10%;
+    --muted: 40 27% 93%;
+    --muted-fg: 240 6% 47%;
+    --destructive: 0 72% 51%;
+    --destructive-fg: 0 0% 100%;
+    --border: 40 20% 88%;
+    --input: 40 20% 85%;
+    --ring: 45 60% 52%;
   }
 
   /* ==============================
@@ -48,6 +65,23 @@
     --color-nav-bg: rgba(15, 15, 26, 0.85);
     --color-card-shadow: rgba(0, 0, 0, 0.3);
     --color-glass-bg: rgba(255, 255, 255, 0.05);
+
+    /* shadcn token layer (HSL channels) — dark */
+    --bg: 240 26% 8%;
+    --fg: 0 0% 100%;
+    --card: 240 27% 14%;
+    --card-fg: 0 0% 100%;
+    --popover: 240 27% 14%;
+    --popover-fg: 0 0% 100%;
+    --primary-fg: 240 31% 10%;
+    --secondary-fg: 0 0% 100%;
+    --muted: 240 22% 20%;
+    --muted-fg: 240 8% 62%;
+    --destructive: 0 72% 51%;
+    --destructive-fg: 0 0% 100%;
+    --border: 240 14% 24%;
+    --input: 240 14% 28%;
+    --ring: 45 60% 52%;
   }
 
   body {
@@ -65,6 +99,16 @@
 
   .font-serif {
     font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  /* Respect reduced-motion preferences: drop all animation/transition. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 

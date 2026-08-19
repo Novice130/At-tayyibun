@@ -1,15 +1,26 @@
 import { betterAuth, BetterAuthOptions } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { twoFactor, customSession } from "better-auth/plugins";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes } from "crypto";
 import { db } from "./db";
 import * as schema from "./db-schema";
 
+const escapeHtml = (value: unknown): string =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 const generateId = (length: number = 12) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-';
+  // Crypto-random public identifier (never Math.random — predictable IDs leak
+  // nothing on their own but make enumeration easier).
+  const bytes = randomBytes(length);
   let id = '';
   for (let i = 0; i < length; i++) {
-    id += chars.charAt(Math.floor(Math.random() * chars.length));
+    id += chars.charAt(bytes[i] % chars.length);
   }
   return id;
 };
@@ -34,7 +45,8 @@ const options = {
           if (!process.env.RESEND_API_KEY) {
             throw new Error("RESEND_API_KEY not set; cannot send 2FA email");
           }
-          const firstName = user.name?.split(" ")[0] || "there";
+          const firstName = escapeHtml(user.name?.split(" ")[0] || "there");
+          const safeOtp = escapeHtml(otp);
           const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -74,7 +86,7 @@ const options = {
               <!-- OTP Block -->
               <div style="background:#faf6ee;border:2px solid #c9a84c;border-radius:12px;padding:28px 24px;text-align:center;margin-bottom:28px;">
                 <div style="font-size:13px;font-weight:600;color:#8a7a5a;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">Your verification code</div>
-                <div style="font-size:42px;font-weight:800;letter-spacing:14px;color:#1a1a2e;font-family:'Courier New',monospace;">${otp}</div>
+                <div style="font-size:42px;font-weight:800;letter-spacing:14px;color:#1a1a2e;font-family:'Courier New',monospace;">${safeOtp}</div>
                 <div style="margin-top:12px;font-size:13px;color:#8a7a5a;">
                   ⏱ Valid for <strong>5 minutes</strong>
                 </div>
@@ -136,7 +148,7 @@ const options = {
     }),
   ],
   logger: {
-    level: "debug",
+    level: "error",
     log(level: string, message: string, error?: unknown) {
       if (level === "error" && error) {
         // Sentry temporarily disabled.
@@ -145,13 +157,38 @@ const options = {
         //     extra: { message, level },
         //   });
         // });
-        console.error("[auth]", message, error);
+        console.error("[auth]", message);
       }
+    },
+  },
+  rateLimit: {
+    // Enabled explicitly (better-auth defaults to enabled only in production,
+    // which silently disables protection in non-prod environments).
+    enabled: true,
+    // Be permissive on the global window and tighten per-path below.
+    window: 10,
+    max: 100,
+    storage: "memory",
+    customRules: {
+      "/sign-in/email": { window: 60, max: 10 },
+      "/sign-up/email": { window: 60, max: 10 },
+      "/sign-in/social": { window: 60, max: 20 },
+      "/request-password-reset": { window: 60, max: 3 },
+      "/forget-password": { window: 60, max: 3 },
+      "/send-verification-email": { window: 60, max: 3 },
+      "/two-factor/send-otp": { window: 60, max: 5 },
+      "/two-factor/verify-otp": { window: 60, max: 10 },
     },
   },
   advanced: {
     database: {
       generateId: () => randomUUID(),
+    },
+    // Rate limiting keys off the client IP. `x-forwarded-for` is trivially
+    // spoofable, so prefer Cloudflare's header (set by Cloudflare, cannot be
+    // overridden by clients) and only fall back when it's absent (local dev).
+    ipAddress: {
+      ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
     },
   },
   databaseHooks: {
@@ -202,7 +239,8 @@ const options = {
       if (!process.env.RESEND_API_KEY) {
         throw new Error("RESEND_API_KEY not set; cannot send verification email");
       }
-      const firstName = user.name?.split(" ")[0] || "there";
+      const firstName = escapeHtml(user.name?.split(" ")[0] || "there");
+      const safeUrl = escapeHtml(url);
       const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -238,7 +276,7 @@ const options = {
               </p>
 
               <div style="text-align:center;margin:0 0 28px;">
-                <a href="${url}"
+                <a href="${safeUrl}"
                    style="display:inline-block;background:#c9a84c;color:#1a1a2e;font-weight:700;font-size:15px;text-decoration:none;padding:14px 32px;border-radius:10px;">
                   Verify email
                 </a>
@@ -246,7 +284,7 @@ const options = {
 
               <p style="margin:0 0 24px;font-size:13px;color:#7a7a8a;line-height:1.6;">
                 Or paste this link into your browser:<br/>
-                <a href="${url}" style="color:#8a7a5a;word-break:break-all;">${url}</a>
+                <a href="${safeUrl}" style="color:#8a7a5a;word-break:break-all;">${safeUrl}</a>
               </p>
 
               <div style="background:#fff8f0;border-left:3px solid #e07b39;border-radius:4px;padding:12px 16px;">

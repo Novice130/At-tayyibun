@@ -75,7 +75,40 @@ class _SplashScreen extends StatelessWidget {
   const _SplashScreen();
 
   @override
-  Widget build(BuildContext context) => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Branded splash instead of a bare spinner — the auth probe only
+            // takes a moment, but a logo reads as intentional, not frozen.
+            Text(
+              'At-Tayyibun',
+              style: theme.textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Muslim Matrimony',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+            const SizedBox(height: 32),
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

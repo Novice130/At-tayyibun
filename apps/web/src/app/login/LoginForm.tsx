@@ -5,8 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
-// Sentry temporarily disabled.
-// import * as Sentry from '@sentry/nextjs';
 import { authClient, signIn } from '@/lib/auth-client';
 
 export default function LoginForm() {
@@ -140,7 +138,7 @@ export default function LoginForm() {
             <div>
               <label className="block text-sm font-medium mb-2">Email</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
                 <input
                   type="email"
                   required
@@ -161,7 +159,7 @@ export default function LoginForm() {
                 </Link>
               </div>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
@@ -173,7 +171,8 @@ export default function LoginForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-white"
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>

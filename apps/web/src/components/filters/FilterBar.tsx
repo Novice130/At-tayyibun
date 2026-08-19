@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { Search, SlidersHorizontal, X, Loader } from 'lucide-react';
 
 interface FilterBarProps {
   onFilter: (filters: FilterState) => void;
+  loading?: boolean;
 }
 
 interface FilterState {
@@ -28,7 +29,7 @@ const ethnicities = [
   'Other',
 ];
 
-export function FilterBar({ onFilter }: FilterBarProps) {
+export function FilterBar({ onFilter, loading = false }: FilterBarProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<FilterState>({
     ethnicity: '',
@@ -61,6 +62,8 @@ export function FilterBar({ onFilter }: FilterBarProps) {
       <div className="flex items-center gap-3 flex-wrap">
         <button
           onClick={() => setShowFilters(!showFilters)}
+          aria-expanded={showFilters}
+          aria-controls="filter-panel"
           className="btn-secondary py-2 px-4 flex items-center gap-2"
         >
           <SlidersHorizontal className="w-4 h-4" />
@@ -69,6 +72,7 @@ export function FilterBar({ onFilter }: FilterBarProps) {
 
         {/* Quick sort */}
         <select
+          aria-label="Sort profiles"
           value={`${filters.sortBy}-${filters.order}`}
           onChange={(e) => {
             const [sortBy, order] = e.target.value.split('-') as [FilterState['sortBy'], FilterState['order']];
@@ -84,6 +88,10 @@ export function FilterBar({ onFilter }: FilterBarProps) {
           <option value="age-desc">Age: Old to Young</option>
           <option value="createdAt-desc">Newest First</option>
         </select>
+
+        {loading && (
+          <Loader className="w-4 h-4 animate-spin text-gold-500" aria-label="Loading profiles" />
+        )}
 
         {/* Active filter chips */}
         {filters.ethnicity && (
@@ -104,7 +112,7 @@ export function FilterBar({ onFilter }: FilterBarProps) {
 
       {/* Expanded filters panel */}
       {showFilters && (
-        <div className="mt-4 p-4 card animate-fade-in">
+        <div id="filter-panel" className="mt-4 p-4 card animate-fade-in">
           <div className="grid sm:grid-cols-3 gap-4">
             {/* Ethnicity */}
             <div>
