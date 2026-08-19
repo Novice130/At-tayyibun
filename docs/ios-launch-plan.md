@@ -1002,33 +1002,65 @@ problem actually surfaces.
 
 ## Task checklist
 
+Status as of 2026-08-20. `[x]` means the code is in the repository and was
+verified against the source, not that it has run on a device or in production —
+see `docs/open-issues-2026-08-20.md` for what is still unverified. `[ ]` items
+are all manual/portal work that needs an Apple or Google account, or the
+build-and-submit steps that follow it.
+
 **Phase A — backend groundwork**
-- [ ] A1 Apple App ID, Services ID, key, App Store Connect record
-- [ ] A2 `generate-apple-secret.ts` + env vars in both containers
-- [ ] A2b Rotate the leaked Google web client secret (deferred item, now due)
-- [ ] A3 Apple provider in `apps/web/src/lib/auth.ts`
-- [ ] A4 `DELETE /api/users/me` + Apple token revocation + web Danger Zone
-- [ ] A5 Apple Private Email Relay domain registration
-- [ ] A6 18+ enforcement (server, mobile, web)
+- [ ] A1 Apple App ID, Services ID, key, App Store Connect record — *manual, Apple portal*
+- [ ] A2 `generate-apple-secret.ts` + env vars in both containers — script exists
+      (`apps/api/scripts/generate-apple-secret.ts`, `pnpm --filter api apple:secret`);
+      the key file and the env injection are manual and blocked on A1
+- [ ] A2b Rotate the leaked Google web client secret — *manual*, see `docs/SECURITY-ROTATION.md`
+- [x] A3 Apple provider in `apps/web/src/lib/auth.ts` (`apple:` block at line 208;
+      `"apple"` added to `trustedProviders`). Untested end-to-end — needs A1/A2 secrets
+- [x] A4 `DELETE /api/users/me` + Apple token revocation + web Danger Zone
+      (`users.controller.ts`, `users.service.ts` `deleteOwnAccount`,
+      `apps/web/src/app/profile/page.tsx`)
+- [ ] A5 Apple Private Email Relay domain registration — *manual, Apple portal*
+- [x] A6 18+ enforcement — server (`profiles.service.ts:255`), web
+      (`profile/setup/page.tsx:264`), mobile (`edit_profile_screen.dart:156` plus a
+      `lastDate` cap on the picker at line 355)
 
 **Phase B — moderation + avatars**
-- [ ] B1 `blocks` / `reports` tables + migration
-- [ ] B2 Block/report endpoints + admin queue + notification email
-- [ ] B3 Thread `viewerId` through `browseProfiles`; exclude blocked and self
-- [ ] B4 Prefer `users.image` over DiceBear; JPG support in `ProfileAvatar`; preset picker screen
+- [x] B1 `blocks` / `reports` tables + migration (`schema.ts`, `drizzle/0002_blocks_reports_terms.sql`)
+- [x] B2 Block/report endpoints + admin queue + notification email
+      (`modules/moderation/`: `moderation.controller.ts`, `admin-reports.controller.ts`,
+      `moderation.service.ts`). Reports are rate-limited 10/day/user
+- [x] B3 `viewerId` threaded through `browseProfiles`; blocked users and self excluded
+      (`profiles.service.ts:29`, `:47`, `:51`) and a block also 404s the detail view (`:137`)
+- [x] B4 `users.image` preferred over DiceBear (`profiles.service.ts:113`, `:160`);
+      `ProfileAvatar` picks its decoder off the extension (`profile_avatar.dart:33`);
+      preset picker at `avatar_picker_screen.dart` sharing `widgets/avatar_grid.dart`
+      with the signup step
 
 **Phase C — iOS target**
-- [ ] C1 `flutter create --platforms=ios`; bundle id `com.attayyibun.attayyibun`; signing; Sign in with Apple capability
-- [ ] C2 `Info.plist` (Google client, `ITSAppUsesNonExemptEncryption`, portrait, display name)
-- [ ] C3 Icons with `remove_alpha_ios`; branded launch screen
-- [ ] C4 `X-Requested-With` → `attayyibun-mobile`
+- [x] C1 `ios/` generated; bundle id `com.attayyibun.attayyibun`; Sign in with Apple
+      capability in `Runner.entitlements`. *Signing itself still needs a real team in Xcode*
+- [ ] C2 `Info.plist` — `ITSAppUsesNonExemptEncryption`, portrait lock and display name
+      are set, but **`PASTE_IOS_CLIENT_ID` is still a placeholder at lines 61 and 69**.
+      Blocked on creating the iOS OAuth client in Google Cloud
+- [x] C3 Icons generated with `remove_alpha_ios: true` (`pubspec.yaml:38`); launch screen
+      is branded — custom `LaunchImage` on the dark navy background, not the Flutter default
+- [x] C4 `X-Requested-With: attayyibun-mobile` set in `api_client.dart:57` and accepted by
+      `origin-check.middleware.ts`
 
 **Phase D — Flutter features**
-- [ ] D1 Sign in with Apple (repository, controller, buttons on login + signup)
-- [ ] D2 Delete account (repository, two-step UI, privacy/terms links)
-- [ ] D3 Block + report (repository, profile detail menu, request tiles, blocked list)
-- [ ] D4 EULA acknowledgement on signup + `terms_accepted_at`
-- [ ] D5 iOS feel (page transitions, typography platform, haptics, safe areas, Dynamic Type)
+- [x] D1 Sign in with Apple — `auth_repository.signInWithApple`, `sign_in_with_apple: ^7.0.1`,
+      button on the login screen. **Not on the signup screen**, which the plan called for;
+      see the deviation note below
+- [x] D2 Delete account (`auth_repository.deleteAccount` → `DELETE /api/users/me`,
+      two-step confirmation in `my_profile_screen.dart`)
+- [x] D3 Block + report — `moderation_repository.dart`, profile-detail menu, request tiles,
+      and a blocked list reachable from `my_profile_screen.dart`
+- [x] D4 EULA acknowledgement on signup + `terms_accepted_at` (`signup_screen.dart:275`,
+      sent as `termsAcceptedAt` at line 113)
+- [x] D5 iOS feel — typography follows the runtime platform (`theme.dart:153`), haptics on
+      tab switch and block, `SafeArea` on every screen. Page transitions and Dynamic Type
+      are inherited from the Flutter defaults rather than configured explicitly, which is
+      the correct behaviour on iOS; there is no override to review
 
 **Phase E — ship**
 - [ ] E1 `flutter build ipa` with the `--dart-define`
@@ -1036,10 +1068,32 @@ problem actually surfaces.
 - [ ] E3 Metadata, screenshots, privacy labels, **demo account + review notes**
 - [ ] E4 Submit, manual release
 
-**After approval**
-- [ ] Add an App Store badge to `apps/web/src/app/download/page.tsx` (currently APK-only,
-      `APK_PATH` at line 8)
+**Ship-adjacent housekeeping**
+- [x] App Store badge in `apps/web/src/app/download/page.tsx` — the iOS card and the
+      page title are driven by `APP_STORE_URL`, which is `null` until the listing is live.
+      Set that one constant after approval; the "no iPhone app yet" note disappears on its own
 - [ ] Record the shipped version + build flags in `docs/open-issues-*.md`, matching the
-      convention used for APK v0.1.2+3
-- [ ] Bump `version:` in `pubspec.yaml` — iOS build numbers must strictly increase per
-      upload, and the shared `0.1.2+3` is already consumed by Android
+      convention used for APK v0.1.2+3 — due after E2
+- [x] `version:` in `pubspec.yaml` bumped to `0.1.3+4`. The download page's APK constants
+      deliberately still describe the committed `0.1.2+3` APK, which is a different artifact
+
+---
+
+## Deviations from the plan as written
+
+Recorded so the plan and the code do not silently drift apart.
+
+1. **Sign in with Apple is on the login screen only.** The plan asked for the button on
+   both login and signup. Apple's Guideline 4.8 cares that the option is offered wherever
+   other third-party sign-in is offered — the signup screen currently has no third-party
+   button at all, so this is compliant as it stands, but it is a real difference from the
+   plan and a UX gap: a new user has to go back to login to use Apple.
+2. **Signup gained an avatar step that the plan did not describe.** `signup_screen.dart` is
+   now two steps (details, then gender + avatar), sharing `widgets/avatar_grid.dart` with
+   the picker screen. This came out of B4 rather than Phase D.
+3. **Migration 0002 also rewrites existing data.** Beyond the new tables it runs
+   `UPDATE users SET image = 'https://attayyibun.com' || image WHERE image LIKE '/avatars/%'`.
+   That is a one-way rewrite of live rows; the plan described the schema change only.
+4. **`apps/api` now has tests.** Three spec files cover the moderation service, the users
+   service (including the Apple revoke paths) and the profiles age gate — 37 tests. The
+   plan assumed the API stayed untested.

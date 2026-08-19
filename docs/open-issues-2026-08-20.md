@@ -5,8 +5,9 @@ section 1 of that document are now fixed; what remains is deployment, manual
 portal work, and device testing.
 
 Verification state: `nest build` ✓, `next build` ✓, `flutter analyze` clean ✓,
-`flutter test` green ✓. `apps/api` has no jest specs at all
-(`pnpm --filter api test` exits 1 with "No tests found") — pre-existing.
+`flutter test` green ✓. `apps/api` now has 37 passing jest specs across three
+files (see section 5) — the "no tests found" state noted earlier in this
+document is resolved.
 
 **Git state:** committed as `005feeb` and **pushed to `origin/main`** on
 2026-08-20. That push also carried up three previously unpushed local commits:
@@ -108,4 +109,100 @@ upload, metadata, demo account, submit with manual release, bump `version:` in
 - The new mobile signup avatar step has not been exercised against a live
   server; `signUp` accepts `image`, but a real sign-up should confirm
   `users.image` lands absolute and browse then prefers it over DiceBear.
-- `apps/api` still has zero tests.
+
+Section 5 below records what a source read could and could not settle about
+these.
+
+---
+
+## 5. Follow-up session — 2026-08-20 (later)
+
+### 5a. Plan checklist reconciled
+
+`docs/ios-launch-plan.md` had every task box unticked even though commit
+`243789f` implemented most of them. Each A/B/C/D item was checked against the
+source and the checklist now carries a status, a file reference and, where the
+code diverges from the plan, a note. A new "Deviations from the plan as written"
+section at the end of that document records the four real differences.
+
+The one that matters for review: **Sign in with Apple is on the login screen
+only**, not on signup as the plan specified. It is still Guideline 4.8-compliant
+— the signup screen offers no third-party sign-in at all, so there is nothing
+for Apple to be missing next to — but a user who wants Apple has to back out to
+the login screen to find it. Worth closing before submission.
+
+The one that is still a hard blocker: **C2 `PASTE_IOS_CLIENT_ID`** is still a
+literal placeholder at `apps/mobile/ios/Runner/Info.plist` lines 61 and 69.
+Google sign-in on iOS cannot work until the iOS OAuth client exists.
+
+### 5b. Section 4 items, as far as a source read can settle them
+
+Traced in the code. None of this replaces a device or production run — it only
+narrows what is left to find there.
+
+- **18+ enforcement** is real on all three surfaces:
+  `profiles.service.ts:255` (server, throws `BadRequestException`),
+  `profile/setup/page.tsx:264` (web), and `edit_profile_screen.dart:156` plus a
+  `lastDate: DateTime(now.year - 18, ...)` cap on the picker at line 355.
+  Now covered by tests, including the day-before-18th-birthday boundary.
+- **Apple revoke selects the Apple row.** Confirmed at `users.service.ts:70-74`
+  and now pinned by a test asserting that a Google-only user produces no revoke
+  call at all, rather than one with an empty token.
+- **Deletion survives Apple being unreachable.** `revokeAppleTokenIfPresent`
+  swallows both a non-OK response and a thrown request; two tests assert the
+  account is still hard-deleted in each case. This is the behaviour Apple's
+  reviewer tests, so it is worth having locked down.
+- **`termsAcceptedAt` is declared** as `{ type: "date", required: false, input:
+  true }` at `apps/web/src/lib/auth.ts:357`, and mobile sends it from
+  `signup_screen.dart:113`. Whether better-auth's `date` field accepts the ISO
+  string mobile sends is a runtime question the source cannot answer — **still
+  owed on one real signup**.
+- **Web Danger Zone** lives in `apps/web/src/app/profile/page.tsx`. The
+  call sequence is as described. Whether the session cookie actually clears is
+  **still owed on a real run**.
+- **Avatar absolutisation** — the API prefers `users.image` when non-empty
+  (`profiles.service.ts:113` and `:160`) and `ProfileAvatar` picks its decoder
+  off the extension (`profile_avatar.dart:33`), so a stored `.jpg` renders. What
+  is unverified is the migration's rewrite against live rows.
+
+### 5c. Code changes in this session
+
+1. **`apps/api` test suite created.** 37 tests, `pnpm --filter api test` green:
+   - `moderation.service.spec.ts` — self-block and self-report rejection, unknown
+     public id, the 10/day report limit at both the 10th and 11th report, detail
+     truncation at 500 chars, report survival when the notification email fails,
+     double-resolve rejection, and `hardDeleteUser`'s object-storage cleanup and
+     restrict-FK delete order.
+   - `users.service.spec.ts` — profile flattening, lower-cased email lookup, and
+     the five Apple-revoke paths (unconfigured, refresh token, access-token
+     fallback, no Apple row, Apple failing).
+   - `profiles.service.spec.ts` — the 18+ gate including boundaries, and the
+     empty-string-clears-the-field behaviour.
+   - `src/test/drizzle-mock.ts` — a Proxy-based thenable that stands in for a
+     Drizzle query builder, so the specs do not encode the exact call chain.
+
+   The age-gate tests were mutation-checked: relaxing `< 18` to `< 0` in the
+   service turns two of them red.
+
+2. **App Store badge wired but dormant.** `apps/web/src/app/download/page.tsx`
+   gained an `APP_STORE_URL` constant, currently `null`. While it is null the
+   page is exactly what it was. Set it to the listing URL after approval and the
+   iOS card, the page title and the removal of the "no iPhone app yet" note all
+   follow from that one edit. The Apple mark is an inline SVG — lucide's `Apple`
+   icon is a piece of fruit.
+
+3. **`pubspec.yaml` bumped to `0.1.3+4`.** iOS rejects an upload whose build
+   number is not strictly greater than every previous one, and `0.1.2+3` is
+   already spent on Android. **Note the consequence:** the download page's
+   `APK_VERSION` still reads `0.1.2 (build 3)`, which is correct — it describes
+   the APK committed at `apps/web/public/downloads/`, a different artifact from
+   the pubspec version. The comment above those constants now says so.
+
+Verification after these changes: `pnpm --filter api test` 37/37 ✓,
+`next build` ✓ (26/26 pages), `flutter analyze` clean ✓.
+
+### 5d. Still outstanding
+
+Unchanged: everything in section 2 (deployment), section 3 (manual/portal), and
+the device-testing list at the top of section 4. Added by this session: the
+Sign in with Apple button on the signup screen, if that gap is to be closed.
