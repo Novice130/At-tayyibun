@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { ConfigService } from '@nestjs/config';
 import { DrizzleService } from '../../db/drizzle.service';
 import { users, account } from '../../db/schema';
@@ -64,10 +64,13 @@ export class UsersService {
     const clientSecret = this.configService.get<string>('APPLE_CLIENT_SECRET');
     if (!clientId || !clientSecret) return;
 
+    // Must filter on providerId: a user with both Google and Apple linked has
+    // several account rows, and the Google row carries no Apple refresh token,
+    // so taking the first row silently skipped the revoke.
     const [appleAccount] = await this.drizzle.db
       .select()
       .from(account)
-      .where(eq(account.userId, userId))
+      .where(and(eq(account.userId, userId), eq(account.providerId, 'apple')))
       .limit(1);
 
     const token = appleAccount?.refreshToken ?? appleAccount?.accessToken;

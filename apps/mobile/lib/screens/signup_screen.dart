@@ -6,13 +6,19 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/api_exception.dart';
 import '../core/constants.dart';
 import '../providers.dart';
+import '../widgets/avatar_grid.dart';
 
 /// Account creation.
 ///
 /// The server enforces email verification, so this deliberately ends on a
-/// "check your email" screen rather than signing the user in. Gender and the
-/// rest of the biodata are collected later in the profile wizard — better-auth
-/// only accepts `phone` as an extra field at sign-up.
+/// "check your email" screen rather than signing the user in.
+///
+/// Two steps, mirroring the website: details, then an avatar. The avatar step
+/// asks for gender only to pick the right preset set — the profile wizard
+/// still collects gender properly, since better-auth accepts only `phone`,
+/// `termsAcceptedAt` and `image` as extra fields at sign-up. Without this step
+/// every mobile-created account fell back to the initial-letter placeholder,
+/// because real photos are never uploaded anywhere in this product.
 class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
 
@@ -29,7 +35,10 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   bool _obscure = true;
   bool _loading = false;
   bool _done = false;
+  bool _avatarStep = false;
   bool _termsAccepted = false;
+  String? _gender;
+  String? _avatar;
   String? _error;
 
   @override
@@ -54,16 +63,38 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     return null;
   }
 
-  Future<void> _submit() async {
+  /// Details step. Everything is validated here so the avatar step cannot
+  /// strand the user on a failure that belongs to a field they can no longer
+  /// see.
+  void _continue() {
     if (!_formKey.currentState!.validate() || _loading) return;
     if (!_termsAccepted) {
       setState(() => _error =
           'Please accept the Terms of Service and Privacy Policy to continue.');
       return;
     }
+    if (_toE164(_phone.text) == null) {
+      setState(() => _error = 'Please enter a valid US phone number.');
+      return;
+    }
+    setState(() {
+      _error = null;
+      _avatarStep = true;
+    });
+  }
+
+  Future<void> _submit() async {
+    if (_loading) return;
     final phone = _toE164(_phone.text);
     if (phone == null) {
-      setState(() => _error = 'Please enter a valid US phone number.');
+      setState(() {
+        _avatarStep = false;
+        _error = 'Please enter a valid US phone number.';
+      });
+      return;
+    }
+    if (_avatar == null) {
+      setState(() => _error = 'Please choose an avatar.');
       return;
     }
 
@@ -78,12 +109,16 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             password: _password.text,
             name: _name.text.trim(),
             phone: phone,
+            image: _avatar,
             termsAcceptedAt: DateTime.now(),
           );
       if (mounted) setState(() => _done = true);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
+        // The failure is always about a details-step field (duplicate email or
+        // phone), so send them back to where it can be corrected.
+        _avatarStep = false;
         _error = RegExp('duplicate|unique', caseSensitive: false)
                 .hasMatch(e.message)
             ? 'That email or phone number is already registered.'
@@ -141,6 +176,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         ),
       );
     }
+
+    if (_avatarStep) return _buildAvatarStep(theme);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Create Account')),
@@ -297,17 +334,121 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     ),
                     const SizedBox(height: 16),
                     FilledButton(
-                      onPressed: _loading ? null : _submit,
-                      child: _loading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Text('Create Account'),
+                      onPressed: _loading ? null : _continue,
+                      child: const Text('Next: Choose Avatar'),
                     ),
                   ],
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  /// Step 2 — gender then avatar. Gender is asked here purely to pick the
+  /// preset set; it is re-collected (and actually persisted) by the profile
+  /// wizard, which owns `profiles.gender`.
+  Widget _buildAvatarStep(ThemeData theme) {
+    final avatars = _gender == null ? const <String>[] : presetAvatars(_gender!);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Choose Avatar'),
+        leading: BackButton(
+          onPressed: _loading ? null : () => setState(() => _avatarStep = false),
+        ),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_error != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.error.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: theme.colorScheme.error
+                                    .withValues(alpha: 0.3)),
+                          ),
+                          child: Text(_error!,
+                              style: TextStyle(color: theme.colorScheme.error)),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      Text(
+                        'Pick a cartoon avatar for the profile. Real photos are '
+                        'never displayed publicly.',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 16),
+                      SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(value: 'MALE', label: Text('Brother')),
+                          ButtonSegment(value: 'FEMALE', label: Text('Sister')),
+                        ],
+                        emptySelectionAllowed: true,
+                        selected: _gender == null ? {} : {_gender!},
+                        onSelectionChanged: _loading
+                            ? null
+                            : (s) => setState(() {
+                                  _gender = s.isEmpty ? null : s.first;
+                                  // The two sets are disjoint, so a stale pick
+                                  // would submit an avatar that is not in the
+                                  // grid on screen.
+                                  _avatar = null;
+                                }),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: _gender == null
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Text(
+                              'Select who this profile is for to see the avatars.',
+                              textAlign: TextAlign.center,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ),
+                        )
+                      : AvatarGrid(
+                          avatars: avatars,
+                          selected: _avatar,
+                          onSelect: _loading
+                              ? null
+                              : (url) => setState(() => _avatar = url),
+                        ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                  child: FilledButton(
+                    onPressed:
+                        (_loading || _avatar == null) ? null : _submit,
+                    child: _loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Create Account'),
+                  ),
+                ),
+              ],
             ),
           ),
         ),

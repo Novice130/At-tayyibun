@@ -100,3 +100,26 @@ Rewritten to exclude `node_modules`, build output, git, env files, logs, and bin
    - Runner layer is small.
 5. Once green, flip autoDeploy back ON.
 6. **Rotate all secrets leaked via Dokploy API** (GitHub App key, OAuth client secret, webhook secret, BETTER_AUTH_SECRET, ENCRYPTION_KEY, Neon DB password).
+
+---
+
+## iOS launch additions (2026-08-20)
+
+9. **The Apple OAuth client secret expires — silently, every 6 months.** Apple caps the
+   ES256 client-secret JWT at 180 days. When it lapses, *every* Sign in with Apple
+   attempt fails at once with an opaque `invalid_client`, on both web and iOS, with
+   nothing in our logs pointing at expiry. Regenerate with
+   `corepack pnpm --filter api apple:secret` (needs `APPLE_TEAM_ID`, `APPLE_KEY_ID`,
+   `APPLE_CLIENT_ID`, `APPLE_PRIVATE_KEY`) and re-inject `APPLE_CLIENT_SECRET` into both
+   containers. Keep a calendar reminder at the 5-month mark — App Store Guideline 4.8
+   makes a broken Apple login a removal risk, not just a bug.
+10. **`pnpm` is not on PATH on the build machine — use `corepack pnpm`.** A bare `pnpm`
+    fails, and `pnpm add` inside this workspace has hit
+    `ERR_PNPM_INCLUDED_DEPS_CONFLICT`, which invites hand-editing `package.json`. That
+    leaves `pnpm-lock.yaml` stale and the Docker build dies on `--frozen-lockfile`.
+    After any dependency edit, run `corepack pnpm install` at the repo root and commit
+    the lockfile in the same change.
+11. **`drizzle-kit generate` needs a TTY against this introspected schema.** Migrations
+    `0001` and `0002` are hand-written for that reason. The runtime migrator only reads
+    `drizzle/meta/_journal.json` plus the SQL files, so a hand-written migration with a
+    journal entry applies normally on the next API deploy — no snapshot required.

@@ -148,9 +148,18 @@ class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
           .read(moderationRepositoryProvider)
           .block(widget.publicId);
       if (!mounted) return;
+      // Grab the messenger BEFORE popping: it lives at the MaterialApp level
+      // and survives this route, whereas _toast's `mounted` check fails once
+      // the pop has torn this widget down, swallowing the snackbar.
+      final messenger = ScaffoldMessenger.of(context);
+      ref.invalidate(blockedAccountsProvider);
       // The blocked person must visibly disappear from browse.
       context.pop();
-      _toast('${p.displayName} has been blocked.');
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('${p.displayName} has been blocked.')),
+        );
     } on ApiException catch (e) {
       _toast(e.message);
     } finally {

@@ -12,6 +12,13 @@ import { api } from '@/lib/api';
 const MALE_AVATARS = Array.from({ length: 13 }, (_, i) => `/avatars/male/male-${i + 1}.jpg`);
 const FEMALE_AVATARS = Array.from({ length: 13 }, (_, i) => `/avatars/female/female-${i + 1}.jpg`);
 
+// The paths above stay relative so next/image serves them from this origin in
+// every environment. What lands in `users.image` must be absolute, though: the
+// Flutter client renders it with Image.network and has no base-URL logic.
+const AVATAR_ORIGIN = 'https://attayyibun.com';
+const toAbsoluteAvatar = (path: string) =>
+  path.startsWith('/') ? `${AVATAR_ORIGIN}${path}` : path;
+
 type CreatorRole = 'SELF' | 'BROTHER' | 'SISTER' | 'GUARDIAN';
 type GuardianContactType = 'MOTHER' | 'FATHER' | 'RELATIVE' | 'GUARDIAN' | 'OTHER';
 
@@ -162,7 +169,7 @@ export default function SignupForm() {
         email: formData.email,
         password: formData.password,
         name: formData.firstName,
-        image: formData.avatar,
+        image: toAbsoluteAvatar(formData.avatar),
         // Persisted via the `phone` additionalField declared in lib/auth.ts.
         phone: e164,
         // EULA acceptance evidence — additionalField on users.

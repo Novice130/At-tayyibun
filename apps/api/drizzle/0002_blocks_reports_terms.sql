@@ -40,3 +40,8 @@ ALTER TABLE "reports" ADD CONSTRAINT "reports_reporter_id_fkey"
   FOREIGN KEY ("reporter_id") REFERENCES "users"("id") ON UPDATE cascade ON DELETE set null;--> statement-breakpoint
 ALTER TABLE "reports" ADD CONSTRAINT "reports_reported_user_id_fkey"
   FOREIGN KEY ("reported_user_id") REFERENCES "users"("id") ON UPDATE cascade ON DELETE set null;
+--> statement-breakpoint
+-- Web signup previously stored a relative avatar path. The Flutter client
+-- renders users.image with Image.network and has no base-URL logic, so every
+-- stored value has to be absolute.
+UPDATE "users" SET "image" = 'https://attayyibun.com' || "image" WHERE "image" LIKE '/avatars/%';

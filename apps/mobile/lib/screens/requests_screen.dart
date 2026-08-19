@@ -120,6 +120,8 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen>
     try {
       await ref.read(moderationRepositoryProvider).block(party.publicId);
       _refreshAll();
+      // Browse filters against this list, so it has to be refetched here too.
+      ref.invalidate(blockedAccountsProvider);
       _toast('${party.displayName} has been blocked.');
     } on ApiException catch (e) {
       _toast(e.message);

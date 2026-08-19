@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../core/api_exception.dart';
 import '../core/constants.dart';
 import '../providers.dart';
+import '../widgets/avatar_grid.dart';
 
 /// Preset avatar catalogue — the only images the product ever displays are the
 /// fixed illustrated set from the web signup. Picking one calls better-auth's
@@ -52,7 +53,6 @@ class _AvatarPickerScreenState extends ConsumerState<AvatarPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Choose Photo'),
@@ -69,56 +69,10 @@ class _AvatarPickerScreenState extends ConsumerState<AvatarPickerScreen> {
         ],
       ),
       body: SafeArea(
-        child: GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-          ),
-          itemCount: _avatars.length,
-          itemBuilder: (context, index) {
-            final url = _avatars[index];
-            final isSelected = url == _selected;
-            return InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: _saving ? null : () => setState(() => _selected = url),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      url,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                        child: const Icon(Icons.person_outline),
-                      ),
-                    ),
-                  ),
-                  if (isSelected)
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                            color: theme.colorScheme.primary, width: 3),
-                      ),
-                    ),
-                  if (isSelected)
-                    Positioned(
-                      top: 6,
-                      right: 6,
-                      child: CircleAvatar(
-                        radius: 12,
-                        backgroundColor: theme.colorScheme.primary,
-                        child: const Icon(Icons.check, size: 14, color: Colors.white),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
+        child: AvatarGrid(
+          avatars: _avatars,
+          selected: _selected,
+          onSelect: _saving ? null : (url) => setState(() => _selected = url),
         ),
       ),
     );

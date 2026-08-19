@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// Palette lifted verbatim from the web app's design tokens
@@ -146,8 +147,10 @@ ThemeData _build({
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     // Pass the real platform so iOS gets SF-metric text styles instead of
-    // Roboto metrics (previously hardcoded to Android).
-    textTheme: Typography.material2021().black.apply(
+    // Roboto metrics. Typography.material2021() defaults `platform` to
+    // TargetPlatform.android, so omitting the argument kept Android metrics —
+    // defaultTargetPlatform is resolved at runtime and is the actual fix.
+    textTheme: Typography.material2021(platform: defaultTargetPlatform).black.apply(
           bodyColor: text,
           displayColor: text,
         ),

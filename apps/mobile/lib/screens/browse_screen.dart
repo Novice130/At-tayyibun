@@ -141,6 +141,20 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The grid is held in local state, so a block performed on the profile
+    // detail screen left the person sitting in the already-fetched list until
+    // a manual refresh. The server excludes them on the next fetch; this
+    // filters the current page immediately.
+    final blockedIds = ref
+            .watch(blockedAccountsProvider)
+            .valueOrNull
+            ?.map((b) => b.targetPublicId)
+            .toSet() ??
+        const <String>{};
+    final visible = blockedIds.isEmpty
+        ? _items
+        : _items.where((p) => !blockedIds.contains(p.publicId)).toList();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Browse'),
@@ -156,19 +170,19 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
         child: Column(
           children: [
             const _ActiveRequestBanner(),
-            Expanded(child: _buildBody()),
+            Expanded(child: _buildBody(visible)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(List<ProfileSummary> visible) {
     if (_loading) return const LoadingView();
     if (_error != null) {
       return ErrorView(message: _error!, onRetry: () => _load(reset: true));
     }
-    if (_items.isEmpty) {
+    if (visible.isEmpty) {
       return EmptyView(
         icon: Icons.search_off,
         title: 'No profiles found',
@@ -194,12 +208,12 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
           crossAxisSpacing: 12,
           childAspectRatio: 0.68,
         ),
-        itemCount: _items.length + (_page < _pages ? 1 : 0),
+        itemCount: visible.length + (_page < _pages ? 1 : 0),
         itemBuilder: (context, i) {
-          if (i >= _items.length) {
+          if (i >= visible.length) {
             return const Center(child: CircularProgressIndicator());
           }
-          return _ProfileCard(profile: _items[i]);
+          return _ProfileCard(profile: visible[i]);
         },
       ),
     );
