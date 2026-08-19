@@ -1,8 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { and, asc, desc, eq, gte, lte, sql, SQL } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { DrizzleService } from '../../db/drizzle.service';
-import { profiles, users } from '../../db/schema';
+import { profiles, users, blocks } from '../../db/schema';
 import { EncryptionService } from '../../services/encryption.service';
 import { AvatarService } from '../../services/avatar.service';
 import { Gender } from '../../common/types/role';
@@ -26,7 +26,7 @@ export class ProfilesService {
     private readonly avatarService: AvatarService,
   ) {}
 
-  async browseProfiles(filters: BrowseFilters) {
+  async browseProfiles(filters: BrowseFilters, viewerId: string) {
     const {
       ethnicity,
       gender,
@@ -41,6 +41,17 @@ export class ProfilesService {
     const conds: SQL[] = [eq(profiles.profileComplete, true)];
     if (ethnicity) conds.push(eq(profiles.ethnicity, ethnicity));
     if (gender) conds.push(eq(profiles.gender, gender));
+
+    // Never return the caller's own profile — this also fixes the pre-existing
+    // bug where browse listed the viewer themselves.
+    conds.push(sql`${profiles.userId} <> ${viewerId}`);
+
+    // Blocking is symmetric: neither party sees the other again.
+    conds.push(sql`NOT EXISTS (
+      SELECT 1 FROM blocks b
+      WHERE (b.blocker_id = ${viewerId} AND b.blocked_id = ${profiles.userId})
+         OR (b.blocker_id = ${profiles.userId} AND b.blocked_id = ${viewerId})
+    )`);
 
     if (minAge || maxAge) {
       const today = new Date();
@@ -72,6 +83,7 @@ export class ProfilesService {
           profile: profiles,
           user: {
             publicId: users.publicId,
+            image: users.image,
             rankBoost: users.rankBoost,
             membershipTier: users.membershipTier,
             createdAt: users.createdAt,
@@ -98,7 +110,9 @@ export class ProfilesService {
         ethnicity: profile.ethnicity,
         city: locationHidden ? null : profile.city,
         state: locationHidden ? null : profile.state,
-        avatarUrl: this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
+        avatarUrl: user.image?.trim()
+          ? user.image
+          : this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
         bio: 'bio' in pf ? pf['bio'] : null,
         membershipTier: user.membershipTier,
       };
@@ -108,7 +122,7 @@ export class ProfilesService {
     return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
-  async getProfileByPublicId(publicId: string, isAuthenticated: boolean) {
+  async getProfileByPublicId(publicId: string, isAuthenticated: boolean, viewerId?: string) {
     const user = await this.drizzle.db.query.users.findFirst({
       where: eq(users.publicId, publicId),
       with: { profiles: true },
@@ -117,6 +131,20 @@ export class ProfilesService {
 
     const profile = Array.isArray((user as any).profiles) ? (user as any).profiles[0] : (user as any).profiles;
     if (!profile) throw new NotFoundException('Profile not found');
+
+    // A blocked viewer gets a 404, not 403 — "you are blocked" leaks that the
+    // user exists and is itself information. Hide, don't announce.
+    if (viewerId && viewerId !== user.id) {
+      const [blockRow] = await this.drizzle.db
+        .select({ id: blocks.id })
+        .from(blocks)
+        .where(
+          sql`(${blocks.blockerId} = ${viewerId} AND ${blocks.blockedId} = ${user.id})
+              OR (${blocks.blockerId} = ${user.id} AND ${blocks.blockedId} = ${viewerId})`,
+        )
+        .limit(1);
+      if (blockRow) throw new NotFoundException('Profile not found');
+    }
 
     const pf = (profile.publicFields && typeof profile.publicFields === 'object') ? (profile.publicFields as any) : {};
     const nameHidden = !!pf['hideName'];
@@ -129,7 +157,9 @@ export class ProfilesService {
       ethnicity: profile.ethnicity,
       city: locationHidden ? null : profile.city,
       state: locationHidden ? null : profile.state,
-      avatarUrl: this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
+      avatarUrl: user.image?.trim()
+        ? user.image
+        : this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
       bio: 'bio' in pf ? pf['bio'] : null,
       profileComplete: profile.profileComplete,
     };
@@ -173,6 +203,7 @@ export class ProfilesService {
       membershipTier: user.membershipTier,
       isVerified: user.isVerified,
       isPhoneVerified: user.isPhoneVerified,
+      image: user.image ?? null,
       profile: profile
         ? {
             firstName: profile.firstName,
@@ -217,6 +248,13 @@ export class ProfilesService {
     try {
       const db = this.drizzle.db;
       const [existingProfile] = await db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1);
+
+      // Age gate (App Store 1.1.4 + 2.3.x): matrimony is 18+. The client caps
+      // its date picker, but the server enforces it too — a curl request must
+      // not be able to create an under-18 profile.
+      if (data.dob !== undefined && this.calculateAgeFromString(data.dob) < 18) {
+        throw new BadRequestException('You must be at least 18 years old to use At-Tayyibun.');
+      }
 
       // Guard on `!== undefined`, not truthiness: a truthiness check makes an
       // empty string a no-op, so a user could never clear a field they had

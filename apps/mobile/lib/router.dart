@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'providers.dart';
+import 'screens/avatar_picker_screen.dart';
 import 'screens/browse_screen.dart';
 import 'screens/edit_profile_screen.dart';
 import 'screens/login_screen.dart';
@@ -50,6 +51,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/profile/edit',
         parentNavigatorKey: _rootKey,
         builder: (_, _) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: '/profile/avatar',
+        parentNavigatorKey: _rootKey,
+        builder: (_, state) => AvatarPickerScreen(
+          gender: state.uri.queryParameters['gender'] ?? 'MALE',
+        ),
       ),
       ShellRoute(
         navigatorKey: _shellKey,

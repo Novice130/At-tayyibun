@@ -15,6 +15,13 @@
       "when": 1786331713344,
       "tag": "0001_partial_pending_request_index",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787131416012,
+      "tag": "0002_blocks_reports_terms",
+      "breakpoints": true
     }
   ]
 }

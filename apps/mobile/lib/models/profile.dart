@@ -80,6 +80,7 @@ class MyProfile {
     required this.phone,
     required this.membershipTier,
     required this.isVerified,
+    required this.image,
     required this.profile,
   });
 
@@ -89,6 +90,7 @@ class MyProfile {
   final String? phone;
   final String membershipTier;
   final bool isVerified;
+  final String? image;
   final ProfileDetails? profile;
 
   bool get isComplete => profile?.profileComplete ?? false;
@@ -100,6 +102,7 @@ class MyProfile {
         phone: json['phone'] as String?,
         membershipTier: json['membershipTier'] as String? ?? 'FREE',
         isVerified: json['isVerified'] as bool? ?? false,
+        image: json['image'] as String?,
         profile: json['profile'] == null
             ? null
             : ProfileDetails.fromJson(

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../core/api_exception.dart';
 import '../models/info_request.dart';
@@ -75,6 +77,7 @@ class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
 
   Future<void> _sendRequest() async {
     setState(() => _busy = true);
+    HapticFeedback.mediumImpact();
     try {
       await ref.read(requestsRepositoryProvider).send(widget.publicId);
       ref.invalidate(activeRequestProvider);
@@ -110,6 +113,168 @@ class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
     }
   }
 
+  Future<void> _block() async {
+    final p = _profile;
+    if (p == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Block this person?'),
+        content: Text(
+          '${p.displayName} will disappear from your browse and neither of '
+          'you will see the other again. Any pending request between you is '
+          'cancelled.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Block'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _busy = true);
+    try {
+      await ref
+          .read(moderationRepositoryProvider)
+          .block(widget.publicId);
+      if (!mounted) return;
+      // The blocked person must visibly disappear from browse.
+      context.pop();
+      _toast('${p.displayName} has been blocked.');
+    } on ApiException catch (e) {
+      _toast(e.message);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _report() async {
+    final p = _profile;
+    if (p == null) return;
+
+    const reasons = <(String, String)>[
+      ('FAKE_PROFILE', 'Fake profile'),
+      ('INAPPROPRIATE_CONTENT', 'Inappropriate content'),
+      ('HARASSMENT', 'Harassment'),
+      ('SPAM_OR_SCAM', 'Spam or scam'),
+      ('UNDERAGE', 'Underage user'),
+      ('OTHER', 'Other'),
+    ];
+
+    String? reason;
+    final details = TextEditingController();
+
+    final reported = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Report ${p.displayName}',
+                  style: Theme.of(ctx).textTheme.titleLarge),
+              const SizedBox(height: 12),
+              RadioGroup<String>(
+                groupValue: reason,
+                onChanged: (v) => setSheetState(() => reason = v),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final (code, label) in reasons)
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(label),
+                        value: code,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: details,
+                maxLength: 500,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Details (optional)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: reason == null
+                    ? null
+                    : () => Navigator.pop(ctx, true),
+                child: const Text('Submit Report'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final chosen = reason;
+    if (reported != true || chosen == null) {
+      details.dispose();
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      await ref.read(moderationRepositoryProvider).report(
+            widget.publicId,
+            reason: chosen,
+            details: details.text,
+          );
+      if (!mounted) return;
+      final alsoBlock = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Report submitted'),
+          content: const Text(
+              'Thank you — our team reviews reports within 24 hours. '
+              'Would you also like to block this person?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('No thanks'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Also block'),
+            ),
+          ],
+        ),
+      );
+      if (alsoBlock == true) {
+        await _block();
+      }
+    } on ApiException catch (e) {
+      _toast(e.message);
+    } finally {
+      details.dispose();
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -129,7 +294,44 @@ class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
     final hasOtherPending = _active != null && !pendingForThis;
 
     return Scaffold(
-      appBar: AppBar(title: Text(p.displayName)),
+      appBar: AppBar(
+        title: Text(p.displayName),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'block') {
+                _block();
+              } else if (value == 'report') {
+                _report();
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'block',
+                child: Row(
+                  children: [
+                    Icon(Icons.block, size: 20),
+                    SizedBox(width: 12),
+                    Text('Block'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'report',
+                child: Row(
+                  children: [
+                    Icon(Icons.flag_outlined, size: 20),
+                    SizedBox(width: 12),
+                    Text('Report'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),

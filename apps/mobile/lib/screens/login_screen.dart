@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../core/api_exception.dart';
 import '../providers.dart';
@@ -21,6 +22,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _obscure = true;
   bool _loading = false;
   bool _googleLoading = false;
+  bool _appleLoading = false;
   String? _error;
 
   @override
@@ -94,6 +96,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (mounted) setState(() => _error = e.message);
     } finally {
       if (mounted) setState(() => _googleLoading = false);
+    }
+  }
+
+  Future<void> _signInWithApple() async {
+    if (_loading || _googleLoading || _appleLoading) return;
+    setState(() {
+      _appleLoading = true;
+      _error = null;
+    });
+
+    try {
+      final result =
+          await ref.read(authControllerProvider.notifier).signInWithApple();
+      if (!mounted) return;
+
+      if (result is SignInCancelled) return;
+
+      if (result is SignInTwoFactorRequired) {
+        setState(() => _error =
+            'This account has two-factor authentication enabled. Please sign in '
+            'on attayyibun.com to complete the challenge.');
+        return;
+      }
+
+      context.go('/browse');
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _appleLoading = false);
     }
   }
 
@@ -208,9 +239,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ],
                     ),
                     const SizedBox(height: 20),
+                    // Apple's HIG requires Sign in with Apple to be no less
+                    // prominent than other third-party buttons — so it sits
+                    // above Google — and the label must be the exact text.
+                    if (Theme.of(context).platform == TargetPlatform.iOS) ...[
+                      SizedBox(
+                        height: 48,
+                        child: SignInWithAppleButton(
+                          style: SignInWithAppleButtonStyle.black,
+                          borderRadius:
+                              const BorderRadius.all(Radius.circular(12)),
+                          onPressed:
+                              (_loading || _googleLoading || _appleLoading)
+                                  ? null
+                                  : _signInWithApple,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     OutlinedButton.icon(
                       onPressed:
-                          (_loading || _googleLoading) ? null : _signInWithGoogle,
+                          (_loading || _googleLoading || _appleLoading)
+                              ? null
+                              : _signInWithGoogle,
                       icon: _googleLoading
                           ? const SizedBox(
                               width: 18,

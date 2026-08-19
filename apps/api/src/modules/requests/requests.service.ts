@@ -5,10 +5,10 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, or } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { DrizzleService } from '../../db/drizzle.service';
-import { infoRequests, users, photos } from '../../db/schema';
+import { infoRequests, users, photos, blocks } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
 import { StorageService } from '../../services/storage.service';
@@ -55,6 +55,21 @@ export class RequestsService {
     if (!target.profile) {
       throw new BadRequestException('This member has not finished setting up their profile yet.');
     }
+
+    // A block in either direction makes the connection void. Mirror the
+    // browse/profiling rule: the requester should never have been able to
+    // reach this user, and this guard makes the API tell them the same thing.
+    const [blockRow] = await this.drizzle.db
+      .select({ id: blocks.id })
+      .from(blocks)
+      .where(
+        or(
+          and(eq(blocks.blockerId, requesterId), eq(blocks.blockedId, target.id)),
+          and(eq(blocks.blockerId, target.id), eq(blocks.blockedId, requesterId)),
+        ),
+      )
+      .limit(1);
+    if (blockRow) throw new NotFoundException('User not found');
 
     const [existing] = await this.drizzle.db
       .select({ id: infoRequests.id })

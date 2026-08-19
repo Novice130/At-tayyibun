@@ -89,6 +89,133 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen>
     }
   }
 
+  Future<void> _blockParty(InfoRequest request) async {
+    final party = request.counterpart;
+    if (party == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Block this person?'),
+        content: Text(
+          '${party.displayName} will disappear from your browse and neither '
+          'of you will see the other again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Block'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(moderationRepositoryProvider).block(party.publicId);
+      _refreshAll();
+      _toast('${party.displayName} has been blocked.');
+    } on ApiException catch (e) {
+      _toast(e.message);
+    }
+  }
+
+  Future<void> _reportParty(InfoRequest request) async {
+    final party = request.counterpart;
+    if (party == null) return;
+
+    const reasons = <(String, String)>[
+      ('FAKE_PROFILE', 'Fake profile'),
+      ('INAPPROPRIATE_CONTENT', 'Inappropriate content'),
+      ('HARASSMENT', 'Harassment'),
+      ('SPAM_OR_SCAM', 'Spam or scam'),
+      ('UNDERAGE', 'Underage user'),
+      ('OTHER', 'Other'),
+    ];
+
+    String? reason;
+    final details = TextEditingController();
+    final reported = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Report ${party.displayName}',
+                  style: Theme.of(ctx).textTheme.titleLarge),
+              const SizedBox(height: 12),
+              RadioGroup<String>(
+                groupValue: reason,
+                onChanged: (v) => setSheetState(() => reason = v),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final (code, label) in reasons)
+                      RadioListTile<String>(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(label),
+                        value: code,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: details,
+                maxLength: 500,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Details (optional)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: reason == null ? null : () => Navigator.pop(ctx, true),
+                child: const Text('Submit Report'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final chosen = reason;
+    if (reported != true || chosen == null) {
+      details.dispose();
+      return;
+    }
+
+    try {
+      await ref.read(moderationRepositoryProvider).report(
+            party.publicId,
+            reason: chosen,
+            details: details.text,
+          );
+      _toast('Report submitted. Our team reviews reports within 24 hours.');
+    } on ApiException catch (e) {
+      _toast(e.message);
+    } finally {
+      details.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final incoming = ref.watch(incomingRequestsProvider);
@@ -118,6 +245,8 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen>
                 busy: _busyId == request.id,
                 onAccept: () => _respond(request, true),
                 onDecline: () => _respond(request, false),
+                onBlock: () => _blockParty(request),
+                onReport: () => _reportParty(request),
               ),
             ),
             _RequestList(
@@ -135,6 +264,8 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen>
                 request: request,
                 busy: _busyId == request.id,
                 onCancel: () => _cancel(request),
+                onBlock: () => _blockParty(request),
+                onReport: () => _reportParty(request),
               ),
             ),
           ],
@@ -207,10 +338,17 @@ class _RequestList extends StatelessWidget {
 }
 
 class _RequestCardShell extends StatelessWidget {
-  const _RequestCardShell({required this.request, required this.footer});
+  const _RequestCardShell({
+    required this.request,
+    required this.footer,
+    this.onBlock,
+    this.onReport,
+  });
 
   final InfoRequest request;
   final Widget footer;
+  final VoidCallback? onBlock;
+  final VoidCallback? onReport;
 
   @override
   Widget build(BuildContext context) {
@@ -273,6 +411,37 @@ class _RequestCardShell extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onBlock != null || onReport != null)
+                  PopupMenuButton<String>(
+                    tooltip: 'More',
+                    icon: const Icon(Icons.more_vert),
+                    onSelected: (value) {
+                      if (value == 'block') onBlock?.call();
+                      if (value == 'report') onReport?.call();
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: 'block',
+                        child: Row(
+                          children: [
+                            Icon(Icons.block, size: 20),
+                            SizedBox(width: 12),
+                            Text('Block'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'report',
+                        child: Row(
+                          children: [
+                            Icon(Icons.flag_outlined, size: 20),
+                            SizedBox(width: 12),
+                            Text('Report'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
             footer,
@@ -289,18 +458,24 @@ class _IncomingTile extends StatelessWidget {
     required this.busy,
     required this.onAccept,
     required this.onDecline,
+    required this.onBlock,
+    required this.onReport,
   });
 
   final InfoRequest request;
   final bool busy;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
+  final VoidCallback onBlock;
+  final VoidCallback onReport;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return _RequestCardShell(
       request: request,
+      onBlock: onBlock,
+      onReport: onReport,
       footer: request.isPending
           ? Padding(
               padding: const EdgeInsets.only(top: 16),
@@ -344,11 +519,15 @@ class _OutgoingTile extends StatelessWidget {
     required this.request,
     required this.busy,
     required this.onCancel,
+    required this.onBlock,
+    required this.onReport,
   });
 
   final InfoRequest request;
   final bool busy;
   final VoidCallback onCancel;
+  final VoidCallback onBlock;
+  final VoidCallback onReport;
 
   @override
   Widget build(BuildContext context) {
@@ -364,6 +543,8 @@ class _OutgoingTile extends StatelessWidget {
 
     return _RequestCardShell(
       request: request,
+      onBlock: onBlock,
+      onReport: onReport,
       footer: Padding(
         padding: const EdgeInsets.only(top: 12),
         child: Column(

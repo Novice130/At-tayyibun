@@ -19,7 +19,8 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
     "db:seed:admin": "tsx src/db/seed-admin.ts",
-    "db:seed:photos": "tsx src/db/seed-photos.ts"
+    "db:seed:photos": "tsx src/db/seed-photos.ts",
+    "apple:secret": "tsx scripts/generate-apple-secret.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.18.0",
@@ -42,6 +43,7 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "ioredis": "^5.4.2",
+    "jose": "^6.0.0",
     "multer": "^2.0.2",
     "nanoid": "^3.3.8",
     "otplib": "^12.0.1",
@@ -80,6 +82,7 @@
     "ts-jest": "^29.2.5",
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
+    "tsx": "^4.19.0",
     "tsconfig-paths": "^4.2.0",
     "typescript": "~5.7.3"
   },

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/api_client.dart';
 import 'models/user.dart';
 import 'repositories/auth_repository.dart';
+import 'repositories/moderation_repository.dart';
 import 'repositories/profiles_repository.dart';
 import 'repositories/requests_repository.dart';
 
@@ -20,6 +21,9 @@ final profilesRepositoryProvider =
 
 final requestsRepositoryProvider =
     Provider((ref) => RequestsRepository(ref.watch(apiClientProvider)));
+
+final moderationRepositoryProvider =
+    Provider((ref) => ModerationRepository(ref.watch(apiClientProvider)));
 
 enum AuthStatus { unknown, signedIn, signedOut }
 
@@ -72,6 +76,19 @@ class AuthController extends StateNotifier<AuthState> {
     return result;
   }
 
+  Future<SignInResult> signInWithApple() async {
+    final result = await _repo.signInWithApple();
+    if (result is SignInSuccess) {
+      state = AuthState(status: AuthStatus.signedIn, user: result.user);
+    }
+    return result;
+  }
+
+  Future<void> deleteAccount() async {
+    await _repo.deleteAccount();
+    state = const AuthState(status: AuthStatus.signedOut);
+  }
+
   Future<void> signOut() async {
     await _repo.signOut();
     state = const AuthState(status: AuthStatus.signedOut);
@@ -113,4 +130,10 @@ final pendingIncomingCountProvider = Provider<int>((ref) {
 final activeRequestProvider = FutureProvider((ref) async {
   ref.watch(authControllerProvider);
   return ref.watch(requestsRepositoryProvider).active();
+});
+
+/// The caller's block list, for the Settings/Blocked accounts screen.
+final blockedAccountsProvider = FutureProvider((ref) async {
+  ref.watch(authControllerProvider);
+  return ref.watch(moderationRepositoryProvider).blocked();
 });

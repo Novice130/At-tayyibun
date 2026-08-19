@@ -11,6 +11,7 @@ import { UsersModule } from "./modules/users/users.module";
 import { ProfilesModule } from "./modules/profiles/profiles.module";
 import { PhotosModule } from "./modules/photos/photos.module";
 import { RequestsModule } from "./modules/requests/requests.module";
+import { ModerationModule } from "./modules/moderation/moderation.module";
 import { AdminModule } from "./modules/admin/admin.module";
 // Stubs for missing modules
 import {
@@ -103,6 +104,7 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     UsersModule,
     ProfilesModule,
     RequestsModule,
+    ModerationModule,
     PhotosModule,
     AdminModule,
     // MessagesModule,

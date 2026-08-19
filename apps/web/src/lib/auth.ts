@@ -205,6 +205,15 @@ const options = {
       clientId: process.env.GOOGLE_CLIENT_ID as string,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
     },
+    apple: {
+      clientId: process.env.APPLE_CLIENT_ID as string,
+      clientSecret: process.env.APPLE_CLIENT_SECRET as string,
+      // Native iOS sign-in presents an ID token whose `aud` is the *app's*
+      // bundle id, not the Services ID. Without this, better-auth rejects
+      // every native token as an audience mismatch while the web redirect
+      // flow keeps working — a confusing split failure.
+      appBundleIdentifier: process.env.APPLE_APP_BUNDLE_ID as string,
+    },
   },
   account: {
     accountLinking: {
@@ -212,8 +221,9 @@ const options = {
       // "Continue with Google" on the same address ends up with two accounts —
       // the one duplicate class social login can actually prevent.
       enabled: true,
-      // Google verifies email ownership, so its assertion is safe to link on.
-      trustedProviders: ["google"],
+      // Google and Apple both verify email ownership, so their assertions are
+      // safe to link on.
+      trustedProviders: ["google", "apple"],
       // Only ever link when the addresses match. Linking across different
       // emails would let a Google account attach itself to someone else's
       // profile.
@@ -342,6 +352,9 @@ const options = {
       // leaving every new account with a null phone, which in turn made the
       // approved-contact-share email hand out an empty phone number.
       phone: { type: "string", required: false, input: true },
+      // EULA acknowledgement (Guideline 1.2 for UGC apps). Set by the client
+      // at sign-up; evidences acceptance if review asks.
+      termsAcceptedAt: { type: "date", required: false, input: true },
     },
   },
 } satisfies BetterAuthOptions;

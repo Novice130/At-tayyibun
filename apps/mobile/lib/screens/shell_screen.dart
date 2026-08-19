@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -29,7 +30,11 @@ class ShellScreen extends ConsumerWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         onDestinationSelected: (i) {
-          if (i != index) context.go(_tabs[i]);
+          if (i != index) {
+            // Light tactile feedback on tab switch — an iOS-native touch.
+            HapticFeedback.selectionClick();
+            context.go(_tabs[i]);
+          }
         },
         destinations: [
           const NavigationDestination(

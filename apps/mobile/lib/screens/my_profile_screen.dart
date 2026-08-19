@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api_exception.dart';
+import '../core/constants.dart';
 import '../models/profile.dart';
 import '../providers.dart';
+import '../widgets/profile_avatar.dart';
 import '../widgets/states.dart';
 
 /// Fields stored inside the encrypted `biodata` blob that are worth surfacing.
@@ -77,13 +80,78 @@ class MyProfileScreen extends ConsumerWidget {
   }
 }
 
-class _Body extends StatelessWidget {
+class _Body extends ConsumerWidget {
   const _Body({required this.me});
 
   final MyProfile me;
 
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final first = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This is permanent and immediate. Your profile, photos, requests '
+          'and messages are removed right away and cannot be recovered.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    if (first != true || !context.mounted) return;
+
+    final controller = TextEditingController();
+    final second = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Type DELETE to confirm'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'DELETE'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () =>
+                Navigator.pop(ctx, controller.text.trim() == 'DELETE'),
+            child: const Text('Delete permanently'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (second != true) return;
+
+    try {
+      await ref.read(authControllerProvider.notifier).deleteAccount();
+      if (context.mounted) context.go('/login');
+    } on ApiException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final p = me.profile;
 
@@ -120,21 +188,20 @@ class _Body extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             child: Column(
               children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: theme.colorScheme.primary,
-                  child: Text(
-                    p.firstName.isEmpty
-                        ? '?'
-                        : p.firstName.characters.first.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.bold,
-                      color: theme.colorScheme.onPrimary,
-                    ),
-                  ),
+                ProfileAvatar(
+                  url: me.image ?? '',
+                  fallbackLabel: p.firstName,
+                  size: 80,
+                  borderRadius: BorderRadius.circular(40),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => context.push(
+                    '/profile/avatar?gender=${p.gender ?? 'MALE'}',
+                  ),
+                  child: const Text('Change photo'),
+                ),
+                const SizedBox(height: 4),
                 Text(
                   p.age > 0 ? '$fullName, ${p.age}' : fullName,
                   textAlign: TextAlign.center,
@@ -210,6 +277,66 @@ class _Body extends StatelessWidget {
             ),
           ),
         ],
+        const SizedBox(height: 16),
+        _Section(
+          title: 'Blocked Accounts',
+          child: _BlockedList(),
+        ),
+        const SizedBox(height: 16),
+        _Section(
+          title: 'Legal',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextButton(
+                onPressed: () => launchUrl(Uri.parse('$kBaseUrl/privacy'),
+                    mode: LaunchMode.externalApplication),
+                child: const Text('Privacy Policy'),
+              ),
+              TextButton(
+                onPressed: () => launchUrl(Uri.parse('$kBaseUrl/terms'),
+                    mode: LaunchMode.externalApplication),
+                child: const Text('Terms of Service'),
+              ),
+              TextButton(
+                onPressed: () => launchUrl(Uri.parse('$kBaseUrl/contact'),
+                    mode: LaunchMode.externalApplication),
+                child: const Text('Contact Us'),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Danger zone — visually separated, error colour. App Review checks
+        // that deletion is reachable in at most two taps from a persistent tab.
+        Card(
+          color: theme.colorScheme.error.withValues(alpha: 0.06),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Danger Zone',
+                    style: theme.textTheme.titleMedium
+                        ?.copyWith(color: theme.colorScheme.error)),
+                const SizedBox(height: 8),
+                Text(
+                  'Deleting your account is permanent and cannot be undone.',
+                  style: theme.textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: theme.colorScheme.error,
+                  ),
+                  onPressed: () => _confirmDelete(context, ref),
+                  icon: const Icon(Icons.delete_forever_outlined, size: 18),
+                  label: const Text('Delete account'),
+                ),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(height: 24),
       ],
     );
@@ -220,6 +347,54 @@ class _Body extends StatelessWidget {
     if (value is bool) return value ? 'Yes' : 'No';
     final s = value.toString().trim();
     return s.isEmpty ? null : s;
+  }
+}
+
+class _BlockedList extends ConsumerWidget {
+  const _BlockedList();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final blocked = ref.watch(blockedAccountsProvider);
+    return blocked.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(8),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, _) => const Text('Could not load blocked accounts.'),
+      data: (list) {
+        if (list.isEmpty) {
+          return const Text('No blocked accounts.',
+              style: TextStyle(fontStyle: FontStyle.italic));
+        }
+        return Column(
+          children: [
+            for (final entry in list)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(entry.name ?? entry.targetPublicId),
+                subtitle: Text(entry.email ?? ''),
+                trailing: TextButton(
+                  onPressed: () async {
+                    try {
+                      await ref
+                          .read(moderationRepositoryProvider)
+                          .unblock(entry.targetPublicId);
+                      ref.invalidate(blockedAccountsProvider);
+                    } on ApiException catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(e.message)));
+                      }
+                    }
+                  },
+                  child: const Text('Unblock'),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 }
 

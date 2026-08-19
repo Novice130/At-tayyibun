@@ -57,7 +57,7 @@ export class ProfilesController {
       limit: Math.min(limit || 20, 50),
     };
 
-    return this.profilesService.browseProfiles(filters);
+    return this.profilesService.browseProfiles(filters, userId ?? "");
   }
 
   @Get("me")
@@ -90,6 +90,7 @@ export class ProfilesController {
   @ApiResponse({ status: 404, description: "Profile not found" })
   async getProfile(@Param("publicId") publicId: string, @Req() req: Request) {
     const isAuthenticated = !!req.user;
-    return this.profilesService.getProfileByPublicId(publicId, isAuthenticated);
+    const viewerId = (req.user as any)?.id as string | undefined;
+    return this.profilesService.getProfileByPublicId(publicId, isAuthenticated, viewerId);
   }
 }

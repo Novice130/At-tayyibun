@@ -140,6 +140,20 @@
     background: var(--color-gold-100);
   }
 
+  .btn-danger {
+    @apply btn font-semibold;
+    background: #E5484D;
+    color: white;
+    border: 1px solid transparent;
+  }
+  .btn-danger:hover {
+    background: #c93a3f;
+  }
+  .btn-danger:disabled {
+    background: #E5484D66;
+    cursor: not-allowed;
+  }
+
   .btn-ghost {
     @apply btn;
     background: transparent;

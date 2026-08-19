@@ -38,6 +38,7 @@ export default function SignupForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [step, setStep] = useState<'role' | 'form' | 'guardian' | 'avatar' | 'verify-phone'>('role');
   // Phone-OTP state — kept around so re-enabling Twilio is a one-line change in handleSubmit.
   const [otpCode, setOtpCode] = useState('');
@@ -142,6 +143,10 @@ export default function SignupForm() {
       setError('Please choose an avatar.');
       return;
     }
+    if (!termsAccepted) {
+      setError('Please accept the Terms of Service and Privacy Policy.');
+      return;
+    }
     // Phone validation kept active — we still collect the phone for the
     // contact-share flow, just don't send an SMS OTP for now.
     const e164 = toE164(formData.phone);
@@ -160,6 +165,8 @@ export default function SignupForm() {
         image: formData.avatar,
         // Persisted via the `phone` additionalField declared in lib/auth.ts.
         phone: e164,
+        // EULA acceptance evidence — additionalField on users.
+        termsAcceptedAt: new Date().toISOString(),
         // Land verified users in the wizard instead of better-auth's default
         // callback, which dropped them on the marketing home page.
         callbackURL: '/profile/setup',
@@ -588,10 +595,29 @@ export default function SignupForm() {
               ))}
             </div>
 
+            {/* EULA — Guideline 1.2: explicit agreement with zero tolerance
+                for objectionable content. Recorded server-side on sign-up. */}
+            <label className="flex items-start gap-3 mb-6 text-sm cursor-pointer" style={{ color: 'var(--color-text-secondary)' }}>
+              <input
+                type="checkbox"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
+                className="mt-1 accent-gold-500"
+              />
+              <span>
+                I agree to the{' '}
+                <Link href="/terms" className="text-gold-400 underline">Terms of Service</Link>{' '}
+                and{' '}
+                <Link href="/privacy" className="text-gold-400 underline">Privacy Policy</Link>,
+                and I understand that At-Tayyibun has zero tolerance for
+                objectionable content or abusive behaviour.
+              </span>
+            </label>
+
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={isLoading || !formData.avatar}
+              disabled={isLoading || !formData.avatar || !termsAccepted}
               className="btn-primary w-full py-4 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? 'Creating Account...' : 'Create Account'}

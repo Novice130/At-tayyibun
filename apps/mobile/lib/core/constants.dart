@@ -29,6 +29,15 @@ const int kBrowsePageSize = 20;
 const String kGoogleServerClientId =
     String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
 
+/// The preset avatar set, mirrored from apps/web/src/app/signup/SignupForm.tsx.
+/// Real photos are never displayed publicly — a chosen cartoon avatar is the
+/// only image the product shows, which is also why the iOS app needs no photo
+/// library permission.
+List<String> presetAvatars(String gender) {
+  final folder = gender.toUpperCase() == 'MALE' ? 'male' : 'female';
+  return List.generate(13, (i) => '$kBaseUrl/avatars/$folder/$folder-${i + 1}.jpg');
+}
+
 const List<String> kEthnicities = [
   'South Asian',
   'Arab',

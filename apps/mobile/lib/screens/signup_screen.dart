@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api_exception.dart';
+import '../core/constants.dart';
 import '../providers.dart';
 
 /// Account creation.
@@ -27,6 +29,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   bool _obscure = true;
   bool _loading = false;
   bool _done = false;
+  bool _termsAccepted = false;
   String? _error;
 
   @override
@@ -53,6 +56,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate() || _loading) return;
+    if (!_termsAccepted) {
+      setState(() => _error =
+          'Please accept the Terms of Service and Privacy Policy to continue.');
+      return;
+    }
     final phone = _toE164(_phone.text);
     if (phone == null) {
       setState(() => _error = 'Please enter a valid US phone number.');
@@ -70,6 +78,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             password: _password.text,
             name: _name.text.trim(),
             phone: phone,
+            termsAcceptedAt: DateTime.now(),
           );
       if (mounted) setState(() => _done = true);
     } on ApiException catch (e) {
@@ -219,6 +228,74 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                           : null,
                     ),
                     const SizedBox(height: 24),
+                    // EULA — Guideline 1.2 wants an explicit agreement with
+                    // zero tolerance for objectionable content. The button
+                    // stays disabled until this is ticked.
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Checkbox(
+                          value: _termsAccepted,
+                          onChanged: _loading
+                              ? null
+                              : (v) => setState(() => _termsAccepted = v ?? false),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Text.rich(
+                              TextSpan(
+                                style: theme.textTheme.bodySmall,
+                                children: [
+                                  const TextSpan(
+                                      text:
+                                          'I agree to the '),
+                                  WidgetSpan(
+                                    alignment: PlaceholderAlignment.baseline,
+                                    baseline: TextBaseline.alphabetic,
+                                    child: InkWell(
+                                      onTap: () => launchUrl(
+                                          Uri.parse('$kBaseUrl/terms'),
+                                          mode: LaunchMode.externalApplication),
+                                      child: Text(
+                                        'Terms of Service',
+                                        style: TextStyle(
+                                          color: theme.colorScheme.primary,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const TextSpan(text: ' and '),
+                                  WidgetSpan(
+                                    alignment: PlaceholderAlignment.baseline,
+                                    baseline: TextBaseline.alphabetic,
+                                    child: InkWell(
+                                      onTap: () => launchUrl(
+                                          Uri.parse('$kBaseUrl/privacy'),
+                                          mode: LaunchMode.externalApplication),
+                                      child: Text(
+                                        'Privacy Policy',
+                                        style: TextStyle(
+                                          color: theme.colorScheme.primary,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const TextSpan(
+                                      text:
+                                          ', and I understand that At-Tayyibun '
+                                          'has zero tolerance for objectionable '
+                                          'content or abusive behaviour.'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
                     FilledButton(
                       onPressed: _loading ? null : _submit,
                       child: _loading

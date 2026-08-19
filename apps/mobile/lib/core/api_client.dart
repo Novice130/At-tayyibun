@@ -54,7 +54,7 @@ class ApiClient {
           // cannot set this header on a cross-site form, so it is our
           // non-browser client proof.
           if (!isAuthRoute && isMutation) {
-            options.headers['X-Requested-With'] = 'attayyibun-android';
+            options.headers['X-Requested-With'] = 'attayyibun-mobile';
           }
           return handler.next(options);
         },

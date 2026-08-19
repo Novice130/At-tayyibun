@@ -51,3 +51,23 @@ export const CampaignStatus = {
 } as const;
 
 export type CampaignStatus = (typeof CampaignStatus)[keyof typeof CampaignStatus];
+
+export const ReportReason = {
+  FAKE_PROFILE: 'FAKE_PROFILE',
+  INAPPROPRIATE_CONTENT: 'INAPPROPRIATE_CONTENT',
+  HARASSMENT: 'HARASSMENT',
+  SPAM_OR_SCAM: 'SPAM_OR_SCAM',
+  UNDERAGE: 'UNDERAGE',
+  OTHER: 'OTHER',
+} as const;
+
+export type ReportReason = (typeof ReportReason)[keyof typeof ReportReason];
+
+export const ReportStatus = {
+  PENDING: 'PENDING',
+  REVIEWED: 'REVIEWED',
+  DISMISSED: 'DISMISSED',
+  ACTIONED: 'ACTIONED',
+} as const;
+
+export type ReportStatus = (typeof ReportStatus)[keyof typeof ReportStatus];

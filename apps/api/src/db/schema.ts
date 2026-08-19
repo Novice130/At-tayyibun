@@ -7,6 +7,7 @@ export const membershipTier = pgEnum("MembershipTier", ['FREE', 'SILVER', 'GOLD'
 export const photoType = pgEnum("PhotoType", ['AI_AVATAR', 'REAL_PHOTO'])
 export const photoVisibility = pgEnum("PhotoVisibility", ['PRIVATE', 'APPROVED_ONLY'])
 export const requestStatus = pgEnum("RequestStatus", ['PENDING', 'APPROVED', 'DENIED', 'EXPIRED'])
+export const reportStatus = pgEnum("ReportStatus", ['PENDING', 'REVIEWED', 'DISMISSED', 'ACTIONED'])
 export const role = pgEnum("Role", ['USER', 'ADMIN', 'SUPER_ADMIN'])
 
 
@@ -165,6 +166,7 @@ export const users = pgTable("users", {
 	membershipTier: membershipTier("membership_tier").default('FREE').notNull(),
 	isVerified: boolean("is_verified").default(false).notNull(),
 	isPhoneVerified: boolean("is_phone_verified").default(false).notNull(),
+	termsAcceptedAt: timestamp("terms_accepted_at", { precision: 3, mode: 'string' }),
 	membershipExpiresAt: timestamp("membership_expires_at", { precision: 3, mode: 'string' }),
 	rankBoost: integer("rank_boost").default(0).notNull(),
 	rankBoostedAt: timestamp("rank_boosted_at", { precision: 3, mode: 'string' }),
@@ -283,6 +285,54 @@ export const unsubscribes = pgTable("unsubscribes", {
 			foreignColumns: [users.id],
 			name: "unsubscribes_user_id_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const blocks = pgTable("blocks", {
+	id: uuid().primaryKey().notNull(),
+	blockerId: uuid("blocker_id").notNull(),
+	blockedId: uuid("blocked_id").notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("blocks_pair_key").using("btree",
+		table.blockerId.asc().nullsLast().op("uuid_ops"),
+		table.blockedId.asc().nullsLast().op("uuid_ops")),
+	index("blocks_blocker_idx").using("btree", table.blockerId.asc().nullsLast().op("uuid_ops")),
+	index("blocks_blocked_idx").using("btree", table.blockedId.asc().nullsLast().op("uuid_ops")),
+	foreignKey({
+			columns: [table.blockerId],
+			foreignColumns: [users.id],
+			name: "blocks_blocker_id_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+	foreignKey({
+			columns: [table.blockedId],
+			foreignColumns: [users.id],
+			name: "blocks_blocked_id_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+export const reports = pgTable("reports", {
+	id: uuid().primaryKey().notNull(),
+	reporterId: uuid("reporter_id"),
+	reportedUserId: uuid("reported_user_id"),
+	reason: varchar({ length: 64 }).notNull(),
+	details: text(),
+	status: reportStatus().default('PENDING').notNull(),
+	reviewedBy: uuid("reviewed_by"),
+	reviewedAt: timestamp("reviewed_at", { precision: 3, mode: 'string' }),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	index("reports_status_idx").using("btree", table.status.asc().nullsLast().op("enum_ops")),
+	index("reports_created_at_idx").using("btree", table.createdAt.asc().nullsLast().op("timestamp_ops")),
+	foreignKey({
+			columns: [table.reporterId],
+			foreignColumns: [users.id],
+			name: "reports_reporter_id_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
+	foreignKey({
+			columns: [table.reportedUserId],
+			foreignColumns: [users.id],
+			name: "reports_reported_user_id_fkey"
+		}).onUpdate("cascade").onDelete("set null"),
 ]);
 
 export const skipReasonOptions = pgTable("skip_reason_options", {

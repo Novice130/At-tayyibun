@@ -1,4 +1,9 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:crypto/crypto.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../core/api_client.dart';
 import '../core/api_exception.dart';
@@ -47,6 +52,69 @@ class AuthRepository {
 
     final user = (data['user'] as Map?)?.cast<String, dynamic>();
     return SignInSuccess(AppUser.fromJson(user ?? const {}));
+  }
+
+  /// Native Sign in with Apple.
+  ///
+  /// Mirrors the Google path deliberately: Apple's native sheet hands back an
+  /// identity token, we POST it to better-auth, and the session cookie comes
+  /// back on that response straight into our jar. A browser redirect flow
+  /// would drop the cookie in Safari instead of the app.
+  Future<SignInResult> signInWithApple() async {
+    final rawNonce = _generateNonce();
+    final AuthorizationCredentialAppleID cred;
+    try {
+      cred = await SignInWithApple.getAppleIDCredential(
+        scopes: const [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: sha256.convert(utf8.encode(rawNonce)).toString(),
+      );
+    } on SignInWithAppleAuthorizationException catch (e) {
+      if (e.code == AuthorizationErrorCode.canceled) {
+        return const SignInCancelled();
+      }
+      throw ApiException(
+        message: 'Apple sign-in failed. Please try again.',
+        statusCode: 0,
+      );
+    }
+
+    final idToken = cred.identityToken;
+    if (idToken == null || idToken.isEmpty) {
+      throw ApiException(
+        message: 'Apple did not return an identity token.',
+        statusCode: 0,
+      );
+    }
+
+    // Apple returns the name ONLY on the first ever authorization for this
+    // Apple ID + app pair. Send it every time; the server keeps the first
+    // non-empty value it sees. Drop it and the name is unrecoverable.
+    final given = cred.givenName ?? '';
+    final family = cred.familyName ?? '';
+    final name = [given, family].where((s) => s.isNotEmpty).join(' ');
+
+    final data = await _api.post<Map<String, dynamic>>(
+      '/auth/sign-in/social',
+      body: {
+        'provider': 'apple',
+        'idToken': {'token': idToken, 'nonce': rawNonce},
+        if (name.isNotEmpty) 'name': name,
+      },
+    );
+
+    final user = (data['user'] as Map?)?.cast<String, dynamic>();
+    return SignInSuccess(AppUser.fromJson(user ?? const {}));
+  }
+
+  String _generateNonce() {
+    const charset =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._';
+    final random = Random.secure();
+    return List.generate(32, (_) => charset[random.nextInt(charset.length)])
+        .join();
   }
 
   /// Native Google sign-in.
@@ -111,6 +179,7 @@ class AuthRepository {
     required String name,
     required String phone,
     String? image,
+    required DateTime termsAcceptedAt,
   }) async {
     await _api.post<Map<String, dynamic>>(
       '/auth/sign-up/email',
@@ -120,6 +189,7 @@ class AuthRepository {
         'name': name,
         'phone': phone,
         if (image != null && image.isNotEmpty) 'image': image,
+        'termsAcceptedAt': termsAcceptedAt.toUtc().toIso8601String(),
         'callbackURL': '/profile/setup',
       },
     );
@@ -149,6 +219,21 @@ class AuthRepository {
       // Never signed in with Google, or the SDK is unavailable.
     }
     await _api.clearCookies();
+  }
+
+  /// Permanently deletes the caller's own account, then drops the session
+  /// cookie. The server does the real deletion (profiles, photos, requests);
+  /// clearing the jar here makes the signed-out state stick.
+  Future<void> deleteAccount() async {
+    await _api.delete<dynamic>('/api/users/me');
+    await _api.clearCookies();
+  }
+
+  /// Persists the chosen preset avatar. better-auth exposes this as a POST on
+  /// the auth base path, so it goes through the /auth Origin-header branch of
+  /// ApiClient rather than the /api X-Requested-With branch.
+  Future<void> updateAvatar(String imageUrl) async {
+    await _api.post<dynamic>('/auth/update-user', body: {'image': imageUrl});
   }
 
   Future<void> resendVerificationEmail(String email) async {

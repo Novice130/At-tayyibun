@@ -8,7 +8,6 @@ import { Loader, Heart, User, MapPin, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useRequireSession } from '@/lib/hooks';
 import { Navbar } from '@/components/Navbar';
-
 // Mirrors the payload from GET /api/profiles/me
 // (apps/api/src/modules/profiles/profiles.service.ts -> getMyProfile).
 interface UserProfile {
@@ -55,6 +54,8 @@ export default function ProfilePage() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const { session, loading: sessionLoading } = useRequireSession();
 
@@ -77,6 +78,22 @@ export default function ProfilePage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (deleteConfirm !== 'DELETE' || deleting) return;
+    setDeleting(true);
+    try {
+      await api.delete('/users/me');
+      // Clear the local session cookie and bounce to login.
+      await fetch('/auth/sign-out', { method: 'POST' }).catch(() => {});
+      router.push('/login');
+      router.refresh();
+    } catch (err) {
+      console.error('Account deletion failed:', err);
+      setError('Failed to delete account. Please try again.');
+      setDeleting(false);
     }
   };
 
@@ -201,6 +218,42 @@ export default function ProfilePage() {
                 )}
               </div>
             )}
+
+            {/* Legal */}
+            <div className="card p-6 sm:p-8">
+              <h2 className="font-heading text-xl font-bold mb-4">Legal</h2>
+              <div className="flex flex-wrap gap-4">
+                <Link href="/privacy" className="btn-secondary">Privacy Policy</Link>
+                <Link href="/terms" className="btn-secondary">Terms of Service</Link>
+                <Link href="/contact" className="btn-secondary">Contact Us</Link>
+              </div>
+            </div>
+
+            {/* Danger Zone — account deletion (App Store 5.1.1(v)) */}
+            <div className="card p-6 sm:p-8 border-red-500/30">
+              <h2 className="font-heading text-xl font-bold mb-2 text-red-500">Danger Zone</h2>
+              <p className="mb-4 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                Deleting your account is permanent and immediate. Your profile, photos,
+                requests and messages are removed right away and cannot be recovered.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  value={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.value)}
+                  placeholder="Type DELETE to confirm"
+                  className="input flex-1"
+                  aria-label="Type DELETE to confirm"
+                />
+                <button
+                  onClick={deleteAccount}
+                  disabled={deleteConfirm !== 'DELETE' || deleting}
+                  className="btn-danger disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deleting ? 'Deleting…' : 'Delete Account'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </main>

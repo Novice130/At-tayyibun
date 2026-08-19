@@ -27,18 +27,31 @@ class ProfileAvatar extends StatelessWidget {
       return ClipRRect(borderRadius: radius, child: placeholder);
     }
 
+    // DiceBear avatars are SVG; the preset catalogue is JPG. Branch on the
+    // extension so both render. Image.network has no placeholderBuilder, so
+    // a broken JPG falls straight to the errorBuilder fallback.
+    final isSvg = url.endsWith('.svg') || url.contains('api.dicebear.com');
+
     return ClipRRect(
       borderRadius: radius,
-      child: SvgPicture.network(
-        url,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        placeholderBuilder: (_) => placeholder,
-        // Broken/unreachable avatar URLs used to render a blank box — fall
-        // back to the initial so the UI never shows an empty avatar.
-        errorBuilder: (_, _, _) => placeholder,
-      ),
+      child: isSvg
+          ? SvgPicture.network(
+              url,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              placeholderBuilder: (_) => placeholder,
+              // Broken/unreachable avatar URLs used to render a blank box —
+              // fall back to the initial so the UI never shows an empty avatar.
+              errorBuilder: (_, _, _) => placeholder,
+            )
+          : Image.network(
+              url,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => placeholder,
+            ),
     );
   }
 }

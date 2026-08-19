@@ -145,8 +145,11 @@ ThemeData _build({
       contentTextStyle: TextStyle(color: text),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
-    textTheme: Typography.material2021(platform: TargetPlatform.android)
-        .black
-        .apply(bodyColor: text, displayColor: text),
+    // Pass the real platform so iOS gets SF-metric text styles instead of
+    // Roboto metrics (previously hardcoded to Android).
+    textTheme: Typography.material2021().black.apply(
+          bodyColor: text,
+          displayColor: text,
+        ),
   );
 }
