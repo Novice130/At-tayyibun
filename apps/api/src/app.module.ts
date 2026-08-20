@@ -13,15 +13,6 @@ import { PhotosModule } from "./modules/photos/photos.module";
 import { RequestsModule } from "./modules/requests/requests.module";
 import { ModerationModule } from "./modules/moderation/moderation.module";
 import { AdminModule } from "./modules/admin/admin.module";
-// Stubs for missing modules
-import {
-  MessagesModule,
-  AdsModule,
-  CouponsModule,
-  MembershipsModule,
-  CampaignsModule,
-} from "./modules/stub-modules";
-
 // Guards & Interceptors
 import { BetterAuthGuard } from "./common/guards/better-auth.guard";
 import { AuditLogInterceptor } from "./common/interceptors/audit-log.interceptor";
@@ -107,11 +98,6 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     ModerationModule,
     PhotosModule,
     AdminModule,
-    // MessagesModule,
-    // AdsModule,
-    // CouponsModule,
-    // MembershipsModule,
-    // CampaignsModule,
   ],
   providers: [
     // Global guards (deny-by-default)

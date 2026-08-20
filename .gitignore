@@ -35,8 +35,8 @@ coverage/
 # Turbo
 .turbo/
 
-# Prisma
-apps/api/src/prisma/migrations/*.sql
+# Tool output
+graphify-out/
 
 # Terraform
 infra/.terraform/
