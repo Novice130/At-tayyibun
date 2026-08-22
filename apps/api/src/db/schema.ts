@@ -166,6 +166,13 @@ export const users = pgTable("users", {
 	membershipTier: membershipTier("membership_tier").default('FREE').notNull(),
 	isVerified: boolean("is_verified").default(false).notNull(),
 	isPhoneVerified: boolean("is_phone_verified").default(false).notNull(),
+	// True while `email` holds the +<e164>@phone.attayyibun.invalid placeholder
+	// the phone-number plugin mints for phone-first signups. Never send to it,
+	// and never share it with another user.
+	emailIsPlaceholder: boolean("email_is_placeholder").default(false).notNull(),
+	// Accounts that predate phone verification skip the phone gate. Separate
+	// from isPhoneVerified on purpose — see drizzle/0003_phone_identity.sql.
+	phoneGateExempt: boolean("phone_gate_exempt").default(false).notNull(),
 	termsAcceptedAt: timestamp("terms_accepted_at", { precision: 3, mode: 'string' }),
 	membershipExpiresAt: timestamp("membership_expires_at", { precision: 3, mode: 'string' }),
 	rankBoost: integer("rank_boost").default(0).notNull(),
@@ -182,7 +189,14 @@ export const users = pgTable("users", {
 	uniqueIndex("users_email_key").using("btree", table.email.asc().nullsLast().op("text_ops")),
 	uniqueIndex("users_email_verification_token_key").using("btree", table.emailVerificationToken.asc().nullsLast().op("text_ops")),
 	index("users_membership_tier_idx").using("btree", table.membershipTier.asc().nullsLast().op("enum_ops")),
-	uniqueIndex("users_phone_key").using("btree", table.phone.asc().nullsLast().op("text_ops")),
+	// Partial: only *verified* numbers are exclusive. Unverified claims left by
+	// the old self-asserted signup form must not block the real owner.
+	uniqueIndex("users_phone_verified_key")
+		.using("btree", table.phone.asc().nullsLast().op("text_ops"))
+		.where(sql`${table.isPhoneVerified} = true`),
+	index("users_phone_unverified_idx")
+		.using("btree", table.phone.asc().nullsLast().op("text_ops"))
+		.where(sql`${table.isPhoneVerified} = false`),
 	index("users_public_id_idx").using("btree", table.publicId.asc().nullsLast().op("text_ops")),
 	uniqueIndex("users_public_id_key").using("btree", table.publicId.asc().nullsLast().op("text_ops")),
 ]);

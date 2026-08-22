@@ -32,7 +32,10 @@ export class EmailCampaignProcessor extends WorkerHost {
     }
 
     // Build filters
-    const filters: any[] = [];
+    // Phone-first accounts hold a +<e164>@phone.attayyibun.invalid address
+    // until they supply a real one. Sending to .invalid can only produce hard
+    // bounces, which is exactly what wrecks a sending domain's reputation.
+    const filters: any[] = [eq(users.emailIsPlaceholder, false)];
     if (audience?.roles?.length > 0) {
       filters.push(inArray(users.role, audience.roles));
     }
@@ -47,7 +50,7 @@ export class EmailCampaignProcessor extends WorkerHost {
       firstName: users.name // Fallback if name is used as first name
     })
     .from(users)
-    .where(filters.length > 0 ? and(...filters) : undefined);
+    .where(and(...filters));
 
     this.logger.log(`Found ${recipients.length} recipients for campaign ${campaignId}`);
     

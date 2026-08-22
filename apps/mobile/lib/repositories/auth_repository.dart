@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
@@ -177,7 +179,6 @@ class AuthRepository {
     required String email,
     required String password,
     required String name,
-    required String phone,
     String? image,
     required DateTime termsAcceptedAt,
   }) async {
@@ -187,7 +188,9 @@ class AuthRepository {
         'email': email,
         'password': password,
         'name': name,
-        'phone': phone,
+        // NOTE: no 'phone'. users.phone belongs to the better-auth phone-number
+        // plugin and may only be written by a Firebase-verified claim — the
+        // phone gate collects it right after this account is created.
         if (image != null && image.isNotEmpty) 'image': image,
         'termsAcceptedAt': termsAcceptedAt.toUtc().toIso8601String(),
         'callbackURL': '/profile/setup',
@@ -240,6 +243,97 @@ class AuthRepository {
     await _api.post<dynamic>(
       '/auth/send-verification-email',
       body: {'email': email, 'callbackURL': '/profile/setup'},
+    );
+  }
+
+  // ── Phone verification ─────────────────────────────────────────────────────
+  //
+  // Firebase delivers and checks the SMS code; what reaches our server is the
+  // resulting ID token, which better-auth's phone-number plugin accepts in
+  // place of an OTP (see apps/web/src/lib/phone-verify.ts). The session cookie
+  // comes back on the response and lands in the jar exactly like the Google and
+  // Apple paths above.
+
+  /// Ask Firebase to text a code to [e164].
+  ///
+  /// On Android the SMS is often auto-retrieved, in which case
+  /// [onAutoVerified] fires with a ready-to-use credential and the user never
+  /// has to type anything — ignoring it leaves them staring at a code field
+  /// that has already succeeded.
+  Future<String> startPhoneVerification(
+    String e164, {
+    required void Function(fb.PhoneAuthCredential credential) onAutoVerified,
+    required void Function(fb.FirebaseAuthException error) onFailed,
+  }) async {
+    final completer = Completer<String>();
+    await fb.FirebaseAuth.instance.verifyPhoneNumber(
+      phoneNumber: e164,
+      verificationCompleted: onAutoVerified,
+      verificationFailed: (error) {
+        if (!completer.isCompleted) completer.completeError(error);
+        onFailed(error);
+      },
+      codeSent: (verificationId, _) {
+        if (!completer.isCompleted) completer.complete(verificationId);
+      },
+      codeAutoRetrievalTimeout: (verificationId) {
+        if (!completer.isCompleted) completer.complete(verificationId);
+      },
+    );
+    return completer.future;
+  }
+
+  /// Exchange a Firebase credential for a better-auth session.
+  ///
+  /// [updatePhoneNumber] attaches the number to the account that is already
+  /// signed in (the phone gate). Without it, verifying signs in — creating the
+  /// account if this number has never been seen.
+  Future<AppUser> verifyPhoneCredential({
+    required String e164,
+    required fb.PhoneAuthCredential credential,
+    bool updatePhoneNumber = false,
+  }) async {
+    final cred = await fb.FirebaseAuth.instance.signInWithCredential(credential);
+    final idToken = await cred.user?.getIdToken();
+    if (idToken == null) {
+      throw ApiException(
+        message: 'Could not confirm that code. Please try again.',
+        statusCode: 400,
+      );
+    }
+
+    try {
+      final data = await _api.post<Map<String, dynamic>>(
+        '/auth/phone-number/verify',
+        body: {
+          'phoneNumber': e164,
+          'code': idToken,
+          if (updatePhoneNumber) 'updatePhoneNumber': true,
+        },
+      );
+      final user = (data['user'] as Map?)?.cast<String, dynamic>();
+      return AppUser.fromJson(user ?? const {});
+    } finally {
+      // better-auth's cookie is the only session this app has; do not leave a
+      // second one behind in Firebase.
+      await fb.FirebaseAuth.instance.signOut().catchError((_) {});
+    }
+  }
+
+  /// Convenience wrapper for a code the user typed.
+  Future<AppUser> verifyPhoneCode({
+    required String e164,
+    required String verificationId,
+    required String smsCode,
+    bool updatePhoneNumber = false,
+  }) {
+    return verifyPhoneCredential(
+      e164: e164,
+      credential: fb.PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      ),
+      updatePhoneNumber: updatePhoneNumber,
     );
   }
 }

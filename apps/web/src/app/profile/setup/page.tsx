@@ -11,6 +11,7 @@ import {
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useRequireSession } from '@/lib/hooks';
+import { authClient } from '@/lib/auth-client';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -132,12 +133,20 @@ function readSeed(sessionEmail?: string | null, profileComplete?: boolean): Sign
 export default function ProfileSetupPage() {
   const router = useRouter();
   const { session, loading: sessionLoading } = useRequireSession();
+  const needsEmail = Boolean(
+    (session?.user as { emailIsPlaceholder?: boolean } | undefined)?.emailIsPlaceholder,
+  );
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>(EMPTY);
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [hydrating, setHydrating] = useState(true);
+  // Phone-first signups arrive holding a placeholder address. A real one is
+  // required before they can use the app — it is where every proposal update
+  // is sent — so it is collected here, in step 0, alongside the other basics.
+  const [email, setEmail] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
   // Biodata keys this wizard doesn't own (guardian details captured at signup).
   // Kept so submitting the wizard doesn't wipe them from the encrypted blob.
   const [extraBiodata, setExtraBiodata] = useState<Record<string, unknown>>({});
@@ -256,6 +265,12 @@ export default function ProfileSetupPage() {
   // ── Validation per step ──
   const validate = (): string => {
     if (step === 0) {
+      if (needsEmail) {
+        if (!email.trim()) return 'Email address is required.';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) {
+          return 'Please enter a valid email address.';
+        }
+      }
       if (!gender) return 'Please select your gender.';
       if (!form.firstName.trim()) return 'First name is required.';
       if (!form.lastName.trim()) return 'Last name is required.';
@@ -288,10 +303,40 @@ export default function ProfileSetupPage() {
     return '';
   };
 
+  /**
+   * Swap the placeholder address for the real one.
+   *
+   * better-auth answers /change-email with `{ status: true }` even when the
+   * address already belongs to someone else — deliberately, so the endpoint
+   * cannot be used to enumerate accounts. That means success is not proof the
+   * change happened: re-read the session and check.
+   */
+  const saveEmail = async (): Promise<string> => {
+    setSavingEmail(true);
+    try {
+      const res = await authClient.changeEmail({ newEmail: email.trim().toLowerCase() });
+      if (res.error) return res.error.message || 'Could not save that email address.';
+      const fresh = await authClient.getSession();
+      const user = fresh?.data?.user as { emailIsPlaceholder?: boolean } | undefined;
+      if (user?.emailIsPlaceholder) {
+        return 'That email address is already registered to another account.';
+      }
+      return '';
+    } catch {
+      return 'Could not save that email address. Please try again.';
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
   const handleNext = async () => {
     setError('');
     const err = validate();
     if (err) { setError(err); return; }
+    if (step === 0 && needsEmail) {
+      const emailErr = await saveEmail();
+      if (emailErr) { setError(emailErr); return; }
+    }
     if (step < STEPS.length - 1) { setStep(s => s + 1); return; }
     await handleSubmit();
   };
@@ -411,6 +456,26 @@ export default function ProfileSetupPage() {
               <h2 className="font-heading text-xl font-bold mb-1" style={{ color: 'var(--color-text)' }}>Basic Information</h2>
               <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Your full name is kept private and only shared after family approval.</p>
             </div>
+
+            {needsEmail && (
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Email Address <span className="text-red-400">*</span>
+                </label>
+                <input
+                  className="input"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                />
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                  We&apos;ll send updates about your proposals here. Never shown on your profile.
+                </p>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -705,10 +770,10 @@ export default function ProfileSetupPage() {
           <button
             type="button"
             onClick={handleNext}
-            disabled={saving}
+            disabled={saving || savingEmail}
             className="btn-primary flex items-center gap-2 px-6 py-3"
           >
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+            {(saving || savingEmail) && <Loader2 className="w-4 h-4 animate-spin" />}
             {step < STEPS.length - 1 ? (
               <>Next <ChevronRight className="w-4 h-4" /></>
             ) : (

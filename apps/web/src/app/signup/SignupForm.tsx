@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, Users, Loader, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
 import { signUp, useSession } from '@/lib/auth-client';
-import { api } from '@/lib/api';
+import { toE164 } from '@/lib/phone';
 
 
 const MALE_AVATARS = Array.from({ length: 13 }, (_, i) => `/avatars/male/male-${i + 1}.jpg`);
@@ -46,12 +46,7 @@ export default function SignupForm() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
-  const [step, setStep] = useState<'role' | 'form' | 'guardian' | 'avatar' | 'verify-phone'>('role');
-  // Phone-OTP state — kept around so re-enabling Twilio is a one-line change in handleSubmit.
-  const [otpCode, setOtpCode] = useState('');
-  const [verifyingOtp, setVerifyingOtp] = useState(false);
-  const [resendingOtp, setResendingOtp] = useState(false);
-  const [resendTimer, setResendTimer] = useState(0);
+  const [step, setStep] = useState<'role' | 'form' | 'guardian' | 'avatar'>('role');
   const [formData, setFormData] = useState({
     firstName: '',
     email: '',
@@ -76,13 +71,6 @@ export default function SignupForm() {
     if (step !== 'role') return;
     router.replace('/profile');
   }, [session, sessionPending, router, step]);
-
-  // Resend timer tick
-  useEffect(() => {
-    if (resendTimer <= 0) return;
-    const t = setInterval(() => setResendTimer(s => s - 1), 1000);
-    return () => clearInterval(t);
-  }, [resendTimer]);
 
   if (sessionPending || (session && step === 'role')) {
     return (
@@ -130,21 +118,6 @@ export default function SignupForm() {
     setStep('avatar');
   };
 
-  // Normalize a free-typed US phone to E.164 (+1XXXXXXXXXX). Twilio requires E.164.
-  // 15 digits is the E.164 maximum, and it also keeps the result inside
-  // users.phone's varchar(20). Without the upper bound a pasted number with an
-  // extension went to Postgres as-is and came back as an opaque 500:
-  // "value too long for type character varying(20)".
-  const toE164 = (raw: string): string | null => {
-    const digits = raw.replace(/\D/g, '');
-    if (digits.length === 10) return `+1${digits}`;
-    if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-    if (raw.trim().startsWith('+') && digits.length >= 7 && digits.length <= 15) {
-      return `+${digits}`;
-    }
-    return null;
-  };
-
   const handleSubmit = async () => {
     if (!formData.avatar) {
       setError('Please choose an avatar.');
@@ -170,8 +143,11 @@ export default function SignupForm() {
         password: formData.password,
         name: formData.firstName,
         image: toAbsoluteAvatar(formData.avatar),
-        // Persisted via the `phone` additionalField declared in lib/auth.ts.
-        phone: e164,
+        // NOTE: the phone is deliberately NOT sent here. users.phone belongs to
+        // the better-auth phone-number plugin and may only be written by a
+        // Firebase-verified claim; the /verify-phone gate collects it right
+        // after this account is created. The number typed above is kept in the
+        // profile seed so that page can prefill it.
         // EULA acceptance evidence — additionalField on users.
         termsAcceptedAt: new Date().toISOString(),
         // Land verified users in the wizard instead of better-auth's default
@@ -179,10 +155,10 @@ export default function SignupForm() {
         callbackURL: '/profile/setup',
       } as any);
       if (authError) {
-        // users.phone carries a unique index; surface that as a real message
+        // users.email carries a unique index; surface that as a real message
         // rather than a raw driver error.
         if (/duplicate|unique/i.test(authError.message ?? '')) {
-          throw new Error('That email or phone number is already registered.');
+          throw new Error('That email address is already registered.');
         }
         throw new Error(authError.message);
       }
@@ -212,21 +188,12 @@ export default function SignupForm() {
             // this browser, and can expire it. localStorage never does either
             // on its own, and an applied stale seed overwrites the profile.
             email: formData.email,
+            phone: e164,
             createdAt: Date.now(),
           }),
         );
       } catch {}
 
-      // ── Twilio phone OTP — temporarily disabled ──────────────────────────
-      // Trial Twilio + A2P 10DLC paperwork blocked launch. Switching back to
-      // email-link verification (better-auth requireEmailVerification: true).
-      // To re-enable: flip auth.ts back to false, uncomment the two lines
-      // below, and remove the setSuccess(true) call.
-      //
-      //   await api.post('/session/phone/send', { phone: e164 });
-      //   setResendTimer(60);
-      //   setStep('verify-phone');
-      void e164; // referenced so the validator above isn't dead code
       setSuccess(true);
     } catch (err: any) {
       console.error('Signup error:', err);
@@ -237,36 +204,6 @@ export default function SignupForm() {
   };
 
 
-
-  const handleResendOtp = async () => {
-    if (resendTimer > 0 || resendingOtp) return;
-    const e164 = toE164(formData.phone);
-    if (!e164) return;
-    setResendingOtp(true);
-    setError('');
-    try {
-      await api.post('/session/phone/send', { phone: e164 });
-      setResendTimer(60);
-    } catch (err: any) {
-      setError(err.message || 'Failed to resend code.');
-    } finally {
-      setResendingOtp(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (otpCode.length < 6) { setError('Enter the 6-digit code.'); return; }
-    setVerifyingOtp(true);
-    setError('');
-    try {
-      await api.post('/session/phone/verify', { code: otpCode });
-      router.push('/profile/setup');
-    } catch (err: any) {
-      setError(err.message || 'Invalid or expired code.');
-    } finally {
-      setVerifyingOtp(false);
-    }
-  };
 
   if (success) {
     return (
@@ -287,96 +224,6 @@ export default function SignupForm() {
             <Link href="/login" className="text-gold-400 hover:text-gold-300">sign in</Link>{' '}
             to request a new link.
           </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (step === 'verify-phone') {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: 'var(--color-bg)' }}>
-        <div className="max-w-md w-full">
-          <div className="card p-8">
-            <div className="flex flex-col items-center text-center mb-6">
-              <div className="p-4 rounded-full bg-gold-500/10 text-gold-500 ring-8 ring-gold-500/5 mb-4">
-                <ShieldCheck className="w-10 h-10" />
-              </div>
-              <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>Verify your phone</h1>
-              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                Enter the 6-digit code sent to
-                <span className="block font-medium mt-1" style={{ color: 'var(--color-text)' }}>{formData.phone}</span>
-              </p>
-            </div>
-
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-lg mb-4 text-sm text-center">
-                {error}
-              </div>
-            )}
-
-            <div className="flex justify-center gap-2 mb-6">
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <input
-                  key={i}
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  className="w-12 h-14 text-center text-2xl font-bold rounded-xl input"
-                  value={otpCode[i] || ''}
-                  onPaste={(e) => {
-                    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-                    if (!pasted) return;
-                    e.preventDefault();
-                    const filled = (otpCode.slice(0, i) + pasted).slice(0, 6);
-                    setOtpCode(filled);
-                    const target = e.currentTarget.parentElement?.children[Math.min(filled.length, 5)] as HTMLInputElement | undefined;
-                    target?.focus();
-                  }}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '');
-                    if (!val) {
-                      const arr = otpCode.split(''); arr[i] = ''; setOtpCode(arr.join(''));
-                      return;
-                    }
-                    if (val.length > 1) {
-                      const filled = (otpCode.slice(0, i) + val).slice(0, 6);
-                      setOtpCode(filled);
-                      const target = e.target.parentElement?.children[Math.min(filled.length, 5)] as HTMLInputElement | undefined;
-                      target?.focus();
-                      return;
-                    }
-                    const arr = otpCode.split(''); arr[i] = val; setOtpCode(arr.join(''));
-                    if (i < 5) (e.target.nextElementSibling as HTMLInputElement)?.focus();
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Backspace' && !otpCode[i] && i > 0) {
-                      ((e.target as HTMLInputElement).previousElementSibling as HTMLInputElement)?.focus();
-                    }
-                  }}
-                  autoFocus={i === 0}
-                />
-              ))}
-            </div>
-
-            <button
-              onClick={handleVerifyOtp}
-              disabled={verifyingOtp || otpCode.length < 6}
-              className="btn-primary w-full py-3 text-lg flex items-center justify-center gap-2"
-            >
-              {verifyingOtp ? <Loader className="w-5 h-5 animate-spin" /> : 'Verify & Continue'}
-            </button>
-
-            <div className="pt-4 mt-4 border-t border-border text-center">
-              <button
-                onClick={handleResendOtp}
-                disabled={resendTimer > 0 || resendingOtp}
-                className="text-sm font-medium text-gold-500 hover:text-gold-400 disabled:opacity-50"
-              >
-                {resendingOtp ? 'Sending…' : resendTimer > 0 ? `Resend code in ${resendTimer}s` : 'Resend code'}
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -424,7 +271,17 @@ export default function SignupForm() {
             ))}
           </div>
 
-          <p className="text-center text-sm mt-8" style={{ color: 'var(--color-text-secondary)' }}>
+          <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--color-border)' }}>
+            <Link
+              href="/signup/phone"
+              className="btn-secondary py-3 text-sm w-full flex items-center justify-center"
+            >
+              <Phone className="w-5 h-5 mr-2" />
+              Sign up with phone instead
+            </Link>
+          </div>
+
+          <p className="text-center text-sm mt-6" style={{ color: 'var(--color-text-secondary)' }}>
             Already have an account?{' '}
             <Link href="/login" className="text-gold-400 hover:text-gold-300">
               Sign in

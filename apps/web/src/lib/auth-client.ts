@@ -1,5 +1,5 @@
 import { createAuthClient } from "better-auth/react";
-import { twoFactorClient } from "better-auth/client/plugins";
+import { twoFactorClient, phoneNumberClient } from "better-auth/client/plugins";
 
 const getBaseUrl = () => {
     if (typeof window !== "undefined") return window.location.origin;
@@ -13,6 +13,7 @@ export const authClient = createAuthClient({
         twoFactorClient({
             twoFactorPage: "/admin/security/challenge",
         }),
+        phoneNumberClient(),
     ],
 });
 
@@ -22,4 +23,6 @@ export const {
     signOut,
     useSession,
     twoFactor,
+    phoneNumber,
+    changeEmail,
 } = authClient;

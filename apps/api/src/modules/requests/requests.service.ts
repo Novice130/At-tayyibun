@@ -97,6 +97,9 @@ export class RequestsService {
       .returning();
 
     try {
+      // Skip rather than bounce a notification off an unreachable .invalid
+      // address; the request is still created and shows in-app.
+      if (target.emailIsPlaceholder) throw new Error('placeholder email');
       await this.emailService.sendContactRequestEmail(
         target.email,
         target.profile.firstName,
@@ -189,8 +192,16 @@ export class RequestsService {
         }
       }
 
-      if (allowedShares.includes('phone')) sharedInfo.phone = target.phone || undefined;
-      if (allowedShares.includes('email')) sharedInfo.email = target.email;
+      // A phone-first account holds a +<e164>@phone.attayyibun.invalid
+      // placeholder until it supplies a real address; handing that to the
+      // requester as "their email" would be worse than sharing nothing. Same
+      // for a phone number nobody has verified.
+      if (allowedShares.includes('phone')) {
+        sharedInfo.phone = target.isPhoneVerified ? target.phone || undefined : undefined;
+      }
+      if (allowedShares.includes('email')) {
+        sharedInfo.email = target.emailIsPlaceholder ? undefined : target.email;
+      }
 
       try {
         await this.emailService.sendSharedInfoEmail(
@@ -343,8 +354,12 @@ export class RequestsService {
       }
     }
 
-    if (allowedShares.includes('phone')) result.phone = target.phone || undefined;
-    if (allowedShares.includes('email')) result.email = target.email;
+    if (allowedShares.includes('phone')) {
+      result.phone = target.isPhoneVerified ? target.phone || undefined : undefined;
+    }
+    if (allowedShares.includes('email')) {
+      result.email = target.emailIsPlaceholder ? undefined : target.email;
+    }
 
     return result;
   }

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api_exception.dart';
+import '../core/phone.dart';
 import '../core/constants.dart';
 import '../providers.dart';
 import '../widgets/avatar_grid.dart';
@@ -50,19 +51,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     super.dispose();
   }
 
-  /// The API stores phone numbers in E.164. Mirrors the website's toE164.
-  String? _toE164(String raw) {
-    final digits = raw.replaceAll(RegExp(r'\D'), '');
-    if (digits.length == 10) return '+1$digits';
-    if (digits.length == 11 && digits.startsWith('1')) return '+$digits';
-    // Upper bound is E.164's 15 digits, which also fits users.phone
-    // varchar(20). Unbounded input reached Postgres and failed as a 500.
-    if (raw.trim().startsWith('+') && digits.length >= 7 && digits.length <= 15) {
-      return '+$digits';
-    }
-    return null;
-  }
-
   /// Details step. Everything is validated here so the avatar step cannot
   /// strand the user on a failure that belongs to a field they can no longer
   /// see.
@@ -73,8 +61,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           'Please accept the Terms of Service and Privacy Policy to continue.');
       return;
     }
-    if (_toE164(_phone.text) == null) {
-      setState(() => _error = 'Please enter a valid US phone number.');
+    if (toE164(_phone.text) == null) {
+      setState(() => _error = 'Please enter a valid phone number, including the country code.');
       return;
     }
     setState(() {
@@ -85,11 +73,11 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
   Future<void> _submit() async {
     if (_loading) return;
-    final phone = _toE164(_phone.text);
+    final phone = toE164(_phone.text);
     if (phone == null) {
       setState(() {
         _avatarStep = false;
-        _error = 'Please enter a valid US phone number.';
+        _error = 'Please enter a valid phone number, including the country code.';
       });
       return;
     }
@@ -108,7 +96,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             email: _email.text.trim(),
             password: _password.text,
             name: _name.text.trim(),
-            phone: phone,
             image: _avatar,
             termsAcceptedAt: DateTime.now(),
           );
@@ -116,12 +103,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        // The failure is always about a details-step field (duplicate email or
-        // phone), so send them back to where it can be corrected.
+        // The failure is always about a details-step field (a duplicate
+        // email), so send them back to where it can be corrected.
         _avatarStep = false;
         _error = RegExp('duplicate|unique', caseSensitive: false)
                 .hasMatch(e.message)
-            ? 'That email or phone number is already registered.'
+            ? 'That email address is already registered.'
             : e.message;
       });
     } finally {

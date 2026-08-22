@@ -12,6 +12,7 @@ import 'screens/profile_detail_screen.dart';
 import 'screens/requests_screen.dart';
 import 'screens/shell_screen.dart';
 import 'screens/signup_screen.dart';
+import 'screens/verify_phone_screen.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
 final _shellKey = GlobalKey<NavigatorState>();
@@ -24,13 +25,20 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final auth = ref.read(authControllerProvider);
       final path = state.uri.path;
-      final isAuthRoute = path == '/login' || path == '/signup';
+      final isAuthRoute =
+          path == '/login' || path == '/signup' || path == '/signup/phone';
 
       // Hold on the splash until the session probe resolves, so a returning
       // user is never briefly bounced to the login screen.
       if (auth.status == AuthStatus.unknown) return '/splash';
 
       if (!auth.isSignedIn) return isAuthRoute ? null : '/login';
+
+      // Phone gate. Enforced server-side by BetterAuthGuard too — this only
+      // saves the user from a screen full of 403s.
+      if (auth.needsPhone) return path == '/verify-phone' ? null : '/verify-phone';
+      if (path == '/verify-phone') return '/browse';
+
       if (isAuthRoute || path == '/splash') return '/browse';
       return null;
     },
@@ -41,6 +49,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/signup', builder: (_, _) => const SignupScreen()),
+      GoRoute(
+        path: '/signup/phone',
+        builder: (_, _) => const VerifyPhoneScreen(attachToSession: false),
+      ),
+      GoRoute(
+        path: '/verify-phone',
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const VerifyPhoneScreen(),
+      ),
       GoRoute(
         path: '/profiles/:publicId',
         parentNavigatorKey: _rootKey,

@@ -1,5 +1,7 @@
 /// The `user` object returned by better-auth on sign-in and get-session.
-/// `publicId`, `role` and `phone` are declared additionalFields on the server.
+/// `publicId`, `role`, `emailIsPlaceholder` and `phoneGateExempt` are declared
+/// additionalFields on the server; `phoneNumber` and `phoneNumberVerified`
+/// belong to the phone-number plugin and map to users.phone / is_phone_verified.
 class AppUser {
   AppUser({
     required this.id,
@@ -9,7 +11,10 @@ class AppUser {
     required this.emailVerified,
     required this.publicId,
     required this.role,
-    required this.phone,
+    required this.phoneNumber,
+    required this.phoneNumberVerified,
+    required this.phoneGateExempt,
+    required this.emailIsPlaceholder,
   });
 
   final String id;
@@ -19,9 +24,20 @@ class AppUser {
   final bool emailVerified;
   final String? publicId;
   final String role;
-  final String? phone;
+  final String? phoneNumber;
+  final bool phoneNumberVerified;
+  final bool phoneGateExempt;
+  final bool emailIsPlaceholder;
 
   bool get isAdmin => role == 'ADMIN' || role == 'SUPER_ADMIN';
+
+  /// Blocked at the phone gate. Accounts created before phone verification
+  /// existed are exempt, so nobody who already signed up is locked out.
+  bool get needsPhone => !phoneNumberVerified && !phoneGateExempt;
+
+  /// Phone-first signups hold a `+<e164>@phone.attayyibun.invalid` address
+  /// until the profile wizard collects a real one.
+  bool get needsEmail => emailIsPlaceholder;
 
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
         id: json['id'] as String? ?? '',
@@ -31,6 +47,12 @@ class AppUser {
         emailVerified: json['emailVerified'] as bool? ?? false,
         publicId: json['publicId'] as String?,
         role: json['role'] as String? ?? 'USER',
-        phone: json['phone'] as String?,
+        // `phone` is the API's /session/me spelling; better-auth returns the
+        // plugin's model field name.
+        phoneNumber: json['phoneNumber'] as String? ?? json['phone'] as String?,
+        phoneNumberVerified:
+            json['phoneNumberVerified'] as bool? ?? json['isPhoneVerified'] as bool? ?? false,
+        phoneGateExempt: json['phoneGateExempt'] as bool? ?? false,
+        emailIsPlaceholder: json['emailIsPlaceholder'] as bool? ?? false,
       );
 }

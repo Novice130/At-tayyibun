@@ -2,6 +2,7 @@ import {
   Injectable,
   ExecutionContext,
   UnauthorizedException,
+  ForbiddenException,
   CanActivate,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -9,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { eq } from 'drizzle-orm';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { ALLOW_UNVERIFIED_PHONE_KEY } from '../decorators/allow-unverified-phone.decorator';
 import { DrizzleService } from '../../db/drizzle.service';
 import { session } from '../../db/schema';
 
@@ -25,6 +27,11 @@ const SESSION_COOKIES = [
  * touching the database, and compares the token against the session table in
  * constant time. All routes require a valid session unless the handler is
  * marked with @Public().
+ *
+ * Also enforces the phone gate: a signed-in user with no verified phone number
+ * is refused unless the handler is marked @AllowUnverifiedPhone(). This is the
+ * authoritative check — the web and Flutter redirects are convenience, and
+ * neither is reachable by someone calling the API directly.
  */
 @Injectable()
 export class BetterAuthGuard implements CanActivate {
@@ -116,6 +123,19 @@ export class BetterAuthGuard implements CanActivate {
         ...rest,
         profile: Array.isArray(profileRows) ? profileRows[0] ?? null : profileRows ?? null,
       };
+    }
+
+    // Phone gate. phoneGateExempt covers accounts that predate phone
+    // verification, so nobody who already signed up is locked out.
+    const allowUnverifiedPhone = this.reflector.getAllAndOverride<boolean>(
+      ALLOW_UNVERIFIED_PHONE_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    if (!allowUnverifiedPhone && user && !user.isPhoneVerified && !user.phoneGateExempt) {
+      throw new ForbiddenException({
+        message: 'Phone verification required',
+        code: 'PHONE_VERIFICATION_REQUIRED',
+      });
     }
 
     return true;

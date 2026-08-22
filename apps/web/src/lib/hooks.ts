@@ -18,9 +18,30 @@ import { authClient, useSession } from './auth-client';
  *
  * Instead of trusting the cached atom, re-verify against the server once before
  * redirecting.
+ *
+ * Also enforces the two onboarding gates, so every page using this hook
+ * inherits them: a verified phone, then a real email. Both are only UX here —
+ * the authoritative check is BetterAuthGuard in the API.
  */
+type GatedUser = {
+  phoneNumberVerified?: boolean;
+  phoneGateExempt?: boolean;
+  emailIsPlaceholder?: boolean;
+};
+
+// Pages each gate must not bounce away from, or the redirect loops. The phone
+// gate has the shorter list on purpose: /profile/setup is where the email gate
+// sends people, but a user with no verified phone cannot save anything there
+// (the API refuses it), so they belong at /verify-phone first.
+const PHONE_GATE_EXEMPT = ['/verify-phone'];
+const EMAIL_GATE_EXEMPT = ['/verify-phone', '/profile/setup'];
+
+const matches = (paths: string[], pathname: string) =>
+  paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
 export function useRequireSession() {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session, isPending } = useSession();
   const [verifying, setVerifying] = useState(true);
   // Result of the explicit re-check. Held locally rather than relying on the
@@ -65,6 +86,30 @@ export function useRequireSession() {
   }, [session, isPending, router]);
 
   const effectiveSession = session ?? verifiedSession;
+
+  // Onboarding gates. Runs after the session is settled so a freshly-verified
+  // user is not bounced on the same render that granted them the phone.
+  useEffect(() => {
+    if (verifying || !effectiveSession) return;
+
+    const user = (effectiveSession as { user?: GatedUser }).user;
+    if (!user) return;
+
+    if (
+      !user.phoneNumberVerified &&
+      !user.phoneGateExempt &&
+      !matches(PHONE_GATE_EXEMPT, pathname)
+    ) {
+      router.replace('/verify-phone');
+      return;
+    }
+    // Phone-first accounts hold a +<e164>@phone.attayyibun.invalid placeholder
+    // until the wizard collects a real address.
+    if (user.emailIsPlaceholder && !matches(EMAIL_GATE_EXEMPT, pathname)) {
+      router.replace('/profile/setup');
+    }
+  }, [effectiveSession, verifying, pathname, router]);
+
   return { session: effectiveSession as typeof session, loading: isPending || verifying };
 }
 

@@ -2,6 +2,9 @@
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
+  // firebase-admin pulls in gRPC/protobuf native deps. Bundling them breaks the
+  // build; leave it external so it is required at runtime from node_modules.
+  serverExternalPackages: ['firebase-admin'],
   images: {
     remotePatterns: [
       {

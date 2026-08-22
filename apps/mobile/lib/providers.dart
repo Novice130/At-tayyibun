@@ -34,6 +34,10 @@ class AuthState {
   final AppUser? user;
 
   bool get isSignedIn => status == AuthStatus.signedIn;
+
+  /// Signed in but blocked at the phone gate. Accounts created before phone
+  /// verification existed are exempt, so nobody already signed up is locked out.
+  bool get needsPhone => isSignedIn && (user?.needsPhone ?? false);
 }
 
 class AuthController extends StateNotifier<AuthState> {
@@ -82,6 +86,13 @@ class AuthController extends StateNotifier<AuthState> {
       state = AuthState(status: AuthStatus.signedIn, user: result.user);
     }
     return result;
+  }
+
+  /// Adopt the user returned by a phone verification. Signing in and attaching
+  /// a number to an existing session both land here, and both must refresh the
+  /// state or the router keeps redirecting to the gate it just cleared.
+  void adoptVerifiedUser(AppUser user) {
+    state = AuthState(status: AuthStatus.signedIn, user: user);
   }
 
   Future<void> deleteAccount() async {
