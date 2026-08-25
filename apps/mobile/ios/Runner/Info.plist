@@ -58,7 +58,7 @@
 	     DIFFERENT credential from the web client id passed as serverClientId.
 	     The reversed form is the URL scheme Google's SDK redirects back on. -->
 	<key>GIDClientID</key>
-	<string>PASTE_IOS_CLIENT_ID.apps.googleusercontent.com</string>
+	<string>659173631996-gg4ju84nmskgcrq6hkc030fmsa7kaj4l.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -66,7 +66,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.PASTE_IOS_CLIENT_ID</string>
+				<string>com.googleusercontent.apps.659173631996-gg4ju84nmskgcrq6hkc030fmsa7kaj4l</string>
 			</array>
 		</dict>
 	</array>

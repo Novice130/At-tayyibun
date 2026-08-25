@@ -26,8 +26,10 @@ const int kBrowsePageSize = 20;
 ///
 /// Injected at build time so it never lands in the repo:
 ///   flutter build apk --dart-define=GOOGLE_SERVER_CLIENT_ID=xxx.apps.googleusercontent.com
-const String kGoogleServerClientId =
-    String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
+const String kGoogleServerClientId = String.fromEnvironment(
+  'GOOGLE_SERVER_CLIENT_ID',
+  defaultValue: '659173631996-v043u83qkebdirej7qos9o75drs4iam7.apps.googleusercontent.com',
+);
 
 /// The preset avatar set, mirrored from apps/web/src/app/signup/SignupForm.tsx.
 /// Real photos are never displayed publicly — a chosen cartoon avatar is the

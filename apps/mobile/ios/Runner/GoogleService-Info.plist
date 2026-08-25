@@ -10,6 +10,10 @@
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.attayyibun.attayyibun</string>
+	<key>CLIENT_ID</key>
+	<string>659173631996-gg4ju84nmskgcrq6hkc030fmsa7kaj4l.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.659173631996-gg4ju84nmskgcrq6hkc030fmsa7kaj4l</string>
 	<key>PROJECT_ID</key>
 	<string>at-tayyibun-e3f79</string>
 	<key>STORAGE_BUCKET</key>
