@@ -127,19 +127,12 @@ class AuthRepository {
   /// SDK hands us an ID token, we post it to better-auth, and the session cookie
   /// comes back on that response — straight into our jar.
   Future<SignInResult> signInWithGoogle() async {
-    if (kGoogleServerClientId.isEmpty) {
-      throw ApiException(
-        message: 'Google sign-in is not configured in this build.',
-        statusCode: 0,
-      );
-    }
-
     final String idToken;
     try {
-      // initialize() is idempotent, so calling it per attempt is safe and
-      // avoids ordering constraints at app start.
       await GoogleSignIn.instance.initialize(
-        serverClientId: kGoogleServerClientId,
+        clientId: kGoogleIosClientId.isNotEmpty ? kGoogleIosClientId : null,
+        serverClientId:
+            kGoogleServerClientId.isNotEmpty ? kGoogleServerClientId : null,
       );
       final account = await GoogleSignIn.instance.authenticate();
       final token = account.authentication.idToken;
