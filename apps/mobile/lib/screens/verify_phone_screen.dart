@@ -189,7 +189,7 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
                       autofillHints: const [AutofillHints.telephoneNumber],
                       decoration: const InputDecoration(
                         labelText: 'Phone number',
-                        hintText: '+92 300 1234567',
+                        hintText: '+1 555 123 4567',
                       ),
                     )
                   else

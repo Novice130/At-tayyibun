@@ -6,7 +6,7 @@ library;
 /// Fallback dialling code for input typed without one.
 const String kDefaultCountryCode = String.fromEnvironment(
   'DEFAULT_COUNTRY_CODE',
-  defaultValue: '+92',
+  defaultValue: '+1',
 );
 
 /// Normalise free-typed input to E.164, or null if it cannot be.

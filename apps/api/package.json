@@ -20,6 +20,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:seed:admin": "tsx src/db/seed-admin.ts",
     "db:seed:photos": "tsx src/db/seed-photos.ts",
+    "db:clean:tests": "tsx src/db/cleanup-test-accounts.ts",
     "apple:secret": "tsx scripts/generate-apple-secret.ts"
   },
   "dependencies": {

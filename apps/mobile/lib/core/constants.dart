@@ -35,7 +35,7 @@ const String kGoogleServerClientId =
 /// library permission.
 List<String> presetAvatars(String gender) {
   final folder = gender.toUpperCase() == 'MALE' ? 'male' : 'female';
-  return List.generate(13, (i) => '$kBaseUrl/avatars/$folder/$folder-${i + 1}.jpg');
+  return List.generate(21, (i) => '$kBaseUrl/avatars/$folder/$folder-${i + 1}.jpg');
 }
 
 const List<String> kEthnicities = [

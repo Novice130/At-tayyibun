@@ -208,7 +208,7 @@ export default function PhoneVerify({
               autoComplete="tel"
               autoFocus
               className="input w-full mb-4"
-              placeholder="+92 300 1234567"
+              placeholder="+1 555 123 4567"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               onKeyDown={(e) => {

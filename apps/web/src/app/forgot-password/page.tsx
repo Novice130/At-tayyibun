@@ -11,22 +11,52 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
     setLoading(true);
+    setError(null);
     try {
-      // Deliberately generic success message: never reveal whether an email
-      // is registered.
-      await authClient.requestPasswordReset({
-        email,
-        redirectTo: `${window.location.origin}/login`,
-      });
+      const client = authClient as any;
+      const redirectUrl = `${window.location.origin}/reset-password`;
+
+      let callResult = null;
+      if (typeof client.forgetPassword === 'function') {
+        callResult = await client.forgetPassword({
+          email: email.trim(),
+          redirectTo: redirectUrl,
+        });
+      } else if (typeof client.requestPasswordReset === 'function') {
+        callResult = await client.requestPasswordReset({
+          email: email.trim(),
+          redirectTo: redirectUrl,
+        });
+      } else {
+        const res = await fetch('/auth/forget-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email.trim(),
+            redirectTo: redirectUrl,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || 'Failed to request password reset');
+        }
+      }
+
+      if (callResult?.error) {
+        // Deliberately do not reveal if email doesn't exist, but show other technical errors
+        console.error('[forgot-password error]', callResult.error);
+      }
+
       setSent(true);
     } catch (err: any) {
-      // Still show the generic message on failure — error details would leak
-      // account existence. Log nothing sensitive to the user.
+      console.error('[forgot-password exception]', err);
+      // Still show the generic message on failure to prevent email enumeration
       setSent(true);
     } finally {
       setLoading(false);
@@ -40,7 +70,10 @@ export default function ForgotPasswordPage() {
         <div className="max-w-md mx-auto px-4">
           <div className="card p-8">
             <div className="text-center mb-8">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'var(--color-gold-100)' }}>
+              <div
+                className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
+                style={{ backgroundColor: 'var(--color-gold-100)' }}
+              >
                 <KeyRound className="w-7 h-7 text-gold-500" />
               </div>
               <h1 className="font-heading text-2xl font-bold">Forgot password</h1>
@@ -53,7 +86,7 @@ export default function ForgotPasswordPage() {
               <div className="text-center space-y-4">
                 <MailCheck className="w-10 h-10 text-gold-500 mx-auto" />
                 <p className="text-secondary">
-                  If an account exists for that email, a reset link is on its way.
+                  If an account exists for that email, a password reset link has been sent.
                   It expires in 1 hour.
                 </p>
                 <Link href="/login" className="btn-secondary inline-flex mt-4">
@@ -62,8 +95,16 @@ export default function ForgotPasswordPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-5">
+                {error && (
+                  <div className="p-3 rounded-lg text-sm bg-red-500/10 border border-red-500/20 text-red-500">
+                    {error}
+                  </div>
+                )}
                 <div>
-                  <label htmlFor="fp-email" className="block text-sm font-semibold mb-1.5 text-secondary">
+                  <label
+                    htmlFor="fp-email"
+                    className="block text-sm font-semibold mb-1.5 text-secondary"
+                  >
                     Email address
                   </label>
                   <input

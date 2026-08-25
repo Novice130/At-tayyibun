@@ -6,7 +6,7 @@
 // stored under another, which quietly breaks the one-phone-one-account rule.
 
 /** Fallback country dialling code for input typed without one. */
-export const DEFAULT_COUNTRY_CODE = process.env.NEXT_PUBLIC_DEFAULT_COUNTRY_CODE || '+92';
+export const DEFAULT_COUNTRY_CODE = process.env.NEXT_PUBLIC_DEFAULT_COUNTRY_CODE || '+1';
 
 /**
  * Normalise free-typed input to E.164, or null if it cannot be.

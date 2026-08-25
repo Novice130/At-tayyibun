@@ -9,8 +9,8 @@ import { signUp, useSession } from '@/lib/auth-client';
 import { toE164 } from '@/lib/phone';
 
 
-const MALE_AVATARS = Array.from({ length: 13 }, (_, i) => `/avatars/male/male-${i + 1}.jpg`);
-const FEMALE_AVATARS = Array.from({ length: 13 }, (_, i) => `/avatars/female/female-${i + 1}.jpg`);
+const MALE_AVATARS = Array.from({ length: 21 }, (_, i) => `/avatars/male/male-${i + 1}.jpg`);
+const FEMALE_AVATARS = Array.from({ length: 21 }, (_, i) => `/avatars/female/female-${i + 1}.jpg`);
 
 // The paths above stay relative so next/image serves them from this origin in
 // every environment. What lands in `users.image` must be absolute, though: the

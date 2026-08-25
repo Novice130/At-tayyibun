@@ -1,0 +1,29 @@
+{
+    "project_info": {
+        "project_number": "637715249195",
+        "project_id": "at-tayyibun-e3f79",
+        "storage_bucket": "at-tayyibun-e3f79.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:637715249195:android:25fc63d66ef988e756126e",
+                "android_client_info": {
+                    "package_name": "com.attayyibun.at_tayyibun"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyD3g0-D5xFffHPFfq8hhjZ1rI4G8i4WwcU"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}
