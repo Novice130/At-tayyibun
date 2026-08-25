@@ -37,6 +37,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.png
+    - assets/hero-couple-sunset.jpg
+    - assets/hero-couple-sunset-light.jpg
 
 flutter_launcher_icons:
   android: true
