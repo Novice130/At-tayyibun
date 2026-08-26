@@ -47,6 +47,7 @@ infra/.terraform.lock.hcl
 # Secrets (never commit)
 *.pem
 *.key
+*.p8
 service-account.json
 *firebase-adminsdk*.json
 

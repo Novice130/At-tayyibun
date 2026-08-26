@@ -2,7 +2,7 @@ import { betterAuth, BetterAuthOptions, APIError } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { twoFactor, customSession, phoneNumber } from "better-auth/plugins";
 import { randomUUID, randomBytes } from "crypto";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "./db-schema";
 import { firebaseVerifyOTP } from "./phone-verify";
@@ -370,6 +370,29 @@ const options = {
     },
   },
   databaseHooks: {
+    session: {
+      create: {
+        after: async (session) => {
+          try {
+            const user = await db.query.users.findFirst({
+              where: eq(schema.users.id, session.userId),
+            });
+            if (user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") {
+              await db
+                .delete(schema.session)
+                .where(
+                  and(
+                    eq(schema.session.userId, session.userId),
+                    ne(schema.session.id, session.id)
+                  )
+                );
+            }
+          } catch (e) {
+            console.error("[auth] failed to revoke previous admin sessions:", e);
+          }
+        },
+      },
+    },
     user: {
       create: {
         before: async (user) => ({
@@ -408,7 +431,9 @@ const options = {
           apple: {
             clientId: process.env.APPLE_CLIENT_ID.replace(/^["']|["']$/g, '').trim(),
             clientSecret: process.env.APPLE_CLIENT_SECRET.replace(/^["']|["']$/g, '').trim(),
-            appBundleIdentifier: process.env.APPLE_APP_BUNDLE_ID,
+            appBundleIdentifier:
+              process.env.APPLE_APP_BUNDLE_ID?.replace(/^["']|["']$/g, '').trim() ||
+              "com.attayyibun.attayyibun",
           },
         }
       : {}),

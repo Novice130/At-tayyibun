@@ -5,7 +5,7 @@ publish_to: 'none'
 # upload whose build number is not strictly greater than every previous one for
 # the same version string, so bump it on every Transporter upload — including
 # re-uploads of a rejected build.
-version: 0.1.3+4
+version: 0.1.3+6
 
 environment:
   sdk: ^3.12.2

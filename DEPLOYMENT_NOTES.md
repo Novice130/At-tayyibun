@@ -100,12 +100,13 @@
 ## Admin & Auth Setup (2026-08-26)
 - **Admin account:** `admin@attayyibun.com` (Role: `SUPER_ADMIN`)
 - **Admin password:** Updated in database with scrypt hash
-- **2FA:** Google Authenticator (TOTP) enabled on `admin@attayyibun.com` with base32 secret and 8 backup codes.
-- **2FA Challenge page:** Enhanced to verify Google Authenticator TOTP codes, Email OTP, and Backup Codes seamlessly.
-- **Google OAuth Web:** Web client ID and secret configured in Dokploy environment and verified live. OAuth callback routes through `/verify-phone` so new Google users verify their phone before entering the profile setup wizard.
-- **Google OAuth Mobile:** Android OAuth does NOT require a client secret (uses SHA-1 + package name).
-- **Phone Verification:** Email verification requirement disabled so signup and Google OAuth proceed straight to SMS phone verification OTP and profile wizard.
-- **Avatars:** Deleted old `Images/` folder and legacy avatars. Regenerated 21 male (`male-1`..`male-21`) and 21 female (`female-1`..`female-21`) avatars strictly from `Images_New/` and deployed to production.
+- **Admin Single Concurrent Session:** Implemented via `databaseHooks.session.create.after` in `apps/web/src/lib/auth.ts`. When an admin logs in on a new device/browser, all older active sessions for that admin account are automatically invalidated from the database so previous users are signed out instantly.
+- **2FA:** Google Authenticator (TOTP) + Email OTP + Backup Codes enabled on `/admin/security/challenge`.
+- **Apple Sign-In (Web & Mobile):** Configured with Apple Client ID & Client Secret in Dokploy environment and live on production.
+- **Google OAuth Web & Mobile:** Fixed server client ID to `659173631996-bi5c9d3i4qk6pksee92abkn3t4vheeo9.apps.googleusercontent.com` across mobile builds and Dokploy.
+- **Mobile Post-Verification Avatar Flow:** When users sign in via Google/Apple/Phone, `/verify-phone` automatically routes them to the interactive Brother/Sister avatar picker (`/profile/avatar?initial=true`) before opening `/browse`.
+- **TestFlight Releases:** Automated via `apps/mobile/scripts/upload_to_testflight.sh`. Latest build uploaded: `0.1.3+6` (App ID: `6805307609`, Bundle ID: `com.attayyibun.attayyibun`).
+- **Avatars:** 42 curated avatars (21 male, 21 female from `Images_New/`) deployed to production.
 
 ## Key Technical Notes
 - `node-linker=hoisted` in `.npmrc` means ALL dependencies live in root `node_modules`. Workspace subdirectory `node_modules` folders are empty/nonexistent. Both Dockerfiles require `python3 make g++` in `deps` stage for native modules.

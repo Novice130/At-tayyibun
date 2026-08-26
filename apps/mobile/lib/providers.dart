@@ -95,6 +95,26 @@ class AuthController extends StateNotifier<AuthState> {
     state = AuthState(status: AuthStatus.signedIn, user: user);
   }
 
+  Future<void> updateAvatar(String imageUrl) async {
+    await _repo.updateAvatar(imageUrl);
+    if (state.user != null) {
+      final updated = AppUser(
+        id: state.user!.id,
+        email: state.user!.email,
+        name: state.user!.name,
+        image: imageUrl,
+        emailVerified: state.user!.emailVerified,
+        publicId: state.user!.publicId,
+        role: state.user!.role,
+        phoneNumber: state.user!.phoneNumber,
+        phoneNumberVerified: state.user!.phoneNumberVerified,
+        phoneGateExempt: state.user!.phoneGateExempt,
+        emailIsPlaceholder: state.user!.emailIsPlaceholder,
+      );
+      state = AuthState(status: AuthStatus.signedIn, user: updated);
+    }
+  }
+
   Future<void> deleteAccount() async {
     await _repo.deleteAccount();
     state = const AuthState(status: AuthStatus.signedOut);

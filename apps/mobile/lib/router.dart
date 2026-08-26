@@ -41,7 +41,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Phone gate. Enforced server-side by BetterAuthGuard too — this only
       // saves the user from a screen full of 403s.
       if (auth.needsPhone) return path == '/verify-phone' ? null : '/verify-phone';
-      if (path == '/verify-phone') return '/browse';
+      if (path == '/verify-phone') {
+        final image = auth.user?.image;
+        if (image == null || image.isEmpty) {
+          return '/profile/avatar?initial=true';
+        }
+        return '/browse';
+      }
 
       if (isAuthRoute || path == '/splash') return '/browse';
       return null;
@@ -78,7 +84,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/profile/avatar',
         parentNavigatorKey: _rootKey,
         builder: (_, state) => AvatarPickerScreen(
-          gender: state.uri.queryParameters['gender'] ?? 'MALE',
+          gender: state.uri.queryParameters['gender'],
+          isInitial: state.uri.queryParameters['initial'] == 'true',
         ),
       ),
       ShellRoute(
