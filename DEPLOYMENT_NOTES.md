@@ -102,10 +102,13 @@
 - **Admin password:** Updated in database with scrypt hash
 - **2FA:** Google Authenticator (TOTP) enabled on `admin@attayyibun.com` with base32 secret and 8 backup codes.
 - **2FA Challenge page:** Enhanced to verify Google Authenticator TOTP codes, Email OTP, and Backup Codes seamlessly.
-- **Google OAuth:** Android OAuth does NOT require a client secret (uses SHA-1 + package name). Only Web OAuth requires `GOOGLE_CLIENT_SECRET`.
-- **Phone Verification:** Email verification requirement disabled so signup proceeds straight to phone verification OTP and profile wizard.
+- **Google OAuth Web:** Web client ID and secret configured in Dokploy environment and verified live.
+- **Google OAuth Mobile:** Android OAuth does NOT require a client secret (uses SHA-1 + package name).
+- **Phone Verification:** Email verification requirement disabled so signup proceeds straight to SMS phone verification OTP and profile wizard.
+- **Avatars:** Deleted old `Images/` folder and legacy avatars. Regenerated 21 male (`male-1`..`male-21`) and 21 female (`female-1`..`female-21`) avatars strictly from `Images_New/` and deployed to production.
 
 ## Key Technical Notes
 - `node-linker=hoisted` in `.npmrc` means ALL dependencies live in root `node_modules`. Workspace subdirectory `node_modules` folders are empty/nonexistent. Both Dockerfiles require `python3 make g++` in `deps` stage for native modules.
 - Traefik routes `/api/*` to the API container and everything else to the web container. BetterAuth had to move to `/auth` to avoid being routed to the API.
+
 
