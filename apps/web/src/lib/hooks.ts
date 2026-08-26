@@ -25,6 +25,7 @@ import { authClient, useSession } from './auth-client';
  */
 type GatedUser = {
   phoneNumberVerified?: boolean;
+  isPhoneVerified?: boolean;
   phoneGateExempt?: boolean;
   emailIsPlaceholder?: boolean;
 };
@@ -95,9 +96,13 @@ export function useRequireSession() {
     const user = (effectiveSession as { user?: GatedUser }).user;
     if (!user) return;
 
+    const isPhoneVerified =
+      Boolean(user.phoneNumberVerified) ||
+      Boolean(user.isPhoneVerified) ||
+      Boolean(user.phoneGateExempt);
+
     if (
-      !user.phoneNumberVerified &&
-      !user.phoneGateExempt &&
+      !isPhoneVerified &&
       !matches(PHONE_GATE_EXEMPT, pathname)
     ) {
       router.replace('/verify-phone');

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Loader } from 'lucide-react';
@@ -16,8 +16,23 @@ export default function VerifyPhonePage() {
   const [takenNumber, setTakenNumber] = useState<string | null>(null);
 
   const user = session?.user as
-    | { phoneNumber?: string | null; phoneNumberVerified?: boolean }
+    | {
+        phoneNumber?: string | null;
+        phoneNumberVerified?: boolean;
+        isPhoneVerified?: boolean;
+        phoneGateExempt?: boolean;
+      }
     | undefined;
+
+  const isVerified = Boolean(
+    user?.phoneNumberVerified || user?.isPhoneVerified || user?.phoneGateExempt,
+  );
+
+  useEffect(() => {
+    if (session && isVerified) {
+      router.replace('/profile/setup');
+    }
+  }, [session, isVerified, router]);
 
   // Prefill order: a number already on the account (a legacy row, or one the
   // user is re-verifying), then the one typed during email signup, which is
