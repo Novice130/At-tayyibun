@@ -395,19 +395,23 @@ const options = {
     },
   },
   socialProviders: {
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-    },
-    apple: {
-      clientId: process.env.APPLE_CLIENT_ID as string,
-      clientSecret: process.env.APPLE_CLIENT_SECRET as string,
-      // Native iOS sign-in presents an ID token whose `aud` is the *app's*
-      // bundle id, not the Services ID. Without this, better-auth rejects
-      // every native token as an audience mismatch while the web redirect
-      // flow keeps working — a confusing split failure.
-      appBundleIdentifier: process.env.APPLE_APP_BUNDLE_ID as string,
-    },
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? {
+          google: {
+            clientId: process.env.GOOGLE_CLIENT_ID.replace(/^["']|["']$/g, '').trim(),
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET.replace(/^["']|["']$/g, '').trim(),
+          },
+        }
+      : {}),
+    ...(process.env.APPLE_CLIENT_ID && process.env.APPLE_CLIENT_SECRET
+      ? {
+          apple: {
+            clientId: process.env.APPLE_CLIENT_ID.replace(/^["']|["']$/g, '').trim(),
+            clientSecret: process.env.APPLE_CLIENT_SECRET.replace(/^["']|["']$/g, '').trim(),
+            appBundleIdentifier: process.env.APPLE_APP_BUNDLE_ID,
+          },
+        }
+      : {}),
   },
   account: {
     accountLinking: {
