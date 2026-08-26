@@ -53,3 +53,30 @@ export function toE164(raw: string): string | null {
 export function formatE164(value: string): string {
   return value;
 }
+
+/**
+ * Format phone input string:
+ * - Defaults to '+1 '
+ * - Formats US numbers with spaces: '+1 XXX XXX XXXX' (3 then 3 then 4)
+ * - Preserves international formatting for other country codes
+ */
+export function formatPhoneInput(value: string): string {
+  if (!value) return '+1 ';
+
+  const trimmed = value.trim();
+  if (trimmed === '' || trimmed === '+') return '+1 ';
+
+  if (trimmed.startsWith('+1') || !trimmed.startsWith('+')) {
+    const allDigits = trimmed.replace(/\D/g, '');
+    const nationalDigits = allDigits.startsWith('1') ? allDigits.slice(1) : allDigits;
+    const d = nationalDigits.slice(0, 10);
+
+    if (d.length === 0) return '+1 ';
+    if (d.length <= 3) return `+1 ${d}`;
+    if (d.length <= 6) return `+1 ${d.slice(0, 3)} ${d.slice(3)}`;
+    return `+1 ${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
+  }
+
+  const digits = trimmed.replace(/\D/g, '');
+  return `+${digits}`;
+}

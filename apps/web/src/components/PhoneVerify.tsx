@@ -10,7 +10,7 @@ import {
 } from 'firebase/auth';
 import { authClient } from '@/lib/auth-client';
 import { firebaseAuth, isFirebaseConfigured } from '@/lib/firebase-client';
-import { toE164 } from '@/lib/phone';
+import { toE164, formatPhoneInput } from '@/lib/phone';
 
 // Phone entry + SMS code, shared by the two entry points:
 //   /signup/phone   — no session yet; verifying creates the account
@@ -44,13 +44,19 @@ export default function PhoneVerify({
   subtitle = 'We use your number to keep one account per person. It is never shown on your profile.',
 }: PhoneVerifyProps) {
   const [stage, setStage] = useState<Stage>('enter');
-  const [phone, setPhone] = useState(initialPhone);
+  const [phone, setPhone] = useState(formatPhoneInput(initialPhone || '+1 '));
   const [e164, setE164] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+
+  useEffect(() => {
+    if (initialPhone) {
+      setPhone(formatPhoneInput(initialPhone));
+    }
+  }, [initialPhone]);
 
   const verifierRef = useRef<RecaptchaVerifier | null>(null);
   const confirmationRef = useRef<ConfirmationResult | null>(null);
@@ -207,10 +213,10 @@ export default function PhoneVerify({
               inputMode="tel"
               autoComplete="tel"
               autoFocus
-              className="input w-full mb-4"
+              className="input w-full mb-4 font-mono text-base sm:text-lg"
               placeholder="+1 555 123 4567"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void handleSend();
               }}

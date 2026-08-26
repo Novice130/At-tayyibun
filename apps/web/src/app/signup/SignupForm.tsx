@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, Users, Loader, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
 import { signUp, useSession } from '@/lib/auth-client';
-import { toE164 } from '@/lib/phone';
+import { toE164, formatPhoneInput } from '@/lib/phone';
 
 
 const MALE_AVATARS = Array.from({ length: 21 }, (_, i) => `/avatars/male/male-${i + 1}.jpg`);
@@ -32,9 +32,9 @@ const creatorRoleLabels: Record<CreatorRole, string> = {
 const guardianContactLabels: Record<GuardianContactType, string> = {
   MOTHER: 'Mother',
   FATHER: 'Father',
-  RELATIVE: 'Relative',
-  GUARDIAN: 'Guardian',
-  OTHER: 'Other',
+  RELATIVE: 'Other Relative (Uncle, Aunt, etc.)',
+  GUARDIAN: 'Legal Guardian',
+  OTHER: 'Other Representative',
 };
 
 export default function SignupForm() {
@@ -50,14 +50,14 @@ export default function SignupForm() {
   const [formData, setFormData] = useState({
     firstName: '',
     email: '',
-    phone: '',
+    phone: '+1 ',
     password: '',
     gender: '',
     avatar: '',
     creatorRole: '' as CreatorRole | '',
     guardianContactType: '' as GuardianContactType | '',
     guardianName: '',
-    guardianPhone: '',
+    guardianPhone: '+1 ',
     guardianEmail: '',
   });
 
@@ -361,10 +361,10 @@ export default function SignupForm() {
                   <input
                     type="tel"
                     required
-                    className="input pl-10"
-                    placeholder="+1 (555) 123-4567"
+                    className="input pl-10 font-mono"
+                    placeholder="+1 555 123 4567"
                     value={formData.guardianPhone}
-                    onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, guardianPhone: formatPhoneInput(e.target.value) })}
                   />
                 </div>
                 <p className="text-xs text-muted mt-1">
@@ -571,10 +571,10 @@ export default function SignupForm() {
                 <input
                   type="tel"
                   required
-                  className="input pl-10"
-                  placeholder="+1 (555) 123-4567"
+                  className="input pl-10 font-mono"
+                  placeholder="+1 555 123 4567"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, phone: formatPhoneInput(e.target.value) })}
                 />
               </div>
               <p className="text-xs text-muted mt-1">One phone number per account</p>

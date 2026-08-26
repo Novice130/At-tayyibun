@@ -14,14 +14,14 @@ import {
 // a second one lying around in IndexedDB just creates two sources of truth.
 
 const config = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyD3g0-D5xFffHPFfq8hhjZ1rI4G8i4WwcU',
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'at-tayyibun-e3f79.firebaseapp.com',
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'at-tayyibun-e3f79',
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '1:637715249195:web:ba4d673f4e3ebbc856126e',
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '637715249195',
 };
 
-export const isFirebaseConfigured = Boolean(config.apiKey && config.projectId && config.appId);
+export const isFirebaseConfigured = Boolean(config.apiKey && config.projectId);
 
 let app: FirebaseApp | null = null;
 let authInstance: Auth | null = null;
