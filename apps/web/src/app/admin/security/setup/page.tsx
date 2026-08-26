@@ -287,7 +287,7 @@ export default function MFASetupPage() {
                       type="text"
                       inputMode="numeric"
                       maxLength={1}
-                      className="w-10 sm:w-12 h-14 text-center text-xl sm:text-2xl font-bold rounded-xl input focus:scale-105 transition-transform"
+                      className="w-11 sm:w-12 h-14 text-center text-xl sm:text-2xl font-bold rounded-xl p-0 m-0 leading-none bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20 focus:scale-105 transition-all"
                       value={code[i] || ''}
                       onChange={(e) => {
                         const val = e.target.value;

@@ -233,7 +233,7 @@ export default function PhoneVerify({
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   maxLength={6}
-                  className="w-12 h-14 text-center text-2xl font-bold rounded-xl input"
+                  className="w-11 sm:w-12 h-14 text-center text-xl sm:text-2xl font-bold rounded-xl p-0 m-0 leading-none bg-[var(--color-bg)] border border-[var(--color-border)] text-[var(--color-text)] focus:outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/20 focus:scale-105 transition-all"
                   value={otpCode[i] || ''}
                   onPaste={(e) => {
                     const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
