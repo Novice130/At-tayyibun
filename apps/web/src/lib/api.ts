@@ -29,7 +29,12 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
   } else {
     const text = await response.text();
     if (!response.ok) {
-      throw { message: text.slice(0, 200) || `Server error ${response.status}`, statusCode: response.status } as ApiError;
+      const isHtml = text.trim().toLowerCase().startsWith('<!doctype html>') || text.toLowerCase().includes('<html');
+      const message = isHtml 
+        ? `Network or firewall error (${response.status}). The request was blocked by Cloudflare or a proxy.` 
+        : (text.slice(0, 200) || `Server error ${response.status}`);
+      
+      throw { message, statusCode: response.status } as ApiError;
     }
     return text;
   }
