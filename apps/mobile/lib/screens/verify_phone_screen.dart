@@ -266,6 +266,8 @@ String _firebaseMessage(fb.FirebaseAuthException e) {
       return 'Too many attempts. Wait a few minutes and try again.';
     case 'quota-exceeded':
       return 'We cannot send codes right now. Please try again later.';
+    case 'operation-not-allowed':
+      return 'SMS phone verification is disabled or region blocked in Firebase Console. Please enable Phone provider & SMS Region Policy in Firebase.';
     default:
       return e.message ?? 'Something went wrong. Please try again.';
   }

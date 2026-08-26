@@ -44,19 +44,25 @@ String? toE164(String raw) {
 }
 
 /// Formats phone input string:
-/// - Defaults to '+1 '
-/// - Formats US numbers with spaces: '+1 XXX XXX XXXX' (3 then 3 then 4)
-/// - Preserves international formatting for other country codes
+/// - Allows user to freely delete/edit the country code (+91, +44, +966, +92, etc.)
+/// - If starting with +1, formats with US spacing: '+1 XXX XXX XXXX' (3 then 3 then 4)
+/// - If starting with other country code (+XX), formats cleanly with spaces
 String formatPhoneInput(String value) {
-  if (value.isEmpty) return '+1 ';
+  if (value.isEmpty) return '';
 
-  final trimmed = value.trim();
-  if (trimmed.isEmpty || trimmed == '+') return '+1 ';
+  final trimmed = value.trimLeft();
+  if (trimmed.isEmpty) return '';
+  if (trimmed == '+') return '+';
 
-  if (trimmed.startsWith('+1') || !trimmed.startsWith('+')) {
-    final allDigits = trimmed.replaceAll(RegExp(r'\D'), '');
-    final nationalDigits = allDigits.startsWith('1') ? allDigits.substring(1) : allDigits;
-    final d = nationalDigits.length > 10 ? nationalDigits.substring(0, 10) : nationalDigits;
+  final withPlus = trimmed.startsWith('+') ? trimmed : '+$trimmed';
+  final digits = withPlus.replaceAll(RegExp(r'\D'), '');
+
+  if (digits.isEmpty) return '+';
+
+  // US/Canada (+1)
+  if (digits.startsWith('1')) {
+    final national = digits.length > 1 ? digits.substring(1) : '';
+    final d = national.length > 10 ? national.substring(0, 10) : national;
 
     if (d.isEmpty) return '+1 ';
     if (d.length <= 3) return '+1 $d';
@@ -64,6 +70,15 @@ String formatPhoneInput(String value) {
     return '+1 ${d.substring(0, 3)} ${d.substring(3, 6)} ${d.substring(6)}';
   }
 
-  final digits = trimmed.replaceAll(RegExp(r'\D'), '');
-  return '+$digits';
+  // Other country codes:
+  if (digits.length <= 3) {
+    return '+$digits';
+  }
+  if (digits.length <= 7) {
+    return '+${digits.substring(0, 2)} ${digits.substring(2)}';
+  }
+  if (digits.length <= 12) {
+    return '+${digits.substring(0, 2)} ${digits.substring(2, 7)} ${digits.substring(7)}';
+  }
+  return '+${digits.substring(0, 3)} ${digits.substring(3, 6)} ${digits.substring(6, 10)} ${digits.substring(10)}'.trim();
 }

@@ -327,6 +327,8 @@ function firebaseMessage(err: unknown): string {
     case 'auth/captcha-check-failed':
     case 'auth/invalid-app-credential':
       return 'Verification could not start. Reload the page and try again.';
+    case 'auth/operation-not-allowed':
+      return 'SMS phone verification is disabled or region blocked in Firebase Console. Please enable Phone provider & SMS Region Policy in Firebase.';
     default:
       return (err as { message?: string })?.message || 'Something went wrong. Please try again.';
   }
