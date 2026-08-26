@@ -62,20 +62,34 @@ export default function MFAChallengePage() {
 
     setLoading(true);
     try {
+      let error: any = null;
+      let success = false;
+
       // 1. Try TOTP (Google Authenticator)
-      let res = await twoFactor.verifyTotp({ code, trustDevice: true });
-      
-      // 2. If TOTP failed, try Email OTP
-      if (res.error) {
-        res = await twoFactor.verifyOtp({ code, trustDevice: true });
+      const totpRes = await twoFactor.verifyTotp({ code, trustDevice: true });
+      if (!totpRes.error) {
+        success = true;
+      } else {
+        error = totpRes.error;
+        // 2. If TOTP failed, try Email OTP
+        const otpRes = await twoFactor.verifyOtp({ code, trustDevice: true });
+        if (!otpRes.error) {
+          success = true;
+          error = null;
+        } else {
+          error = otpRes.error;
+          // 3. If still failed, try Backup Code
+          const backupRes = await twoFactor.verifyBackupCode({ code });
+          if (!backupRes.error) {
+            success = true;
+            error = null;
+          } else {
+            error = backupRes.error;
+          }
+        }
       }
 
-      // 3. If still failed, try Backup Code
-      if (res.error) {
-        res = await twoFactor.verifyBackupCode({ code, trustDevice: true });
-      }
-
-      if (res.error) throw res.error;
+      if (!success && error) throw error;
 
       toast.success('Identity verified');
       await refetch();
