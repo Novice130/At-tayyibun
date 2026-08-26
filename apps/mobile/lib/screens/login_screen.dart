@@ -55,7 +55,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      context.go('/browse');
+      if (result is SignInCancelled) return;
+
+      if (result is SignInSuccess) {
+        context.go(result.user.needsAvatar
+            ? '/profile/avatar?initial=true'
+            : '/browse');
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -91,7 +97,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      context.go('/browse');
+      if (result is SignInSuccess) {
+        context.go(result.user.needsAvatar
+            ? '/profile/avatar?initial=true'
+            : '/browse');
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -120,7 +130,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
-      context.go('/browse');
+      if (result is SignInSuccess) {
+        context.go(result.user.needsAvatar
+            ? '/profile/avatar?initial=true'
+            : '/browse');
+      }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {

@@ -38,16 +38,17 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (!auth.isSignedIn) return isAuthRoute ? null : '/welcome';
 
-      // Phone gate. Enforced server-side by BetterAuthGuard too — this only
+      // 1. Phone gate. Enforced server-side by BetterAuthGuard too — this only
       // saves the user from a screen full of 403s.
       if (auth.needsPhone) return path == '/verify-phone' ? null : '/verify-phone';
-      if (path == '/verify-phone') {
-        final image = auth.user?.image;
-        if (image == null || image.isEmpty) {
-          return '/profile/avatar?initial=true';
-        }
-        return '/browse';
+
+      // 2. Avatar gate. Require avatar selection right after sign-in / verification.
+      if (auth.needsAvatar) {
+        if (path == '/profile/avatar') return null;
+        return '/profile/avatar?initial=true';
       }
+
+      if (path == '/verify-phone') return '/browse';
 
       if (isAuthRoute || path == '/splash') return '/browse';
       return null;

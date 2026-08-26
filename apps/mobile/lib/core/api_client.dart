@@ -1,6 +1,7 @@
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'api_exception.dart';
@@ -15,8 +16,12 @@ import 'constants.dart';
 class ApiClient {
   ApiClient._(this.dio, this._cookieJar);
 
+  @visibleForTesting
+  ApiClient.forTesting(this.dio, [CookieJar? cookieJar])
+      : _cookieJar = cookieJar;
+
   final Dio dio;
-  final PersistCookieJar _cookieJar;
+  final CookieJar? _cookieJar;
 
   static Future<ApiClient> create() async {
     final dir = await getApplicationSupportDirectory();
@@ -64,12 +69,13 @@ class ApiClient {
     return ApiClient._(dio, jar);
   }
 
-  Future<void> clearCookies() => _cookieJar.deleteAll();
+  Future<void> clearCookies() => _cookieJar?.deleteAll() ?? Future.value();
 
   /// True when a session cookie is present. Cheap local check — it does not
   /// prove the session is still valid server-side, so callers that need
   /// certainty should hit `GET /auth/get-session`.
   Future<bool> hasSessionCookie() async {
+    if (_cookieJar == null) return false;
     final cookies = await _cookieJar.loadForRequest(Uri.parse(kBaseUrl));
     return cookies.any(
       (c) => c.name == kSessionCookieSecure || c.name == kSessionCookie,

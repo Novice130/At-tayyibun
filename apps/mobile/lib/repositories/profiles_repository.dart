@@ -8,24 +8,32 @@ class BrowseFilters {
     this.ethnicity,
     this.minAge,
     this.maxAge,
+    this.sortBy,
+    this.order,
   });
 
   final String? gender;
   final String? ethnicity;
   final int? minAge;
   final int? maxAge;
+  final String? sortBy;
+  final String? order;
 
   BrowseFilters copyWith({
     Object? gender = _sentinel,
     Object? ethnicity = _sentinel,
     Object? minAge = _sentinel,
     Object? maxAge = _sentinel,
+    Object? sortBy = _sentinel,
+    Object? order = _sentinel,
   }) =>
       BrowseFilters(
         gender: gender == _sentinel ? this.gender : gender as String?,
         ethnicity: ethnicity == _sentinel ? this.ethnicity : ethnicity as String?,
         minAge: minAge == _sentinel ? this.minAge : minAge as int?,
         maxAge: maxAge == _sentinel ? this.maxAge : maxAge as int?,
+        sortBy: sortBy == _sentinel ? this.sortBy : sortBy as String?,
+        order: order == _sentinel ? this.order : order as String?,
       );
 
   static const _sentinel = Object();
@@ -46,9 +54,11 @@ class ProfilesRepository {
         'page': page,
         'limit': kBrowsePageSize,
         if (filters.gender != null) 'gender': filters.gender,
-        if (filters.ethnicity != null) 'ethnicity': filters.ethnicity,
+        if (filters.ethnicity != null && filters.ethnicity!.isNotEmpty) 'ethnicity': filters.ethnicity,
         if (filters.minAge != null) 'minAge': filters.minAge,
         if (filters.maxAge != null) 'maxAge': filters.maxAge,
+        if (filters.sortBy != null) 'sortBy': filters.sortBy,
+        if (filters.order != null) 'order': filters.order,
       },
     );
     return BrowsePage.fromJson(data);

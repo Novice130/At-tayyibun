@@ -155,13 +155,21 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
         ? _items
         : _items.where((p) => !blockedIds.contains(p.publicId)).toList();
 
+    final hasActiveFilters = _filters.ethnicity != null ||
+        _filters.minAge != null ||
+        _filters.maxAge != null ||
+        (_filters.sortBy != null && _filters.sortBy != 'rankBoost');
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Browse'),
         actions: [
           IconButton(
             onPressed: _openFilters,
-            icon: const Icon(Icons.tune),
+            icon: Badge(
+              isLabelVisible: hasActiveFilters,
+              child: const Icon(Icons.tune),
+            ),
             tooltip: 'Filters',
           ),
         ],
@@ -170,9 +178,77 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
         child: Column(
           children: [
             const _ActiveRequestBanner(),
+            if (hasActiveFilters) _buildActiveFilterChips(),
             Expanded(child: _buildBody(visible)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildActiveFilterChips() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          if (_filters.ethnicity != null && _filters.ethnicity!.isNotEmpty) ...[
+            InputChip(
+              label: Text(_filters.ethnicity!),
+              onDeleted: () {
+                setState(() {
+                  _filters = _filters.copyWith(ethnicity: null);
+                });
+                _load(reset: true);
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
+          if (_filters.minAge != null || _filters.maxAge != null) ...[
+            InputChip(
+              label: Text(
+                _filters.minAge != null && _filters.maxAge != null
+                    ? 'Age: ${_filters.minAge} – ${_filters.maxAge}'
+                    : _filters.minAge != null
+                        ? 'Age: ${_filters.minAge}+'
+                        : 'Age: ≤ ${_filters.maxAge}',
+              ),
+              onDeleted: () {
+                setState(() {
+                  _filters = _filters.copyWith(minAge: null, maxAge: null);
+                });
+                _load(reset: true);
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
+          if (_filters.sortBy != null && _filters.sortBy != 'rankBoost') ...[
+            InputChip(
+              label: Text(
+                _filters.sortBy == 'age'
+                    ? (_filters.order == 'asc' ? 'Young to Old' : 'Old to Young')
+                    : 'Newest First',
+              ),
+              onDeleted: () {
+                setState(() {
+                  _filters = _filters.copyWith(sortBy: 'rankBoost', order: 'desc');
+                });
+                _load(reset: true);
+              },
+            ),
+            const SizedBox(width: 8),
+          ],
+          TextButton.icon(
+            onPressed: () {
+              setState(() {
+                _filters = BrowseFilters(gender: _filters.gender);
+              });
+              _load(reset: true);
+            },
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Reset', style: TextStyle(fontSize: 12)),
+          ),
+        ],
       ),
     );
   }
@@ -189,7 +265,9 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
         message: 'Try widening your filters.',
         action: OutlinedButton(
           onPressed: () {
-            _filters = BrowseFilters(gender: _filters.gender);
+            setState(() {
+              _filters = BrowseFilters(gender: _filters.gender);
+            });
             _load(reset: true);
           },
           child: const Text('Clear filters'),
@@ -378,9 +456,10 @@ class _FilterSheet extends StatefulWidget {
 class _FilterSheetState extends State<_FilterSheet> {
   late String? _ethnicity = widget.initial.ethnicity;
   late RangeValues _age = RangeValues(
-    (widget.initial.minAge ?? 18).toDouble(),
-    (widget.initial.maxAge ?? 60).toDouble(),
+    (widget.initial.minAge ?? 18).toDouble().clamp(18, 80),
+    (widget.initial.maxAge ?? 80).toDouble().clamp(18, 80),
   );
+  late String _sortKey = '${widget.initial.sortBy ?? 'rankBoost'}-${widget.initial.order ?? 'desc'}';
 
   @override
   Widget build(BuildContext context) {
@@ -392,50 +471,94 @@ class _FilterSheetState extends State<_FilterSheet> {
           top: 20,
           bottom: MediaQuery.of(context).viewInsets.bottom + 20,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Filters', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 20),
-            DropdownButtonFormField<String?>(
-              initialValue: _ethnicity,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Ethnicity'),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('Any')),
-                ...kEthnicities.map(
-                  (e) => DropdownMenuItem(value: e, child: Text(e)),
-                ),
-              ],
-              onChanged: (v) => setState(() => _ethnicity = v),
-            ),
-            const SizedBox(height: 20),
-            Text('Age: ${_age.start.round()} – ${_age.end.round()}'),
-            RangeSlider(
-              values: _age,
-              min: 18,
-              max: 80,
-              divisions: 62,
-              labels: RangeLabels(
-                '${_age.start.round()}',
-                '${_age.end.round()}',
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Filters', style: Theme.of(context).textTheme.titleLarge),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _ethnicity = null;
+                        _age = const RangeValues(18, 80);
+                        _sortKey = 'rankBoost-desc';
+                      });
+                    },
+                    child: const Text('Reset'),
+                  ),
+                ],
               ),
-              onChanged: (v) => setState(() => _age = v),
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () => Navigator.pop(
-                context,
-                widget.initial.copyWith(
-                  ethnicity: _ethnicity,
-                  minAge: _age.start.round(),
-                  maxAge: _age.end.round(),
-                ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: _sortKey,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Sort by'),
+                items: const [
+                  DropdownMenuItem(value: 'rankBoost-desc', child: Text('Featured')),
+                  DropdownMenuItem(value: 'age-asc', child: Text('Age: Young to Old')),
+                  DropdownMenuItem(value: 'age-desc', child: Text('Age: Old to Young')),
+                  DropdownMenuItem(value: 'createdAt-desc', child: Text('Newest First')),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _sortKey = v);
+                },
               ),
-              child: const Text('Apply'),
-            ),
-          ],
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String?>(
+                initialValue: _ethnicity,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Ethnicity'),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('All Ethnicities')),
+                  ...kEthnicities.map(
+                    (e) => DropdownMenuItem(value: e, child: Text(e)),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _ethnicity = v),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Age Range: ${_age.start.round()} – ${_age.end.round()}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              RangeSlider(
+                values: _age,
+                min: 18,
+                max: 80,
+                divisions: 62,
+                labels: RangeLabels(
+                  '${_age.start.round()}',
+                  '${_age.end.round()}',
+                ),
+                onChanged: (v) => setState(() => _age = v),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () {
+                  final parts = _sortKey.split('-');
+                  final sortBy = parts[0];
+                  final order = parts.length > 1 ? parts[1] : 'desc';
+                  final isDefaultAge = _age.start.round() == 18 && _age.end.round() == 80;
+
+                  Navigator.pop(
+                    context,
+                    widget.initial.copyWith(
+                      ethnicity: _ethnicity,
+                      minAge: isDefaultAge ? null : _age.start.round(),
+                      maxAge: isDefaultAge ? null : _age.end.round(),
+                      sortBy: sortBy,
+                      order: order,
+                    ),
+                  );
+                },
+                child: const Text('Apply Filters'),
+              ),
+            ],
+          ),
         ),
       ),
     );

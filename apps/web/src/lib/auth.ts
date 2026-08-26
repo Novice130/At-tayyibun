@@ -209,6 +209,9 @@ const options = {
     }),
     twoFactor({
       otpOptions: {
+        // Better Auth 1.6.27 interprets `period` in minutes: (period || 3) * 60 * 1000.
+        // 5 minutes (300 seconds) matches the email copy.
+        period: 5,
         async sendOTP({ user, otp }) {
           if (!process.env.RESEND_API_KEY) {
             throw new Error("RESEND_API_KEY not set; cannot send 2FA email");
@@ -346,6 +349,8 @@ const options = {
       "/send-verification-email": { window: 60, max: 3 },
       "/two-factor/send-otp": { window: 60, max: 5 },
       "/two-factor/verify-otp": { window: 60, max: 10 },
+      "/two-factor/verify-totp": { window: 60, max: 10 },
+      "/two-factor/verify-backup-code": { window: 60, max: 10 },
       // The phoneNumber plugin self-registers a default here; spell it out so
       // it is visible and tunable. Firebase enforces its own per-number SMS
       // quota, this caps how fast tokens can be thrown at our verifier.
@@ -374,9 +379,11 @@ const options = {
       create: {
         after: async (session) => {
           try {
-            const user = await db.query.users.findFirst({
-              where: eq(schema.users.id, session.userId),
-            });
+            const [user] = await db
+              .select({ role: schema.users.role })
+              .from(schema.users)
+              .where(eq(schema.users.id, session.userId))
+              .limit(1);
             if (user?.role === "ADMIN" || user?.role === "SUPER_ADMIN") {
               await db
                 .delete(schema.session)

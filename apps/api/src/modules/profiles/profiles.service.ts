@@ -26,7 +26,7 @@ export class ProfilesService {
     private readonly avatarService: AvatarService,
   ) {}
 
-  async browseProfiles(filters: BrowseFilters, viewerId: string) {
+  async browseProfiles(filters: BrowseFilters, viewerId?: string) {
     const {
       ethnicity,
       gender,
@@ -39,30 +39,27 @@ export class ProfilesService {
     } = filters;
 
     const conds: SQL[] = [eq(profiles.profileComplete, true)];
-    if (ethnicity) conds.push(eq(profiles.ethnicity, ethnicity));
+    if (ethnicity && ethnicity.trim() && ethnicity !== 'All Ethnicities' && ethnicity !== 'Any') {
+      const eth = ethnicity.trim();
+      conds.push(sql`(LOWER(${profiles.ethnicity}) = LOWER(${eth}) OR ${profiles.ethnicity} ILIKE ${'%' + eth + '%'})`);
+    }
     if (gender) conds.push(eq(profiles.gender, gender));
 
-    // Never return the caller's own profile — this also fixes the pre-existing
-    // bug where browse listed the viewer themselves.
-    conds.push(sql`${profiles.userId} <> ${viewerId}`);
+    // Exclude caller's own profile and respect blocks if viewerId is present
+    if (viewerId && viewerId.trim()) {
+      conds.push(sql`${profiles.userId} <> ${viewerId}::uuid`);
+      conds.push(sql`NOT EXISTS (
+        SELECT 1 FROM blocks b
+        WHERE (b.blocker_id = ${viewerId}::uuid AND b.blocked_id = ${profiles.userId})
+           OR (b.blocker_id = ${profiles.userId} AND b.blocked_id = ${viewerId}::uuid)
+      )`);
+    }
 
-    // Blocking is symmetric: neither party sees the other again.
-    conds.push(sql`NOT EXISTS (
-      SELECT 1 FROM blocks b
-      WHERE (b.blocker_id = ${viewerId} AND b.blocked_id = ${profiles.userId})
-         OR (b.blocker_id = ${profiles.userId} AND b.blocked_id = ${viewerId})
-    )`);
-
-    if (minAge || maxAge) {
-      const today = new Date();
-      if (maxAge) {
-        const minDob = new Date(today.getFullYear() - maxAge - 1, today.getMonth(), today.getDate());
-        conds.push(gte(profiles.dob, minDob.toISOString().slice(0, 10)));
-      }
-      if (minAge) {
-        const maxDob = new Date(today.getFullYear() - minAge, today.getMonth(), today.getDate());
-        conds.push(lte(profiles.dob, maxDob.toISOString().slice(0, 10)));
-      }
+    if (minAge !== undefined && minAge !== null && !isNaN(minAge)) {
+      conds.push(sql`DATE_PART('year', AGE(CURRENT_DATE, ${profiles.dob})) >= ${minAge}`);
+    }
+    if (maxAge !== undefined && maxAge !== null && !isNaN(maxAge)) {
+      conds.push(sql`DATE_PART('year', AGE(CURRENT_DATE, ${profiles.dob})) <= ${maxAge}`);
     }
 
     const whereClause = and(...conds);
@@ -340,11 +337,23 @@ export class ProfilesService {
   }
 
   private calculateAgeFromString(dob: string | Date): number {
+    if (!dob) return 0;
+    if (typeof dob === 'string') {
+      const parts = dob.slice(0, 10).split('-').map(Number);
+      if (parts.length === 3 && !parts.some(isNaN)) {
+        const [year, month, day] = parts;
+        const today = new Date();
+        let age = today.getFullYear() - year;
+        const monthDiff = (today.getMonth() + 1) - month;
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < day)) age--;
+        return Math.max(0, age);
+      }
+    }
     const d = typeof dob === 'string' ? new Date(dob) : dob;
     const today = new Date();
     let age = today.getFullYear() - d.getFullYear();
     const monthDiff = today.getMonth() - d.getMonth();
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < d.getDate())) age--;
-    return age;
+    return Math.max(0, age);
   }
 }

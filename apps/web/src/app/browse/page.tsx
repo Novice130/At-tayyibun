@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Loader, Lock, X } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { ProfileCard } from '@/components/profile/ProfileCard';
-import { FilterBar } from '@/components/filters/FilterBar';
+import { FilterBar, FilterState } from '@/components/filters/FilterBar';
 import { api } from '@/lib/api';
 import { useRequireSession } from '@/lib/hooks';
 
@@ -20,13 +20,55 @@ interface ActiveRequest {
   };
 }
 
+const defaultFilters: FilterState = {
+  ethnicity: '',
+  minAge: null,
+  maxAge: null,
+  sortBy: 'rankBoost',
+  order: 'desc',
+};
+
 export default function BrowsePage() {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeRequest, setActiveRequest] = useState<ActiveRequest | null>(null);
   const [myGender, setMyGender] = useState<'MALE' | 'FEMALE' | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const { session, loading: sessionLoading } = useRequireSession();
+
+  const fetchProfiles = useCallback(async (activeFilters: FilterState, gender: 'MALE' | 'FEMALE' | null) => {
+    setLoading(true);
+    try {
+      const opposite = gender === 'MALE' ? 'FEMALE' : gender === 'FEMALE' ? 'MALE' : null;
+      const queryParams: Record<string, string> = {};
+
+      if (opposite) queryParams.gender = opposite;
+      if (activeFilters.ethnicity && activeFilters.ethnicity !== 'All Ethnicities') {
+        queryParams.ethnicity = activeFilters.ethnicity;
+      }
+      if (activeFilters.minAge !== null && !isNaN(activeFilters.minAge)) {
+        queryParams.minAge = activeFilters.minAge.toString();
+      }
+      if (activeFilters.maxAge !== null && !isNaN(activeFilters.maxAge)) {
+        queryParams.maxAge = activeFilters.maxAge.toString();
+      }
+      if (activeFilters.sortBy) {
+        queryParams.sortBy = activeFilters.sortBy;
+      }
+      if (activeFilters.order) {
+        queryParams.order = activeFilters.order;
+      }
+
+      const params = new URLSearchParams(queryParams);
+      const data = await api.get('/profiles?' + params.toString());
+      setProfiles(data.data || data.items || []);
+    } catch (error) {
+      console.error('Failed to fetch profiles:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (!session) return;
@@ -35,27 +77,11 @@ export default function BrowsePage() {
       .then((data: any) => {
         const gender: 'MALE' | 'FEMALE' | null = data?.profile?.gender ?? null;
         setMyGender(gender);
-        const opposite = gender === 'MALE' ? 'FEMALE' : gender === 'FEMALE' ? 'MALE' : null;
-        fetchProfiles(opposite ? { gender: opposite } : {});
+        fetchProfiles(filters, gender);
       })
-      .catch(() => fetchProfiles({}));
+      .catch(() => fetchProfiles(filters, null));
     fetchActiveRequest();
-  }, [session]);
-
-  const fetchProfiles = async (filters: any = {}) => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams(
-        Object.fromEntries(Object.entries(filters).filter(([, v]) => v != null)) as Record<string, string>
-      );
-      const data = await api.get('/profiles?' + params.toString());
-      setProfiles(data.data || data.items || []);
-    } catch (error) {
-      console.error('Failed to fetch profiles:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [session, fetchProfiles]);
 
   const fetchActiveRequest = async () => {
     try {
@@ -80,13 +106,14 @@ export default function BrowsePage() {
     }
   };
 
-  const handleFilter = (filters: { ethnicity: string; minAge: number | null; maxAge: number | null }) => {
-    const opposite = myGender === 'MALE' ? 'FEMALE' : myGender === 'FEMALE' ? 'MALE' : null;
-    const apiFilters: any = opposite ? { gender: opposite } : {};
-    if (filters.ethnicity) apiFilters.ethnicity = filters.ethnicity;
-    if (filters.minAge) apiFilters.minAge = filters.minAge.toString();
-    if (filters.maxAge) apiFilters.maxAge = filters.maxAge.toString();
-    fetchProfiles(apiFilters);
+  const handleFilter = (newFilters: FilterState) => {
+    setFilters(newFilters);
+    fetchProfiles(newFilters, myGender);
+  };
+
+  const handleClearFilters = () => {
+    setFilters(defaultFilters);
+    fetchProfiles(defaultFilters, myGender);
   };
 
   if (sessionLoading || !session) {
@@ -137,7 +164,7 @@ export default function BrowsePage() {
           </div>
         )}
 
-        <FilterBar onFilter={handleFilter} loading={loading} />
+        <FilterBar filters={filters} onFilter={handleFilter} loading={loading} />
 
         {/* Profiles grid */}
         {loading ? (
@@ -154,7 +181,7 @@ export default function BrowsePage() {
           <div className="text-center py-16">
             <p style={{ color: 'var(--color-text-secondary)' }}>No profiles match your filters</p>
             <button
-              onClick={() => fetchProfiles()}
+              onClick={handleClearFilters}
               className="btn-secondary mt-4"
             >
               Clear Filters

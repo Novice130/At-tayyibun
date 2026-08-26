@@ -128,6 +128,12 @@ function readSeed(sessionEmail?: string | null, profileComplete?: boolean): Sign
   return seed;
 }
 
+const MALE_AVATARS = Array.from({ length: 21 }, (_, i) => `/avatars/male/male-${i + 1}.jpg`);
+const FEMALE_AVATARS = Array.from({ length: 21 }, (_, i) => `/avatars/female/female-${i + 1}.jpg`);
+const AVATAR_ORIGIN = 'https://attayyibun.com';
+const toAbsoluteAvatar = (path: string) =>
+  path.startsWith('/') ? `${AVATAR_ORIGIN}${path}` : path;
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function ProfileSetupPage() {
@@ -139,6 +145,7 @@ export default function ProfileSetupPage() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>(EMPTY);
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | null>(null);
+  const [avatar, setAvatar] = useState<string>('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [hydrating, setHydrating] = useState(true);
@@ -252,6 +259,11 @@ export default function ProfileSetupPage() {
         }));
       }
 
+      const currentImage = (session?.user as any)?.image;
+      if (currentImage && (currentImage.includes('/avatars/male/') || currentImage.includes('/avatars/female/'))) {
+        setAvatar(currentImage);
+      }
+
       if (!cancelled) setHydrating(false);
     };
 
@@ -272,6 +284,7 @@ export default function ProfileSetupPage() {
         }
       }
       if (!gender) return 'Please select your gender.';
+      if (!avatar) return 'Please choose an avatar.';
       if (!form.firstName.trim()) return 'First name is required.';
       if (!form.lastName.trim()) return 'Last name is required.';
       if (!form.dob) return 'Date of birth is required.';
@@ -345,6 +358,9 @@ export default function ProfileSetupPage() {
     setSaving(true);
     setError('');
     try {
+      if (avatar) {
+        await authClient.updateUser({ image: toAbsoluteAvatar(avatar) }).catch(() => {});
+      }
       await api.put('/profiles/me', {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
@@ -491,18 +507,66 @@ export default function ProfileSetupPage() {
               </div>
             </div>
 
-            {!gender && (
-              <div>
-                <label className="block text-sm font-medium mb-2">I am a <span className="text-red-400">*</span></label>
-                <div className="grid grid-cols-2 gap-3">
-                  {(['MALE', 'FEMALE'] as const).map(g => (
-                    <button key={g} type="button"
-                      onClick={() => setGender(g)}
-                      className={`p-3 rounded-lg border text-sm transition ${gender === g ? 'border-gold-500 bg-gold-500/10 text-gold-400' : ''}`}
-                      style={gender !== g ? { borderColor: 'var(--color-border)', color: 'var(--color-text)' } : {}}>
-                      {g === 'MALE' ? 'Brother' : 'Sister'}
-                    </button>
-                  ))}
+            <div>
+              <label className="block text-sm font-medium mb-2">I am a <span className="text-red-400">*</span></label>
+              <div className="grid grid-cols-2 gap-3">
+                {(['MALE', 'FEMALE'] as const).map(g => (
+                  <button key={g} type="button"
+                    onClick={() => {
+                      setGender(g);
+                      if (avatar && !avatar.includes(g === 'MALE' ? '/male/' : '/female/')) {
+                        setAvatar('');
+                      }
+                    }}
+                    className={`p-3 rounded-lg border text-sm transition ${gender === g ? 'border-gold-500 bg-gold-500/10 text-gold-400' : ''}`}
+                    style={gender !== g ? { borderColor: 'var(--color-border)', color: 'var(--color-text)' } : {}}>
+                    {g === 'MALE' ? 'Brother' : 'Sister'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {gender && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">
+                  Choose Your Avatar <span className="text-red-400">*</span>
+                </label>
+                <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                  Pick a cartoon avatar for your profile. Real photos are never displayed publicly.
+                </p>
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2.5 pt-1 max-h-56 overflow-y-auto p-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+                  {(gender === 'MALE' ? MALE_AVATARS : FEMALE_AVATARS).map((src) => {
+                    const abs = toAbsoluteAvatar(src);
+                    const isSelected = avatar === src || avatar === abs;
+                    return (
+                      <button
+                        key={src}
+                        type="button"
+                        onClick={() => setAvatar(abs)}
+                        className={`relative aspect-square rounded-xl overflow-hidden border-2 transition-all ${
+                          isSelected
+                            ? 'border-gold-500 ring-2 ring-gold-500/40 scale-105'
+                            : 'hover:border-gold-500/30 opacity-75 hover:opacity-100'
+                        }`}
+                        style={{ borderColor: isSelected ? undefined : 'var(--color-border)' }}
+                      >
+                        <img
+                          src={src}
+                          alt="Avatar option"
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        {isSelected && (
+                          <div className="absolute inset-0 bg-gold-500/20 flex items-center justify-center">
+                            <div className="w-6 h-6 bg-gold-500 rounded-full flex items-center justify-center">
+                              <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}

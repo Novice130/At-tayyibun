@@ -38,6 +38,9 @@ class AuthState {
   /// Signed in but blocked at the phone gate. Accounts created before phone
   /// verification existed are exempt, so nobody already signed up is locked out.
   bool get needsPhone => isSignedIn && (user?.needsPhone ?? false);
+
+  /// Signed in but needs to pick an avatar before proceeding to browse.
+  bool get needsAvatar => isSignedIn && (user?.needsAvatar ?? true);
 }
 
 class AuthController extends StateNotifier<AuthState> {
@@ -45,17 +48,21 @@ class AuthController extends StateNotifier<AuthState> {
       : super(const AuthState(status: AuthStatus.unknown));
 
   final AuthRepository _repo;
+  int _generation = 0;
 
   /// Called once at startup. The persisted cookie means a returning user is
   /// usually still signed in; this confirms it with the server rather than
   /// trusting the cookie's presence.
   Future<void> restore() async {
+    final gen = ++_generation;
     try {
       final user = await _repo.getSession();
+      if (gen != _generation) return;
       state = user == null
           ? const AuthState(status: AuthStatus.signedOut)
           : AuthState(status: AuthStatus.signedIn, user: user);
     } catch (e) {
+      if (gen != _generation) return;
       // Offline at launch shouldn't hard-log-out someone whose cookie is fine.
       // Treat it as signed-out for routing, but keep it non-destructive: the
       // cookie is untouched, so a retry can still succeed.
@@ -65,6 +72,7 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<SignInResult> signIn(String email, String password) async {
+    _generation++;
     final result = await _repo.signIn(email: email, password: password);
     if (result is SignInSuccess) {
       state = AuthState(status: AuthStatus.signedIn, user: result.user);
@@ -73,6 +81,7 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<SignInResult> signInWithGoogle() async {
+    _generation++;
     final result = await _repo.signInWithGoogle();
     if (result is SignInSuccess) {
       state = AuthState(status: AuthStatus.signedIn, user: result.user);
@@ -81,6 +90,7 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<SignInResult> signInWithApple() async {
+    _generation++;
     final result = await _repo.signInWithApple();
     if (result is SignInSuccess) {
       state = AuthState(status: AuthStatus.signedIn, user: result.user);
@@ -92,6 +102,7 @@ class AuthController extends StateNotifier<AuthState> {
   /// a number to an existing session both land here, and both must refresh the
   /// state or the router keeps redirecting to the gate it just cleared.
   void adoptVerifiedUser(AppUser user) {
+    _generation++;
     state = AuthState(status: AuthStatus.signedIn, user: user);
   }
 
@@ -116,11 +127,13 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> deleteAccount() async {
+    _generation++;
     await _repo.deleteAccount();
     state = const AuthState(status: AuthStatus.signedOut);
   }
 
   Future<void> signOut() async {
+    _generation++;
     await _repo.signOut();
     state = const AuthState(status: AuthStatus.signedOut);
   }

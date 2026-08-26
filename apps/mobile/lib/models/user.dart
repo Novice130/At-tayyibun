@@ -35,6 +35,17 @@ class AppUser {
   /// existed are exempt, so nobody who already signed up is locked out.
   bool get needsPhone => !phoneNumberVerified && !phoneGateExempt;
 
+  /// True when the user has picked one of the curated illustrated avatars
+  /// (/avatars/male/... or /avatars/female/...). Google/Apple default profile pictures
+  /// or null/empty images do not count as preset avatars.
+  bool get hasPresetAvatar =>
+      image != null &&
+      image!.isNotEmpty &&
+      (image!.contains('/avatars/male/') || image!.contains('/avatars/female/'));
+
+  /// Needs to select an avatar right after signup/sign-in.
+  bool get needsAvatar => !hasPresetAvatar;
+
   /// Phone-first signups hold a `+<e164>@phone.attayyibun.invalid` address
   /// until the profile wizard collects a real one.
   bool get needsEmail => emailIsPlaceholder;

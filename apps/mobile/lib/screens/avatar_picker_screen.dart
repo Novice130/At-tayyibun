@@ -35,7 +35,10 @@ class _AvatarPickerScreenState extends ConsumerState<AvatarPickerScreen> {
 
     final currentImage = ref.read(authControllerProvider).user?.image ??
         ref.read(myProfileProvider).valueOrNull?.image;
-    if (currentImage != null && currentImage.isNotEmpty) {
+    if (currentImage != null &&
+        currentImage.isNotEmpty &&
+        (currentImage.contains('/avatars/male/') ||
+            currentImage.contains('/avatars/female/'))) {
       _selected = currentImage;
     }
   }
@@ -73,8 +76,10 @@ class _AvatarPickerScreenState extends ConsumerState<AvatarPickerScreen> {
         actions: [
           if (widget.isInitial)
             TextButton(
-              onPressed: _saving ? null : () => context.go('/browse'),
-              child: const Text('Skip'),
+              onPressed: _saving
+                  ? null
+                  : () => ref.read(authControllerProvider.notifier).signOut(),
+              child: const Text('Sign out'),
             )
           else
             TextButton(

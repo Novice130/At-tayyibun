@@ -121,6 +121,9 @@ export const twoFactor = pgTable("two_factor", {
 	secret: text().notNull(),
 	backupCodes: text("backup_codes").notNull(),
 	userId: uuid("user_id").notNull(),
+	verified: boolean("verified").default(true).notNull(),
+	failedVerificationCount: integer("failed_verification_count").default(0).notNull(),
+	lockedUntil: timestamp("locked_until", { mode: 'date' }),
 }, (table) => [
 	foreignKey({
 			columns: [table.userId],

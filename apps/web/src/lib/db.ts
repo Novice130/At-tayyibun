@@ -4,7 +4,7 @@ import * as schema from './db-schema';
 
 const globalForDb = globalThis as unknown as {
   dbPool?: Pool;
-  db?: ReturnType<typeof drizzle>;
+  db?: ReturnType<typeof drizzle<typeof schema>>;
 };
 
 export const pool =

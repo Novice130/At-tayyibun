@@ -46,18 +46,23 @@ export class ProfilesController {
     @Query("limit") limit?: number,
     @CurrentUser("id") userId?: string
   ) {
+    const parsedMinAge = minAge !== undefined && minAge !== null && String(minAge).trim() !== '' ? Number(minAge) : undefined;
+    const parsedMaxAge = maxAge !== undefined && maxAge !== null && String(maxAge).trim() !== '' ? Number(maxAge) : undefined;
+    const parsedPage = page !== undefined && page !== null ? Math.max(1, Number(page)) : 1;
+    const parsedLimit = limit !== undefined && limit !== null ? Math.min(Math.max(1, Number(limit)), 50) : 20;
+
     const filters: BrowseFilters = {
-      ethnicity,
+      ethnicity: ethnicity?.trim() || undefined,
       gender,
-      minAge,
-      maxAge,
+      minAge: parsedMinAge && !isNaN(parsedMinAge) ? parsedMinAge : undefined,
+      maxAge: parsedMaxAge && !isNaN(parsedMaxAge) ? parsedMaxAge : undefined,
       sortBy,
       order,
-      page: page || 1,
-      limit: Math.min(limit || 20, 50),
+      page: parsedPage,
+      limit: parsedLimit,
     };
 
-    return this.profilesService.browseProfiles(filters, userId ?? "");
+    return this.profilesService.browseProfiles(filters, userId);
   }
 
   @Get("me")

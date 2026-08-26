@@ -77,4 +77,63 @@ describe('ProfilesService', () => {
       expect(set.mock.calls[0][0]).toHaveProperty('city', null);
     });
   });
+
+  describe('browseProfiles', () => {
+    it('returns filtered and mapped profile summaries', async () => {
+      const mockProfile = {
+        id: 'prof-1',
+        userId: 'user-1',
+        firstName: 'Fatima',
+        dob: '1998-05-15',
+        gender: Gender.FEMALE,
+        ethnicity: 'Arab',
+        city: 'Chicago',
+        state: 'IL',
+        publicFields: { bio: 'A bio' },
+        profileComplete: true,
+      };
+      const mockUser = {
+        publicId: 'usr_pub_1',
+        image: 'https://attayyibun.com/avatars/female/female-1.jpg',
+        rankBoost: 0,
+        membershipTier: 'FREE',
+        createdAt: '2026-01-01',
+      };
+
+      db.select
+        .mockReturnValueOnce(chain([{ profile: mockProfile, user: mockUser }]))
+        .mockReturnValueOnce(chain([{ value: 1 }]));
+
+      const result = await service.browseProfiles(
+        {
+          gender: Gender.FEMALE,
+          ethnicity: 'Arab',
+          minAge: 20,
+          maxAge: 35,
+          sortBy: 'age',
+          order: 'asc',
+        },
+        'viewer-uuid',
+      );
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].firstName).toBe('Fatima');
+      expect(result.data[0].ethnicity).toBe('Arab');
+      expect(result.data[0].age).toBeGreaterThan(0);
+      expect(result.meta.total).toBe(1);
+    });
+
+    it('works safely without a viewerId', async () => {
+      db.select
+        .mockReturnValueOnce(chain([]))
+        .mockReturnValueOnce(chain([{ value: 0 }]));
+
+      const result = await service.browseProfiles({
+        gender: Gender.MALE,
+      });
+
+      expect(result.data).toHaveLength(0);
+      expect(result.meta.total).toBe(0);
+    });
+  });
 });

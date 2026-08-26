@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
@@ -48,12 +49,31 @@ class AuthRepository {
       body: {'email': email, 'password': password},
     );
 
+    return _confirmSession(data, providerName: 'Email');
+  }
+
+  /// Confirms that a successful auth/exchange response established a valid,
+  /// cookie-backed session. The non-null user returned by /auth/get-session is
+  /// treated as authoritative.
+  Future<SignInResult> _confirmSession(
+    Map<String, dynamic> data, {
+    required String providerName,
+  }) async {
     if (data['twoFactorRedirect'] == true) {
       return const SignInTwoFactorRequired();
     }
 
-    final user = (data['user'] as Map?)?.cast<String, dynamic>();
-    return SignInSuccess(AppUser.fromJson(user ?? const {}));
+    final confirmedUser = await getSession();
+    if (confirmedUser == null) {
+      final hasCookie = await _api.hasSessionCookie();
+      debugPrint('[$providerName] session_confirmation failed (hasCookie=$hasCookie)');
+      throw ApiException(
+        message: '$providerName sign-in completed, but we could not start your session. Please try again.',
+        statusCode: 0,
+      );
+    }
+
+    return SignInSuccess(confirmedUser);
   }
 
   /// Native Sign in with Apple.
@@ -107,8 +127,7 @@ class AuthRepository {
       },
     );
 
-    final user = (data['user'] as Map?)?.cast<String, dynamic>();
-    return SignInSuccess(AppUser.fromJson(user ?? const {}));
+    return _confirmSession(data, providerName: 'Apple');
   }
 
   String _generateNonce() {
@@ -129,11 +148,13 @@ class AuthRepository {
   Future<SignInResult> signInWithGoogle() async {
     final String idToken;
     try {
+      debugPrint('[auth_repository] stage: google_initialize');
       await GoogleSignIn.instance.initialize(
         clientId: kGoogleIosClientId.isNotEmpty ? kGoogleIosClientId : null,
         serverClientId:
             kGoogleServerClientId.isNotEmpty ? kGoogleServerClientId : null,
       );
+      debugPrint('[auth_repository] stage: google_account');
       final account = await GoogleSignIn.instance.authenticate();
       final token = account.authentication.idToken;
       if (token == null || token.isEmpty) {
@@ -153,6 +174,7 @@ class AuthRepository {
       );
     }
 
+    debugPrint('[auth_repository] stage: social_exchange');
     final data = await _api.post<Map<String, dynamic>>(
       '/auth/sign-in/social',
       body: {
@@ -161,8 +183,8 @@ class AuthRepository {
       },
     );
 
-    final user = (data['user'] as Map?)?.cast<String, dynamic>();
-    return SignInSuccess(AppUser.fromJson(user ?? const {}));
+    debugPrint('[auth_repository] stage: session_confirmation');
+    return _confirmSession(data, providerName: 'Google');
   }
 
   /// Creates the account. Because the server sets requireEmailVerification,
