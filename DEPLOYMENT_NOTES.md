@@ -102,9 +102,9 @@
 - **Admin password:** Updated in database with scrypt hash
 - **2FA:** Google Authenticator (TOTP) enabled on `admin@attayyibun.com` with base32 secret and 8 backup codes.
 - **2FA Challenge page:** Enhanced to verify Google Authenticator TOTP codes, Email OTP, and Backup Codes seamlessly.
-- **Google OAuth Web:** Web client ID and secret configured in Dokploy environment and verified live.
+- **Google OAuth Web:** Web client ID and secret configured in Dokploy environment and verified live. OAuth callback routes through `/verify-phone` so new Google users verify their phone before entering the profile setup wizard.
 - **Google OAuth Mobile:** Android OAuth does NOT require a client secret (uses SHA-1 + package name).
-- **Phone Verification:** Email verification requirement disabled so signup proceeds straight to SMS phone verification OTP and profile wizard.
+- **Phone Verification:** Email verification requirement disabled so signup and Google OAuth proceed straight to SMS phone verification OTP and profile wizard.
 - **Avatars:** Deleted old `Images/` folder and legacy avatars. Regenerated 21 male (`male-1`..`male-21`) and 21 female (`female-1`..`female-21`) avatars strictly from `Images_New/` and deployed to production.
 
 ## Key Technical Notes
