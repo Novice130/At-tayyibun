@@ -194,7 +194,7 @@ export default function SignupForm() {
         );
       } catch {}
 
-      setSuccess(true);
+      router.replace('/verify-phone');
     } catch (err: any) {
       console.error('Signup error:', err);
       setError(err.message || 'Failed to create account. Please try again.');

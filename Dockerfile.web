@@ -5,7 +5,7 @@
 
 # --- Stage 1: Install deps once ---
 FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat python3 make g++
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
 

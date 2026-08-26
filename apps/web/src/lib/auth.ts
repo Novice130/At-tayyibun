@@ -426,7 +426,7 @@ const options = {
   },
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: true,
+    requireEmailVerification: false,
     // Without this callback better-auth accepts /request-password-reset and
     // then delivers nothing, so the forgot-password page has been silently
     // doing nothing. Phone-first accounts have no password at all — the reset
@@ -450,11 +450,8 @@ const options = {
     },
   },
   emailVerification: {
-    sendOnSignUp: true,
-    // The login screen tells users a fresh link was sent when sign-in is
-    // blocked by an unverified email. Without this flag that message was a lie
-    // and the user was left waiting on an email that never came.
-    sendOnSignIn: true,
+    sendOnSignUp: false,
+    sendOnSignIn: false,
     autoSignInAfterVerification: true,
     expiresIn: 60 * 60, // 1 hour
     async sendVerificationEmail({ user, url }) {

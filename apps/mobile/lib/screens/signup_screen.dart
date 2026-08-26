@@ -35,7 +35,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _password = TextEditingController();
   bool _obscure = true;
   bool _loading = false;
-  bool _done = false;
   bool _avatarStep = false;
   bool _termsAccepted = false;
   String? _gender;
@@ -99,7 +98,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
             image: _avatar,
             termsAcceptedAt: DateTime.now(),
           );
-      if (mounted) setState(() => _done = true);
+      if (mounted) context.go('/verify-phone');
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -119,50 +118,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    if (_done) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.mark_email_unread_outlined,
-                      size: 64, color: theme.colorScheme.primary),
-                  const SizedBox(height: 20),
-                  Text('Check your email',
-                      style: theme.textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 12),
-                  Text(
-                    'We sent a verification link to ${_email.text.trim()}. '
-                    'Open it to confirm your address — the link expires in 1 hour.',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Once verified, come back here and sign in to finish your profile.',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  FilledButton(
-                    onPressed: () => context.go('/login'),
-                    child: const Text('Back to Sign In'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
 
     if (_avatarStep) return _buildAvatarStep(theme);
 

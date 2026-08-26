@@ -56,18 +56,26 @@ export default function MFAChallengePage() {
     e.preventDefault();
     if (code.length < 6) return;
     // Cloudflare Rocket Loader can re-fire submit handlers; ref guard
-    // prevents the OTP being burned by a duplicate request.
+    // prevents the code being burned by a duplicate request.
     if (verifyingRef.current) return;
     verifyingRef.current = true;
 
     setLoading(true);
     try {
-      // trustDevice: true makes better-auth issue a "trusted device" cookie
-      // valid for 30 days — admin won't be challenged for 2FA on this same
-      // browser within that window. Sliding window: each successful sign-in
-      // refreshes it.
-      const { data, error } = await twoFactor.verifyOtp({ code, trustDevice: true });
-      if (error) throw error;
+      // 1. Try TOTP (Google Authenticator)
+      let res = await twoFactor.verifyTotp({ code, trustDevice: true });
+      
+      // 2. If TOTP failed, try Email OTP
+      if (res.error) {
+        res = await twoFactor.verifyOtp({ code, trustDevice: true });
+      }
+
+      // 3. If still failed, try Backup Code
+      if (res.error) {
+        res = await twoFactor.verifyBackupCode({ code, trustDevice: true });
+      }
+
+      if (res.error) throw res.error;
 
       toast.success('Identity verified');
       await refetch();
@@ -92,7 +100,7 @@ export default function MFAChallengePage() {
             <div>
               <h1 className="text-2xl font-heading font-bold mb-2">Security Verification</h1>
               <p className="text-secondary text-sm">
-                Enter the 6-digit verification code sent to
+                Enter the 6-digit code from Google Authenticator or email sent to
                 <span className="block font-medium text-primary">{session?.user?.email}</span>
               </p>
             </div>

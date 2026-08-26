@@ -82,9 +82,14 @@
 - **Root Cause:** Bumping Next.js and the tech stack also updated the `packageManager` declaration in `package.json` to `pnpm@9`. Because `corepack` lacked permissions locally, Turbo couldn't resolve the `pnpm` binary.
 - **Fix applied:** Installed `pnpm` explicitly as a root local `devDependency`. Now running `npm run dev` correctly resolves `node_modules/.bin/pnpm` and correctly hydrates the Next.js and NestJS servers. Node_modules successfully restored.
 
+### BUG 5: Web Docker Build Fails on Alpine during argon2 compilation (FIXED)
+- **Symptom:** Dokploy web deployment fails at `pnpm install` step with `node-gyp ERR! stack Error: Could not find any Python installation to use` on `argon2` install.
+- **Root Cause:** In hoisted node-linker mode, root `pnpm install` installs dependencies across all workspaces including `@at-tayyibun/api` (which depends on `argon2`). `Dockerfile.web` only had `libc6-compat` in the `deps` stage, missing `python3 make g++`.
+- **Fix applied:** Updated `Dockerfile.web` line 8 to `RUN apk add --no-cache libc6-compat python3 make g++`, identical to `Dockerfile.api`.
+
 ---
 
-## Dokploy Config
+## Dokploy Config & Credentials
 - **Platform:** dokploy.learnnovice.com
 - **Project:** "Attayibun"
 - **Web app ID:** kR_VYSPSAMuzU6peeBtt9 (Dockerfile.web, port 3000)
@@ -92,7 +97,15 @@
 - **Domain:** attayyibun.com (web: path `/`, API: path `/api`)
 - **GitHub:** Novice130/At-tayyibun, branch `main`, auto-deploy on push
 
+## Admin & Auth Setup (2026-08-26)
+- **Admin account:** `admin@attayyibun.com` (Role: `SUPER_ADMIN`)
+- **Admin password:** Updated in database with scrypt hash
+- **2FA:** Google Authenticator (TOTP) enabled on `admin@attayyibun.com` with base32 secret and 8 backup codes.
+- **2FA Challenge page:** Enhanced to verify Google Authenticator TOTP codes, Email OTP, and Backup Codes seamlessly.
+- **Google OAuth:** Android OAuth does NOT require a client secret (uses SHA-1 + package name). Only Web OAuth requires `GOOGLE_CLIENT_SECRET`.
+- **Phone Verification:** Email verification requirement disabled so signup proceeds straight to phone verification OTP and profile wizard.
+
 ## Key Technical Notes
-- `node-linker=hoisted` in `.npmrc` means ALL dependencies live in root `node_modules`. Workspace subdirectory `node_modules` folders are empty/nonexistent. This is critical for Docker COPY steps.
-- Previous AI made 5 failed deployment attempts — root cause was not understanding hoisted mode.
+- `node-linker=hoisted` in `.npmrc` means ALL dependencies live in root `node_modules`. Workspace subdirectory `node_modules` folders are empty/nonexistent. Both Dockerfiles require `python3 make g++` in `deps` stage for native modules.
 - Traefik routes `/api/*` to the API container and everything else to the web container. BetterAuth had to move to `/auth` to avoid being routed to the API.
+
