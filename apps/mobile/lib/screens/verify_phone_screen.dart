@@ -38,7 +38,11 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
     // A legacy account may already carry an unverified number; prefilling it
     // turns this into a single tap.
     final existing = ref.read(authControllerProvider).user?.phoneNumber;
-    if (existing != null && existing.isNotEmpty) _phone.text = existing;
+    if (existing != null && existing.isNotEmpty) {
+      _phone.text = formatPhoneInput(existing);
+    } else {
+      _phone.text = '+1 ';
+    }
   }
 
   @override
@@ -187,6 +191,15 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
                       controller: _phone,
                       keyboardType: TextInputType.phone,
                       autofillHints: const [AutofillHints.telephoneNumber],
+                      onChanged: (val) {
+                        final formatted = formatPhoneInput(val);
+                        if (formatted != val) {
+                          _phone.value = TextEditingValue(
+                            text: formatted,
+                            selection: TextSelection.collapsed(offset: formatted.length),
+                          );
+                        }
+                      },
                       decoration: const InputDecoration(
                         labelText: 'Phone number',
                         hintText: '+1 555 123 4567',

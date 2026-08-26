@@ -111,4 +111,45 @@
 - `node-linker=hoisted` in `.npmrc` means ALL dependencies live in root `node_modules`. Workspace subdirectory `node_modules` folders are empty/nonexistent. Both Dockerfiles require `python3 make g++` in `deps` stage for native modules.
 - Traefik routes `/api/*` to the API container and everything else to the web container. BetterAuth had to move to `/auth` to avoid being routed to the API.
 
+---
+
+## iOS Mobile App Parity & TestFlight Release Plan
+
+### 1. Feature Parity Status (iOS App vs Web)
+- **Google Sign-In + Phone Gate**: Integrated with `google_sign_in`. If user logs in with Google and lacks verified phone, `router.dart` intercepts and routes directly to `/verify-phone`.
+- **Default Country Code**: Defaulted to `+1 ` (US) in `initState` across `VerifyPhoneScreen` and `SignupScreen`.
+- **American Phone Number Spacing**: `formatPhoneInput` automatically formats digits into `+1 XXX XXX XXXX` (3 digits, 3 digits, 4 digits).
+- **Avatars**: 42 curated avatars (21 male, 21 female from `Images_New/`) dynamically loaded via `presetAvatars(gender)` from `https://attayyibun.com/avatars/`.
+- **OTP Input**: Clean 6-digit input without digit clipping.
+- **Email Verification**: Bypassed; signup proceeds directly to phone SMS verification.
+
+### 2. TestFlight Configuration & Rollout Before App Store Production
+Before submitting the app for public App Store Review and release, configure and test via Apple **TestFlight**:
+
+1. **Prerequisites & Signing:**
+   - Ensure Apple Developer Team and Bundle ID (`com.attayyibun.at_tayyibun`) are configured with an App Store Distribution Provisioning Profile.
+   - Verify `GoogleService-Info.plist` and `Info.plist` URL schemes (`REVERSED_CLIENT_ID` for Google OAuth and `app-1-637715249195-ios-...` for Firebase Phone reCAPTCHA / APNs).
+
+2. **Build & Archive for TestFlight:**
+   ```bash
+   cd apps/mobile
+   flutter build ipa --release
+   ```
+   Or archive via Xcode: `Product > Archive > Distribute App > App Store Connect > Upload`.
+
+3. **Internal Testing on TestFlight:**
+   - Add internal team testers in App Store Connect under **TestFlight > Internal Testing**.
+   - Builds become available to internal testers immediately upon processing (no Apple review required).
+   - Test critical end-to-end flows:
+     - Google OAuth sign-in → Phone OTP verification.
+     - Email registration → Phone OTP verification → Avatar picker → Profile browsing.
+     - American phone number formatting (`+1 XXX XXX XXXX`).
+
+4. **External Beta Testing (Optional):**
+   - Add external tester groups in TestFlight.
+   - Requires lightweight beta app review from Apple (~24-48 hours).
+
+5. **Final Production Release:**
+   - Once TestFlight testing passes without regressions, select the verified build in **App Store Connect > App Store tab > Build** and submit for final App Store review.
+
 

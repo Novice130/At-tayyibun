@@ -42,6 +42,12 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _phone.text = '+1 ';
+  }
+
+  @override
   void dispose() {
     _name.dispose();
     _email.dispose();
@@ -178,12 +184,21 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       controller: _phone,
                       keyboardType: TextInputType.phone,
                       autofillHints: const [AutofillHints.telephoneNumber],
+                      onChanged: (val) {
+                        final formatted = formatPhoneInput(val);
+                        if (formatted != val) {
+                          _phone.value = TextEditingValue(
+                            text: formatted,
+                            selection: TextSelection.collapsed(offset: formatted.length),
+                          );
+                        }
+                      },
                       decoration: const InputDecoration(
                         labelText: 'Phone number',
-                        hintText: '(555) 123-4567',
+                        hintText: '+1 555 123 4567',
                         prefixIcon: Icon(Icons.phone_outlined),
                       ),
-                      validator: (v) => (v == null || v.trim().isEmpty)
+                      validator: (v) => (v == null || v.trim().isEmpty || v.trim() == '+1')
                           ? 'Phone number is required'
                           : null,
                     ),

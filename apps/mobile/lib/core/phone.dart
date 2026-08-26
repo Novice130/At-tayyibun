@@ -42,3 +42,28 @@ String? toE164(String raw) {
   final joined = '$cc$digits';
   return joined.length >= 7 && joined.length <= 15 ? '+$joined' : null;
 }
+
+/// Formats phone input string:
+/// - Defaults to '+1 '
+/// - Formats US numbers with spaces: '+1 XXX XXX XXXX' (3 then 3 then 4)
+/// - Preserves international formatting for other country codes
+String formatPhoneInput(String value) {
+  if (value.isEmpty) return '+1 ';
+
+  final trimmed = value.trim();
+  if (trimmed.isEmpty || trimmed == '+') return '+1 ';
+
+  if (trimmed.startsWith('+1') || !trimmed.startsWith('+')) {
+    final allDigits = trimmed.replaceAll(RegExp(r'\D'), '');
+    final nationalDigits = allDigits.startsWith('1') ? allDigits.substring(1) : allDigits;
+    final d = nationalDigits.length > 10 ? nationalDigits.substring(0, 10) : nationalDigits;
+
+    if (d.isEmpty) return '+1 ';
+    if (d.length <= 3) return '+1 $d';
+    if (d.length <= 6) return '+1 ${d.substring(0, 3)} ${d.substring(3)}';
+    return '+1 ${d.substring(0, 3)} ${d.substring(3, 6)} ${d.substring(6)}';
+  }
+
+  final digits = trimmed.replaceAll(RegExp(r'\D'), '');
+  return '+$digits';
+}
