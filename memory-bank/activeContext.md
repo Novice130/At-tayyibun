@@ -1,22 +1,18 @@
-# Active Context — 2026-04-26
+# Active Context — 2026-08-26
 
 ## Status
-All known prod-blockers cleared. Auth + profile + admin flows verified
-end-to-end via Playwright (`diagnostics/drive-admin-login.ts`).
+- Published all commits to GitHub `origin/main` (`b5d6e1c`).
+- Verified no sensitive secrets/keys are tracked in Git.
+- Admin credentials updated in Neon database (`admin@attayyibun.com`) with Google Authenticator TOTP enabled.
+- 2FA challenge page enhanced to support TOTP (Google Authenticator), Email OTP, and Backup Codes.
+- Mandatory email verification bypassed; signup now routes straight to phone verification and profile wizard.
+- iOS login and onboarding flow verified and recorded to `ios_login_flow.mp4` for App Store review.
 
-## Last commit on `main`
-`1bf42ac` — single OTP per challenge mount via module-scope flag.
+## Last commits on `main`
+- `b5d6e1c` — fix(auth): refine 2FA challenge page verification fallback types
+- `e5b6f72` — fix(deploy): add alpine build deps to Dockerfile.web, enable TOTP 2FA, and streamline phone verification signup
 
-## Open work
-- Rotate prod secrets (Neon, BetterAuth, Resend, Sentry token).
-- Decide whether to relax profile completion check (drops `bio` +
-  `lastName` requirement) so partially-complete users like
-  `testsister1@example.com` show up in browse.
-- Re-enable Sentry on web after VPS upgrade (currently commented out).
-- Regenerate `graphify-out/` after the DB driver swap.
+## Open work / Notes
+- Android Google Sign-In does NOT need a client secret (Android uses SHA-1 fingerprint and package name in Google Cloud Console; only Web OAuth clients use client secret).
+- iOS App Store review video generated at `ios_login_flow.mp4`.
 
-## Where to start a new session
-Read `docs/session-handoff-2026-04-26.md` — it's the canonical handoff
-that absorbs the previous chunked notes. Do not consult the older
-session-handoff files (they predate the consolidation and are
-historical).
