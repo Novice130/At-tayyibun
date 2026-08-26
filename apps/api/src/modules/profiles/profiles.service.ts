@@ -143,6 +143,15 @@ export class ProfilesService {
       if (blockRow) throw new NotFoundException('Profile not found');
     }
 
+    let fullBio: string | null = null;
+    if (profile.bioEnc) {
+      try {
+        fullBio = this.encryptionService.decrypt(profile.bioEnc);
+      } catch {
+        /* keep null */
+      }
+    }
+
     const pf = (profile.publicFields && typeof profile.publicFields === 'object') ? (profile.publicFields as any) : {};
     const nameHidden = !!pf['hideName'];
     const locationHidden = !!pf['hideLocation'];
@@ -157,7 +166,7 @@ export class ProfilesService {
       avatarUrl: user.image?.trim()
         ? user.image
         : this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
-      bio: 'bio' in pf ? pf['bio'] : null,
+      bio: fullBio || ('bio' in pf ? pf['bio'] : null),
       profileComplete: profile.profileComplete,
     };
 
