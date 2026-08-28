@@ -37,13 +37,14 @@ export default function BrowsePage() {
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const { session, loading: sessionLoading } = useRequireSession();
 
-  const fetchProfiles = useCallback(async (activeFilters: FilterState, gender: 'MALE' | 'FEMALE' | null) => {
+  const fetchProfiles = useCallback(async (activeFilters: FilterState, gender: 'MALE' | 'FEMALE' | null | undefined) => {
     setLoading(true);
     try {
-      const opposite = gender === 'MALE' ? 'FEMALE' : gender === 'FEMALE' ? 'MALE' : null;
-      const queryParams: Record<string, string> = {};
+      const opposite = gender === 'MALE' ? 'FEMALE' : gender === 'FEMALE' ? 'MALE' : 'FEMALE';
+      const queryParams: Record<string, string> = {
+        gender: opposite,
+      };
 
-      if (opposite) queryParams.gender = opposite;
       if (activeFilters.ethnicity && activeFilters.ethnicity !== 'All Ethnicities') {
         queryParams.ethnicity = activeFilters.ethnicity;
       }

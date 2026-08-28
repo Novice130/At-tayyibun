@@ -38,12 +38,36 @@ export class ProfilesService {
       limit = 20,
     } = filters;
 
-    const conds: SQL[] = [eq(profiles.profileComplete, true)];
+    let targetGender: Gender | undefined = gender;
+
+    // Strict Islamic Matrimony Gender Filtering:
+    // If viewer is authenticated, look up their gender and strictly enforce opposite gender.
+    // Brothers only ever see Sisters, and Sisters only ever see Brothers.
+    if (viewerId && viewerId.trim()) {
+      const [viewerProfile] = await this.drizzle.db
+        .select({ gender: profiles.gender })
+        .from(profiles)
+        .where(eq(profiles.userId, viewerId))
+        .limit(1);
+
+      if (viewerProfile?.gender) {
+        targetGender = viewerProfile.gender === 'MALE' ? Gender.FEMALE : Gender.MALE;
+      }
+    }
+
+    // Fall back to FEMALE if no gender is known, guaranteeing no mixed results
+    if (!targetGender) {
+      targetGender = Gender.FEMALE;
+    }
+
+    const conds: SQL[] = [
+      eq(profiles.profileComplete, true),
+      eq(profiles.gender, targetGender),
+    ];
     if (ethnicity && ethnicity.trim() && ethnicity !== 'All Ethnicities' && ethnicity !== 'Any') {
       const eth = ethnicity.trim();
       conds.push(sql`(LOWER(${profiles.ethnicity}) = LOWER(${eth}) OR ${profiles.ethnicity} ILIKE ${'%' + eth + '%'})`);
     }
-    if (gender) conds.push(eq(profiles.gender, gender));
 
     // Exclude caller's own profile and respect blocks if viewerId is present
     if (viewerId && viewerId.trim()) {

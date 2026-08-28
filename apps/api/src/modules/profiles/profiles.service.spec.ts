@@ -100,9 +100,12 @@ describe('ProfilesService', () => {
         createdAt: '2026-01-01',
       };
 
-      db.select
-        .mockReturnValueOnce(chain([{ profile: mockProfile, user: mockUser }]))
-        .mockReturnValueOnce(chain([{ value: 1 }]));
+      // 1. Viewer gender lookup (MALE -> sees FEMALE)
+      db.select.mockReturnValueOnce(chain([{ gender: Gender.MALE }]));
+      // 2. Browse query rows
+      db.select.mockReturnValueOnce(chain([{ profile: mockProfile, user: mockUser }]));
+      // 3. Count query
+      db.select.mockReturnValueOnce(chain([{ value: 1 }]));
 
       const result = await service.browseProfiles(
         {
@@ -123,7 +126,7 @@ describe('ProfilesService', () => {
       expect(result.meta.total).toBe(1);
     });
 
-    it('works safely without a viewerId', async () => {
+    it('works safely without a viewerId and defaults gender', async () => {
       db.select
         .mockReturnValueOnce(chain([]))
         .mockReturnValueOnce(chain([{ value: 0 }]));

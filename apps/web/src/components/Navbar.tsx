@@ -48,7 +48,6 @@ export function Navbar() {
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
   const navLinks = [
-    { href: '/', label: 'Home', icon: Home },
     { href: '/browse', label: 'Browse', icon: Search },
     { href: '/requests', label: 'Requests', icon: Inbox },
   ];
@@ -58,7 +57,7 @@ export function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link href="/" className="flex items-center gap-2 group transition-transform hover:scale-105 active:scale-95">
+          <Link href={session ? "/browse" : "/"} className="flex items-center gap-2 group transition-transform hover:scale-105 active:scale-95">
             <Image
               src="/at-tayyibun-logo.png"
               alt="At-Tayyibun Logo"

@@ -53,20 +53,21 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
       final opposite = switch (gender) {
         'MALE' => 'FEMALE',
         'FEMALE' => 'MALE',
-        _ => null,
+        _ => 'FEMALE',
       };
       _filters = _filters.copyWith(gender: opposite);
     } on ApiException catch (e) {
       if (e.statusCode == 404) {
-        // No profile created yet - allowed to see all
-        _filters = _filters.copyWith(gender: null);
+        // No profile created yet - default to FEMALE
+        _filters = _filters.copyWith(gender: 'FEMALE');
       } else {
         if (!mounted) return;
         _handleLoadFailure(e.message);
         return;
       }
     } catch (_) {
-      // Keep existing filter if already set, otherwise wait
+      // Keep existing filter if already set, otherwise FEMALE
+      _filters = _filters.copyWith(gender: _filters.gender ?? 'FEMALE');
     }
     await _load(reset: true);
   }
