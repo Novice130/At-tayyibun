@@ -21,9 +21,13 @@ export function middleware(request: NextRequest) {
       // Tell the server admin layout to skip the authoritative session gate:
       // the 2FA challenge page renders during a partial session where
       // get-session returns null until verifyOtp completes.
-      const res = NextResponse.next();
-      res.headers.set('x-admin-exempt', '1');
-      return res;
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set('x-admin-exempt', '1');
+      return NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      });
     }
     // Cheap first gate: no session cookie, no admin page. The authoritative
     // role check lives in the admin server layout (full session verification).

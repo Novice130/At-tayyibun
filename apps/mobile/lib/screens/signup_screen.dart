@@ -184,15 +184,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       controller: _phone,
                       keyboardType: TextInputType.phone,
                       autofillHints: const [AutofillHints.telephoneNumber],
-                      onChanged: (val) {
-                        final formatted = formatPhoneInput(val);
-                        if (formatted != val) {
-                          _phone.value = TextEditingValue(
-                            text: formatted,
-                            selection: TextSelection.collapsed(offset: formatted.length),
-                          );
-                        }
-                      },
+                      inputFormatters: const [PhoneInputFormatter()],
                       decoration: const InputDecoration(
                         labelText: 'Phone number',
                         hintText: '+1 555 123 4567',

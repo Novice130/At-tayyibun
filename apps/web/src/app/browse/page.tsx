@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Loader, Lock, X } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
@@ -29,6 +30,7 @@ const defaultFilters: FilterState = {
 };
 
 export default function BrowsePage() {
+  const router = useRouter();
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeRequest, setActiveRequest] = useState<ActiveRequest | null>(null);
@@ -75,20 +77,25 @@ export default function BrowsePage() {
     if (!session) return;
     let mounted = true;
     
-    // Fetch own profile to determine gender, then load opposite-gender profiles
+    // Fetch own profile to check completion & gender, then load opposite-gender profiles
     api.get('/profiles/me')
       .then((data: any) => {
         if (!mounted) return;
-        const gender: 'MALE' | 'FEMALE' | null = data?.profile?.gender ?? null;
+        const profile = data?.profile;
+        if (!profile?.profileComplete) {
+          router.replace('/profile/setup');
+          return;
+        }
+        const gender: 'MALE' | 'FEMALE' | null = profile?.gender ?? null;
         setMyGender(gender);
         fetchProfiles(filters, gender);
       })
       .catch((err) => {
         if (!mounted) return;
-        // Only fallback to no-gender filtering if the profile truly doesn't exist (404)
+        // If the profile does not exist yet, direct them to profile setup
         if (err?.statusCode === 404 || err?.status === 404 || err?.message?.includes('404')) {
-          setMyGender(null);
-          fetchProfiles(filters, null);
+          router.replace('/profile/setup');
+          return;
         } else {
           setLoading(false);
           toast.error('Failed to load profiles. Please try again.');
@@ -98,7 +105,7 @@ export default function BrowsePage() {
     fetchActiveRequest();
     
     return () => { mounted = false; };
-  }, [session, fetchProfiles]);
+  }, [session, fetchProfiles, router]);
 
   const fetchActiveRequest = async () => {
     try {

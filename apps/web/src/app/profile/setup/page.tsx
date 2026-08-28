@@ -419,15 +419,6 @@ export default function ProfileSetupPage() {
           </Link>
           <span style={{ color: 'var(--color-border)' }}>·</span>
           <span className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Complete Your Profile</span>
-          {/* This page renders no Navbar, so on a phone there was no way back
-              into the app other than the logo. */}
-          <Link
-            href="/browse"
-            className="ml-auto text-sm font-medium whitespace-nowrap hover:text-gold-500 transition-colors"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
-            Browse
-          </Link>
         </div>
       </div>
 

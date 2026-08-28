@@ -90,6 +90,18 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
         _busy = false;
         _error = _firebaseMessage(e);
       });
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e.message ?? 'Phone verification failed on this device. Please try again.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = 'Could not send verification code. Please check your network and try again.';
+      });
     }
   }
 
@@ -137,6 +149,18 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
       setState(() {
         _busy = false;
         _error = _firebaseMessage(e);
+      });
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = e.message ?? 'Failed to verify code. Please try again.';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = 'Verification failed. Please try again.';
       });
     }
   }
@@ -191,15 +215,7 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
                       controller: _phone,
                       keyboardType: TextInputType.phone,
                       autofillHints: const [AutofillHints.telephoneNumber],
-                      onChanged: (val) {
-                        final formatted = formatPhoneInput(val);
-                        if (formatted != val) {
-                          _phone.value = TextEditingValue(
-                            text: formatted,
-                            selection: TextSelection.collapsed(offset: formatted.length),
-                          );
-                        }
-                      },
+                      inputFormatters: const [PhoneInputFormatter()],
                       decoration: const InputDecoration(
                         labelText: 'Phone number',
                         hintText: '+1 555 123 4567',

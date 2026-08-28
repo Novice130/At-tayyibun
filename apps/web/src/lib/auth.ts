@@ -321,14 +321,8 @@ const options = {
   logger: {
     level: "error",
     log(level: string, message: string, error?: unknown) {
-      if (level === "error" && error) {
-        // Sentry temporarily disabled.
-        // import("@sentry/nextjs").then((Sentry) => {
-        //   Sentry.captureException(error, {
-        //     extra: { message, level },
-        //   });
-        // });
-        console.error("[auth]", message);
+      if (level === "error") {
+        console.error("[auth]", message, error);
       }
     },
   },

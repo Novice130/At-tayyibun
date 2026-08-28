@@ -3,6 +3,9 @@
 /// stored under another, which quietly breaks one-account-per-number.
 library;
 
+import 'dart:math';
+import 'package:flutter/services.dart';
+
 /// Fallback dialling code for input typed without one.
 const String kDefaultCountryCode = String.fromEnvironment(
   'DEFAULT_COUNTRY_CODE',
@@ -64,7 +67,7 @@ String formatPhoneInput(String value) {
     final national = digits.length > 1 ? digits.substring(1) : '';
     final d = national.length > 10 ? national.substring(0, 10) : national;
 
-    if (d.isEmpty) return '+1 ';
+    if (d.isEmpty) return '+1';
     if (d.length <= 3) return '+1 $d';
     if (d.length <= 6) return '+1 ${d.substring(0, 3)} ${d.substring(3)}';
     return '+1 ${d.substring(0, 3)} ${d.substring(3, 6)} ${d.substring(6)}';
@@ -80,5 +83,42 @@ String formatPhoneInput(String value) {
   if (digits.length <= 12) {
     return '+${digits.substring(0, 2)} ${digits.substring(2, 7)} ${digits.substring(7)}';
   }
-  return '+${digits.substring(0, 3)} ${digits.substring(3, 6)} ${digits.substring(6, 10)} ${digits.substring(10)}'.trim();
+
+  // International long numbers up to 15 digits
+  final maxDigits = min(digits.length, 15);
+  final safeDigits = digits.substring(0, maxDigits);
+  final p1 = safeDigits.substring(0, 3);
+  final p2 = safeDigits.substring(3, min(6, safeDigits.length));
+  final p3 = safeDigits.length > 6 ? safeDigits.substring(6, min(10, safeDigits.length)) : '';
+  final p4 = safeDigits.length > 10 ? safeDigits.substring(10) : '';
+
+  return ['+$p1', if (p2.isNotEmpty) p2, if (p3.isNotEmpty) p3, if (p4.isNotEmpty) p4].join(' ');
+}
+
+/// A safe TextInputFormatter for phone numbers that prevents backspace lock
+/// and avoids mutating controller.value inside onChanged.
+class PhoneInputFormatter extends TextInputFormatter {
+  const PhoneInputFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
+
+    // When deleting, let user delete freely without reformatting interference
+    if (oldValue.text.length > newValue.text.length) {
+      return newValue;
+    }
+
+    // Format new input
+    final formatted = formatPhoneInput(newValue.text);
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
 }
