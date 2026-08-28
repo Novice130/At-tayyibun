@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Mail, Lock, Phone } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { authClient, signIn } from '@/lib/auth-client';
 
 export default function LoginForm() {
@@ -211,14 +211,6 @@ export default function LoginForm() {
                 </svg>
                 {googleLoading ? 'Redirecting…' : 'Continue with Google'}
               </button>
-
-              <Link
-                href="/signup/phone"
-                className="btn-secondary py-3 text-sm w-full mt-3 flex items-center justify-center"
-              >
-                <Phone className="w-5 h-5 mr-2" />
-                Continue with phone
-              </Link>
             </div>
           </div>
 

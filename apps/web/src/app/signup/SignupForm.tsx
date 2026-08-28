@@ -271,16 +271,6 @@ export default function SignupForm() {
             ))}
           </div>
 
-          <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--color-border)' }}>
-            <Link
-              href="/signup/phone"
-              className="btn-secondary py-3 text-sm w-full flex items-center justify-center"
-            >
-              <Phone className="w-5 h-5 mr-2" />
-              Sign up with phone instead
-            </Link>
-          </div>
-
           <p className="text-center text-sm mt-6" style={{ color: 'var(--color-text-secondary)' }}>
             Already have an account?{' '}
             <Link href="/login" className="text-gold-400 hover:text-gold-300">
