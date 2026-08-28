@@ -15,7 +15,7 @@ import { ThemeToggle } from './ThemeToggle';
 export function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { data: session, isPending } = useSession();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -96,7 +96,7 @@ export function Navbar() {
                   </Link>
                 );
               })}
-              {!session && (
+              {!session && !isPending && (
                 <>
                   <Link href="/" className="text-sm font-medium hover:text-gold-500 text-secondary">Home</Link>
                   <Link href="/browse" className="text-sm font-medium hover:text-gold-500 text-secondary">Browse</Link>
