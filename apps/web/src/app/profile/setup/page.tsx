@@ -572,15 +572,114 @@ export default function ProfileSetupPage() {
             )}
 
             <div>
-              <label className="block text-sm font-medium mb-1">Date of Birth <span className="text-red-400">*</span></label>
-              <input type="date" className="input" max={maxDob()} value={form.dob}
-                onChange={e => set('dob', e.target.value)} />
+              <label className="block text-sm font-medium mb-1">
+                Date of Birth <span className="text-red-400">*</span>
+              </label>
+              <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                Must be at least 18 years old. Age will be calculated automatically.
+              </p>
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                {/* Month */}
+                <select
+                  className="input"
+                  value={form.dob ? form.dob.split('-')[1] || '' : ''}
+                  onChange={(e) => {
+                    const month = e.target.value;
+                    const parts = form.dob ? form.dob.split('-') : ['', '', ''];
+                    const year = parts[0] || `${new Date().getFullYear() - 25}`;
+                    const day = parts[2] || '01';
+                    set('dob', month ? `${year}-${month}-${day}` : '');
+                  }}
+                >
+                  <option value="">Month</option>
+                  {[
+                    { v: '01', l: 'Jan' },
+                    { v: '02', l: 'Feb' },
+                    { v: '03', l: 'Mar' },
+                    { v: '04', l: 'Apr' },
+                    { v: '05', l: 'May' },
+                    { v: '06', l: 'Jun' },
+                    { v: '07', l: 'Jul' },
+                    { v: '08', l: 'Aug' },
+                    { v: '09', l: 'Sep' },
+                    { v: '10', l: 'Oct' },
+                    { v: '11', l: 'Nov' },
+                    { v: '12', l: 'Dec' },
+                  ].map((m) => (
+                    <option key={m.v} value={m.v}>
+                      {m.l}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Day */}
+                <select
+                  className="input"
+                  value={form.dob ? form.dob.split('-')[2] || '' : ''}
+                  onChange={(e) => {
+                    const day = e.target.value;
+                    const parts = form.dob ? form.dob.split('-') : ['', '', ''];
+                    const year = parts[0] || `${new Date().getFullYear() - 25}`;
+                    const month = parts[1] || '01';
+                    set('dob', day ? `${year}-${month}-${day.padStart(2, '0')}` : '');
+                  }}
+                >
+                  <option value="">Day</option>
+                  {Array.from({ length: 31 }, (_, i) => {
+                    const d = `${i + 1}`.padStart(2, '0');
+                    return (
+                      <option key={d} value={d}>
+                        {i + 1}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {/* Year */}
+                <select
+                  className="input"
+                  value={form.dob ? form.dob.split('-')[0] || '' : ''}
+                  onChange={(e) => {
+                    const year = e.target.value;
+                    const parts = form.dob ? form.dob.split('-') : ['', '', ''];
+                    const month = parts[1] || '01';
+                    const day = parts[2] || '01';
+                    set('dob', year ? `${year}-${month}-${day}` : '');
+                  }}
+                >
+                  <option value="">Year</option>
+                  {Array.from({ length: 65 }, (_, i) => {
+                    const currentYear = new Date().getFullYear();
+                    const y = currentYear - 18 - i; // 18 to 82 years ago
+                    return (
+                      <option key={y} value={`${y}`}>
+                        {y} ({currentYear - y} yrs)
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium mb-1">Ethnicity / Background <span className="text-red-400">*</span></label>
-              <input className="input" placeholder="e.g. South Asian, Arab, East African…" value={form.ethnicity}
-                onChange={e => set('ethnicity', e.target.value)} />
+              <select className="input" value={form.ethnicity} onChange={e => set('ethnicity', e.target.value)}>
+                <option value="">Select…</option>
+                {[
+                  'South Asian',
+                  'Arab',
+                  'African',
+                  'African American',
+                  'Southeast Asian',
+                  'Turkish',
+                  'Persian',
+                  'Central Asian',
+                  'White / Caucasian',
+                  'Hispanic / Latino',
+                  'Mixed',
+                  'Other',
+                ].map(eth => <option key={eth} value={eth}>{eth}</option>)}
+              </select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -42,10 +44,11 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
   }
 
   /// Derive the opposite-gender filter from the signed-in user's own profile,
-  /// matching the website's behaviour.
+  /// matching the website's behaviour. Uses the cached myProfileProvider to
+  /// prevent throttling (429) during rapid tab switching.
   Future<void> _bootstrap() async {
     try {
-      final me = await ref.read(profilesRepositoryProvider).me();
+      final me = await ref.read(myProfileProvider.future);
       final gender = me.profile?.gender;
       final opposite = switch (gender) {
         'MALE' => 'FEMALE',
@@ -53,8 +56,17 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
         _ => null,
       };
       _filters = _filters.copyWith(gender: opposite);
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) {
+        // No profile created yet - allowed to see all
+        _filters = _filters.copyWith(gender: null);
+      } else {
+        if (!mounted) return;
+        _handleLoadFailure(e.message);
+        return;
+      }
     } catch (_) {
-      // No profile yet — fall through and show everyone.
+      // Keep existing filter if already set, otherwise wait
     }
     await _load(reset: true);
   }
@@ -161,25 +173,47 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
         (_filters.sortBy != null && _filters.sortBy != 'rankBoost');
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Browse'),
-        actions: [
-          IconButton(
-            onPressed: _openFilters,
-            icon: Badge(
-              isLabelVisible: hasActiveFilters,
-              child: const Icon(Icons.tune),
+      extendBodyBehindAppBar: true,
+      body: RefreshIndicator(
+        onRefresh: () => _load(reset: true),
+        child: CustomScrollView(
+          controller: _scroll,
+          slivers: [
+            SliverAppBar(
+              pinned: true,
+              title: const Text('Browse'),
+              backgroundColor: Theme.of(context).colorScheme.surface.withValues(alpha: 0.65),
+              elevation: 0,
+              flexibleSpace: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(color: Colors.transparent),
+                ),
+              ),
+              actions: [
+                IconButton(
+                  onPressed: _openFilters,
+                  icon: Badge(
+                    isLabelVisible: hasActiveFilters,
+                    child: const Icon(Icons.tune),
+                  ),
+                  tooltip: 'Filters',
+                ),
+              ],
             ),
-            tooltip: 'Filters',
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            const _ActiveRequestBanner(),
-            if (hasActiveFilters) _buildActiveFilterChips(),
-            Expanded(child: _buildBody(visible)),
+            SliverToBoxAdapter(
+              child: SafeArea(
+                bottom: false,
+                top: false,
+                child: Column(
+                  children: [
+                    const _ActiveRequestBanner(),
+                    if (hasActiveFilters) _buildActiveFilterChips(),
+                  ],
+                ),
+              ),
+            ),
+            _buildSliverBody(visible),
           ],
         ),
       ),
@@ -253,46 +287,50 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
     );
   }
 
-  Widget _buildBody(List<ProfileSummary> visible) {
-    if (_loading) return const LoadingView();
+  Widget _buildSliverBody(List<ProfileSummary> visible) {
+    if (_loading) return const SliverFillRemaining(child: LoadingView());
     if (_error != null) {
-      return ErrorView(message: _error!, onRetry: () => _load(reset: true));
+      return SliverFillRemaining(
+        child: ErrorView(message: _error!, onRetry: () => _load(reset: true)),
+      );
     }
     if (visible.isEmpty) {
-      return EmptyView(
-        icon: Icons.search_off,
-        title: 'No profiles found',
-        message: 'Try widening your filters.',
-        action: OutlinedButton(
-          onPressed: () {
-            setState(() {
-              _filters = BrowseFilters(gender: _filters.gender);
-            });
-            _load(reset: true);
-          },
-          child: const Text('Clear filters'),
+      return SliverFillRemaining(
+        child: EmptyView(
+          icon: Icons.search_off,
+          title: 'No profiles found',
+          message: 'Try widening your filters.',
+          action: OutlinedButton(
+            onPressed: () {
+              setState(() {
+                _filters = BrowseFilters(gender: _filters.gender);
+              });
+              _load(reset: true);
+            },
+            child: const Text('Clear filters'),
+          ),
         ),
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: () => _load(reset: true),
-      child: GridView.builder(
-        controller: _scroll,
-        padding: const EdgeInsets.all(16),
+    return SliverPadding(
+      padding: const EdgeInsets.all(16).copyWith(bottom: 120),
+      sliver: SliverGrid(
         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
           maxCrossAxisExtent: 220,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
           childAspectRatio: 0.68,
         ),
-        itemCount: visible.length + (_page < _pages ? 1 : 0),
-        itemBuilder: (context, i) {
-          if (i >= visible.length) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return _ProfileCard(profile: visible[i]);
-        },
+        delegate: SliverChildBuilderDelegate(
+          (context, i) {
+            if (i >= visible.length) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return _ProfileCard(profile: visible[i]);
+          },
+          childCount: visible.length + (_page < _pages ? 1 : 0),
+        ),
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -124,12 +125,16 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   }
 
   static const _legalStatuses = [
-    'Citizen', 'Permanent Resident', 'Work Visa', 'Student Visa', 'Other',
+    'Citizen', 'Permanent Resident', 'Visa-Holder', 'Work Visa', 'Student Visa', 'Other',
   ];
   static const _relocateOptions = ['Yes', 'No', 'Open to Discussion'];
   static const _practices = ['Practicing', 'Striving', 'Moderate'];
-  static const _prayerOptions = ['5 times daily', 'Most prayers', 'Occasionally'];
-  static const _dietOptions = ['Halal only', 'Halal + Vegetarian', 'No restrictions'];
+  static const _prayerOptions = [
+    '5x Daily', '5 times daily', 'Most of the time', 'Most prayers', 'Occasionally',
+  ];
+  static const _dietOptions = [
+    'Zabiha Only', 'Halal (any)', 'Halal only', 'Halal + Vegetarian', 'No restrictions', 'No Preference',
+  ];
   static const _educationOptions = [
     'High School', 'Some College', "Bachelor's", "Master's", 'Doctorate',
     'Medical / JD', 'Vocational / Trade', 'Other',
@@ -320,7 +325,19 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         _ => _confirmFields(),
       };
 
-  List<Widget> _basicFields() => [
+  List<Widget> _wrapInCard(List<Widget> children) => [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
+          ),
+        ),
+      ];
+
+  List<Widget> _basicFields() => _wrapInCard([
         _Label('Gender'),
         SegmentedButton<String>(
           segments: const [
@@ -348,13 +365,99 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         InkWell(
           onTap: () async {
             final now = DateTime.now();
-            final picked = await showDatePicker(
+            final initial = _dob ?? DateTime(now.year - 25);
+            DateTime tempSelected = _dob ?? initial;
+            final theme = Theme.of(context);
+
+            final picked = await showCupertinoModalPopup<DateTime>(
               context: context,
-              initialDate: _dob ?? DateTime(now.year - 25),
-              firstDate: DateTime(now.year - 80),
-              lastDate: DateTime(now.year - 18, now.month, now.day),
+              builder: (ctx) => Container(
+                height: 300,
+                padding: const EdgeInsets.only(top: 6),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.15),
+                      blurRadius: 10,
+                      offset: const Offset(0, -2),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      // iOS toolbar
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            CupertinoButton(
+                              padding: EdgeInsets.zero,
+                              onPressed: () => Navigator.of(ctx).pop(null),
+                              child: Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              'Date of Birth',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            CupertinoButton(
+                              padding: EdgeInsets.zero,
+                              onPressed: () => Navigator.of(ctx).pop(tempSelected),
+                              child: Text(
+                                'Done',
+                                style: TextStyle(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Expanded(
+                        child: CupertinoTheme(
+                          data: CupertinoThemeData(
+                            brightness: theme.brightness,
+                            textTheme: CupertinoTextThemeData(
+                              dateTimePickerTextStyle: TextStyle(
+                                color: theme.colorScheme.onSurface,
+                                fontSize: 20,
+                              ),
+                            ),
+                          ),
+                          child: CupertinoDatePicker(
+                            mode: CupertinoDatePickerMode.date,
+                            initialDateTime: initial,
+                            minimumDate: DateTime(now.year - 80),
+                            maximumDate: DateTime(now.year - 18, now.month, now.day),
+                            onDateTimeChanged: (val) {
+                              tempSelected = val;
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             );
-            if (picked != null) setState(() => _dob = picked);
+            if (picked != null) {
+              setState(() => _dob = picked);
+            }
           },
           child: InputDecorator(
             decoration: const InputDecoration(labelText: 'Date of birth'),
@@ -381,12 +484,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           onChanged: (v) => setState(() => _state = v),
         ),
         const SizedBox(height: 16),
-        TextFormField(
-          controller: _ethnicity,
-          decoration: const InputDecoration(
-            labelText: 'Ethnicity / background',
-            hintText: 'e.g. South Asian',
-          ),
+        DropdownButtonFormField<String>(
+          initialValue: kEthnicities.contains(_ethnicity.text) ? _ethnicity.text : null,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Ethnicity / background'),
+          items: kEthnicities
+              .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+              .toList(),
+          onChanged: (v) => setState(() => _ethnicity.text = v ?? ''),
         ),
         const SizedBox(height: 8),
         SwitchListTile(
@@ -403,9 +508,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           title: const Text('Hide my location'),
           subtitle: const Text('Hide city and state from other members'),
         ),
-      ];
+      ]);
 
-  List<Widget> _backgroundFields() => [
+  List<Widget> _backgroundFields() => _wrapInCard([
         _Label('Legal status'),
         _ChoiceChips(
           options: _legalStatuses,
@@ -439,9 +544,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           selected: _relocate,
           onSelected: (v) => setState(() => _relocate = v),
         ),
-      ];
+      ]);
 
-  List<Widget> _deenFields() => [
+  List<Widget> _deenFields() => _wrapInCard([
         _Label('Religious practice'),
         _ChoiceChips(
           options: _practices,
@@ -470,9 +575,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             hintText: 'e.g. Sunni / Hanafi',
           ),
         ),
-      ];
+      ]);
 
-  List<Widget> _aboutFields() => [
+  List<Widget> _aboutFields() => _wrapInCard([
         TextFormField(
           controller: _about,
           maxLines: 6,
@@ -501,7 +606,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             alignLabelWithHint: true,
           ),
         ),
-      ];
+      ]);
 
   List<Widget> _confirmFields() {
     final rows = <(String, String)>[

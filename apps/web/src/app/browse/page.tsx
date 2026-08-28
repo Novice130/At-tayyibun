@@ -32,7 +32,7 @@ export default function BrowsePage() {
   const [profiles, setProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeRequest, setActiveRequest] = useState<ActiveRequest | null>(null);
-  const [myGender, setMyGender] = useState<'MALE' | 'FEMALE' | null>(null);
+  const [myGender, setMyGender] = useState<'MALE' | 'FEMALE' | null | undefined>(undefined);
   const [cancelling, setCancelling] = useState(false);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
   const { session, loading: sessionLoading } = useRequireSession();
@@ -72,15 +72,31 @@ export default function BrowsePage() {
 
   useEffect(() => {
     if (!session) return;
+    let mounted = true;
+    
     // Fetch own profile to determine gender, then load opposite-gender profiles
     api.get('/profiles/me')
       .then((data: any) => {
+        if (!mounted) return;
         const gender: 'MALE' | 'FEMALE' | null = data?.profile?.gender ?? null;
         setMyGender(gender);
         fetchProfiles(filters, gender);
       })
-      .catch(() => fetchProfiles(filters, null));
+      .catch((err) => {
+        if (!mounted) return;
+        // Only fallback to no-gender filtering if the profile truly doesn't exist (404)
+        if (err?.statusCode === 404 || err?.status === 404 || err?.message?.includes('404')) {
+          setMyGender(null);
+          fetchProfiles(filters, null);
+        } else {
+          setLoading(false);
+          toast.error('Failed to load profiles. Please try again.');
+        }
+      });
+      
     fetchActiveRequest();
+    
+    return () => { mounted = false; };
   }, [session, fetchProfiles]);
 
   const fetchActiveRequest = async () => {
@@ -108,15 +124,19 @@ export default function BrowsePage() {
 
   const handleFilter = (newFilters: FilterState) => {
     setFilters(newFilters);
-    fetchProfiles(newFilters, myGender);
+    if (myGender !== undefined) {
+      fetchProfiles(newFilters, myGender);
+    }
   };
 
   const handleClearFilters = () => {
     setFilters(defaultFilters);
-    fetchProfiles(defaultFilters, myGender);
+    if (myGender !== undefined) {
+      fetchProfiles(defaultFilters, myGender);
+    }
   };
 
-  if (sessionLoading || !session) {
+  if (sessionLoading || !session || myGender === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg)' }}>
         <Loader className="w-10 h-10 text-gold-500 animate-spin" aria-label="Loading" />
