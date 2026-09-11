@@ -4,16 +4,18 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { and, count, desc, eq, ilike, or, sql } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { DrizzleService } from '../../db/drizzle.service';
 import { infoRequests, profiles, systemConfig, users } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
+import { EmailService } from '../../services/email.service';
 
 @Injectable()
 export class AdminService {
   constructor(
     private readonly drizzle: DrizzleService,
     private readonly auditService: AuditService,
+    private readonly emailService: EmailService,
   ) {}
 
   async getAnalytics() {
@@ -76,6 +78,8 @@ export class AdminService {
           role: true,
           membershipTier: true,
           isVerified: true,
+          isPhoneVerified: true,
+          emailVerified: true,
           createdAt: true,
           rankBoost: true,
         },
@@ -156,6 +160,80 @@ export class AdminService {
     await db.update(users).set(patch).where(eq(users.id, userId));
     await this.auditService.logAdminAction(adminId, 'UPDATE_USER', 'user', userId, dto);
     return { success: true };
+  }
+
+  /**
+   * Accounts that signed up with an email but never verified a phone number —
+   * the incomplete-signup rows visible in the admin panel with no profile.
+   * Placeholder (+e164@phone.attayyibun.invalid) addresses are excluded: mail
+   * to them can only hard-bounce and hurt the sending domain's reputation.
+   * Phone-first accounts and anyone who already has a profile are excluded too.
+   */
+  private incompleteSignupWhere() {
+    return and(
+      eq(users.emailIsPlaceholder, false),
+      eq(users.isPhoneVerified, false),
+      eq(users.phoneGateExempt, false),
+      isNull(profiles.userId),
+      notInArray(users.role, ['ADMIN', 'SUPER_ADMIN']),
+    );
+  }
+
+  async countIncompleteSignups() {
+    const db = this.drizzle.db;
+    const [row] = await db
+      .select({ value: count() })
+      .from(users)
+      .leftJoin(profiles, eq(profiles.userId, users.id))
+      .where(this.incompleteSignupWhere());
+    return { count: Number(row.value) };
+  }
+
+  async nudgeUser(adminId: string, userId: string) {
+    const db = this.drizzle.db;
+    const [row] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        emailIsPlaceholder: users.emailIsPlaceholder,
+        isPhoneVerified: users.isPhoneVerified,
+        profileId: profiles.userId,
+      })
+      .from(users)
+      .leftJoin(profiles, eq(profiles.userId, users.id))
+      .where(eq(users.id, userId));
+
+    if (!row) throw new NotFoundException('User not found');
+    if (row.emailIsPlaceholder) throw new BadRequestException('Phone-first account has no real email to nudge');
+    if (row.isPhoneVerified) throw new BadRequestException('User already verified their phone');
+    if (row.profileId) throw new BadRequestException('User already has a profile');
+
+    await this.emailService.sendVerifyPhoneNudgeEmail(row.email, row.name ? row.name.split(' ')[0] : null);
+    await this.auditService.logAdminAction(adminId, 'NUDGE_VERIFY_PHONE', 'user', userId, { email: row.email });
+    return { success: true, email: row.email };
+  }
+
+  async nudgeAllIncomplete(adminId: string) {
+    const db = this.drizzle.db;
+    const targets = await db
+      .select({ id: users.id, email: users.email, name: users.name })
+      .from(users)
+      .leftJoin(profiles, eq(profiles.userId, users.id))
+      .where(this.incompleteSignupWhere());
+
+    let sent = 0;
+    const failed: { email: string; error: string }[] = [];
+    for (const t of targets) {
+      try {
+        await this.emailService.sendVerifyPhoneNudgeEmail(t.email, t.name ? t.name.split(' ')[0] : null);
+        await this.auditService.logAdminAction(adminId, 'NUDGE_VERIFY_PHONE', 'user', t.id, { email: t.email });
+        sent += 1;
+      } catch (e: any) {
+        failed.push({ email: t.email, error: e?.message || 'send failed' });
+      }
+    }
+    return { total: targets.length, sent, failed };
   }
 
   async deleteUser(adminId: string, userId: string) {

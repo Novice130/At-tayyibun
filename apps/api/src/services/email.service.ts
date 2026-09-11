@@ -130,6 +130,35 @@ export class EmailService {
   }
 
   /**
+   * Send a nudge to an account that signed up by email but never verified a
+   * phone number (and therefore has no profile). Sent on demand from the admin
+   * panel — never automatically.
+   */
+  async sendVerifyPhoneNudgeEmail(email: string, firstName: string | null): Promise<void> {
+    const safeFirstName = escapeHtml(firstName || 'there');
+    const loginUrl = `${this.webUrl}/login?next=%2Fverify-phone`;
+    const html = this.wrapInLayout(`
+      <h2 style="color: #1a1a2e; margin-bottom: 16px;">Finish setting up your account</h2>
+      <p>Assalamu Alaikum ${safeFirstName},</p>
+      <p>You started signing up for <strong>At-Tayyibun</strong> but your account is not active yet. One step is left: verify your phone number.</p>
+      <div style="background: #f8f4ed; padding: 20px; border-radius: 8px; margin: 24px 0; border-left: 4px solid #D4AF37;">
+        <p style="margin: 0 0 10px; color: #8B7500;"><strong>Why verify?</strong></p>
+        <p style="margin: 0; color: #555;">Phone verification keeps At-Tayyibun a trusted space — one account per person, no fake profiles. Once verified, your profile appears in search and you can send and receive contact requests.</p>
+      </div>
+      <p style="text-align: center; margin: 32px 0;">
+        <a href="${loginUrl}" style="display: inline-block; background: linear-gradient(135deg, #D4AF37, #8B7500); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold;">Verify My Phone</a>
+      </p>
+      <p style="color: #888; font-size: 13px;">After signing in you will land directly on the phone verification step.</p>
+    `);
+
+    await this.sendEmail({
+      to: email,
+      subject: 'One step left — verify your phone to activate your At-Tayyibun account',
+      html,
+    });
+  }
+
+  /**
    * Send notification to target when someone requests their contact
    */
   async sendContactRequestEmail(

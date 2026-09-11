@@ -47,6 +47,27 @@ export class AdminController {
     return this.adminService.listUsers(page || 1, limit || 20, search);
   }
 
+  @Get('users/incomplete-count')
+  @ApiOperation({ summary: 'Count email signups with no verified phone and no profile' })
+  @ApiResponse({ status: 200, description: 'Incomplete signup count' })
+  async countIncomplete() {
+    return this.adminService.countIncompleteSignups();
+  }
+
+  @Post('users/nudge-unverified')
+  @ApiOperation({ summary: 'Email every incomplete signup asking them to verify their phone' })
+  @ApiResponse({ status: 200, description: 'Nudge emails sent' })
+  async nudgeUnverified(@CurrentUser('id') adminId: string) {
+    return this.adminService.nudgeAllIncomplete(adminId);
+  }
+
+  @Post('users/:id/nudge')
+  @ApiOperation({ summary: 'Email one incomplete signup asking them to verify their phone' })
+  @ApiResponse({ status: 200, description: 'Nudge email sent' })
+  async nudgeOne(@CurrentUser('id') adminId: string, @Param('id') id: string) {
+    return this.adminService.nudgeUser(adminId, id);
+  }
+
   @Get('users/:identifier')
   @ApiOperation({ summary: 'Get user by ID or public ID' })
   @ApiResponse({ status: 200, description: 'User details' })
