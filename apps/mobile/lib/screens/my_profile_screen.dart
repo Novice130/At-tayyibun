@@ -4,24 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../core/api_exception.dart';
+import '../core/biodata.dart';
 import '../core/constants.dart';
 import '../models/profile.dart';
 import '../providers.dart';
 import '../widgets/profile_avatar.dart';
 import '../widgets/states.dart';
-
-/// Fields stored inside the encrypted `biodata` blob that are worth surfacing.
-/// The website used to save all of these and then render none of them.
-const _biodataLabels = <String, String>{
-  'education': 'Education',
-  'profession': 'Profession',
-  'legalStatus': 'Legal Status',
-  'relocate': 'Open to Relocate',
-  'religiousPractice': 'Religious Practice',
-  'prayerFrequency': 'Prayer',
-  'dietaryPreference': 'Diet',
-  'sect': 'Sect',
-};
 
 class MyProfileScreen extends ConsumerWidget {
   const MyProfileScreen({super.key});
@@ -244,34 +232,35 @@ class _Body extends ConsumerWidget {
               _Row(label: 'Gender', value: p.gender ?? '—'),
               _Row(label: 'Ethnicity', value: p.ethnicity),
               _Row(label: 'Public ID', value: me.publicId),
-              for (final entry in _biodataLabels.entries)
-                if (_display(p.biodata[entry.key]) != null)
+              for (final entry in kBiodataLabels.entries)
+                if (displayBiodataValue(p.biodata[entry.key]) != null)
                   _Row(
                     label: entry.value,
-                    value: _display(p.biodata[entry.key])!,
+                    value: displayBiodataValue(p.biodata[entry.key])!,
                   ),
             ],
           ),
         ),
-        if (_display(p.biodata['partnerPreferences']) != null ||
-            _display(p.biodata['dealBreakers']) != null) ...[
+        if (displayBiodataValue(p.biodata['partnerPreferences']) != null ||
+            displayBiodataValue(p.biodata['dealBreakers']) != null) ...[
           const SizedBox(height: 16),
           _Section(
             title: 'Match Preferences',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (_display(p.biodata['partnerPreferences']) != null) ...[
+                if (displayBiodataValue(p.biodata['partnerPreferences']) !=
+                    null) ...[
                   Text("What I'm Looking For",
                       style: theme.textTheme.labelMedium),
                   const SizedBox(height: 4),
-                  Text(_display(p.biodata['partnerPreferences'])!),
+                  Text(displayBiodataValue(p.biodata['partnerPreferences'])!),
                   const SizedBox(height: 12),
                 ],
-                if (_display(p.biodata['dealBreakers']) != null) ...[
+                if (displayBiodataValue(p.biodata['dealBreakers']) != null) ...[
                   Text('Deal Breakers', style: theme.textTheme.labelMedium),
                   const SizedBox(height: 4),
-                  Text(_display(p.biodata['dealBreakers'])!),
+                  Text(displayBiodataValue(p.biodata['dealBreakers'])!),
                 ],
               ],
             ),
@@ -340,13 +329,6 @@ class _Body extends ConsumerWidget {
         const SizedBox(height: 24),
       ],
     );
-  }
-
-  static String? _display(Object? value) {
-    if (value == null) return null;
-    if (value is bool) return value ? 'Yes' : 'No';
-    final s = value.toString().trim();
-    return s.isEmpty ? null : s;
   }
 }
 

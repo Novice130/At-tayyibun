@@ -50,7 +50,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   String? _religiousPractice;
   String? _prayerFrequency;
   String? _dietaryPreference;
-  bool _hideLocation = false;
   bool _hideName = false;
   bool _nikahIntent = false;
 
@@ -106,7 +105,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         _religiousPractice = _opt(bd['religiousPractice'], _practices);
         _prayerFrequency = _opt(bd['prayerFrequency'], _prayerOptions);
         _dietaryPreference = _opt(bd['dietaryPreference'], _dietOptions);
-        _hideLocation = bd['hideLocation'] == true;
         _hideName = bd['hideName'] == true;
         _nikahIntent = bd['nikahIntent'] == true;
       }
@@ -215,7 +213,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         bio: _about.text.trim(),
         biodata: {
           ..._extraBiodata,
-          'hideLocation': _hideLocation,
+          // Location is always visible to other members, so never persist a
+          // hide flag — sending false also clears any stale `true`.
+          'hideLocation': false,
           'hideName': _hideName,
           'legalStatus': _legalStatus,
           'education': _education.text.trim(),
@@ -500,13 +500,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           onChanged: (v) => setState(() => _hideName = v),
           title: const Text('Hide my name'),
           subtitle: const Text('Show only your anonymous ID in Browse'),
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          value: _hideLocation,
-          onChanged: (v) => setState(() => _hideLocation = v),
-          title: const Text('Hide my location'),
-          subtitle: const Text('Hide city and state from other members'),
         ),
       ]);
 

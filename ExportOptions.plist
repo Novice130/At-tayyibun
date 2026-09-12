@@ -6,6 +6,13 @@
     <string>app-store-connect</string>
     <key>teamID</key>
     <string>TT3HQ774N4</string>
+    <key>signingStyle</key>
+    <string>manual</string>
+    <key>provisioningProfiles</key>
+    <dict>
+        <key>com.attayyibun.attayyibun</key>
+        <string>Chinese_model</string>
+    </dict>
     <key>uploadSymbols</key>
     <true/>
     <key>manageAppVersionAndBuildNumber</key>

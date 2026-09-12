@@ -23,6 +23,26 @@ interface ProfileData {
   membershipTier?: string;
   profileComplete?: boolean;
   isFullView?: boolean;
+  biodata?: Record<string, unknown>;
+}
+
+/** Detail fields stored inside the encrypted biodata blob, in display order. */
+const BIODATA_LABELS: Array<[string, string]> = [
+  ['education', 'Education'],
+  ['profession', 'Profession'],
+  ['legalStatus', 'Legal Status'],
+  ['relocate', 'Open to Relocate'],
+  ['religiousPractice', 'Religious Practice'],
+  ['prayerFrequency', 'Prayer'],
+  ['dietaryPreference', 'Diet'],
+  ['sect', 'Sect'],
+];
+
+function biodataValue(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  const s = String(value).trim();
+  return s.length > 0 ? s : null;
 }
 
 interface ActiveRequest {
@@ -137,6 +157,14 @@ export default function ProfileDetailPage() {
   const displayName = profile.firstName ?? profile.publicId;
   const isAnon = !profile.firstName;
 
+  const details = BIODATA_LABELS
+    .map(([key, label]) => [label, biodataValue(profile.biodata?.[key])] as const)
+    .filter((row): row is readonly [string, string] => row[1] !== null);
+  const lookingFor: Array<[string, string]> = [
+    ["What they're looking for", biodataValue(profile.biodata?.['partnerPreferences'])],
+    ['Deal breakers', biodataValue(profile.biodata?.['dealBreakers'])],
+  ].filter((row): row is [string, string] => row[1] !== null);
+
   return (
     <div className="min-h-screen pb-12" style={{ backgroundColor: 'var(--color-bg)' }}>
       <Navbar />
@@ -192,6 +220,36 @@ export default function ProfileDetailPage() {
             <div className="card p-8">
               <h2 className="font-heading text-xl font-bold mb-4">About</h2>
               <p className="leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>{profile.bio}</p>
+            </div>
+          )}
+
+          {/* Profile Details */}
+          {details.length > 0 && (
+            <div className="card p-8">
+              <h2 className="font-heading text-xl font-bold mb-4">Details</h2>
+              <dl className="space-y-3">
+                {details.map(([label, value]) => (
+                  <div key={label} className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-4">
+                    <dt className="text-sm flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>{label}</dt>
+                    <dd className="font-medium break-words sm:text-right" style={{ color: 'var(--color-text)' }}>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
+          {/* Looking For */}
+          {lookingFor.length > 0 && (
+            <div className="card p-8">
+              <h2 className="font-heading text-xl font-bold mb-4">Looking For</h2>
+              <div className="space-y-4">
+                {lookingFor.map(([label, value]) => (
+                  <div key={label}>
+                    <p className="text-sm mb-1" style={{ color: 'var(--color-text-muted)' }}>{label}</p>
+                    <p className="leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>{value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

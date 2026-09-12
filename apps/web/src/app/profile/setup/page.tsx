@@ -243,7 +243,7 @@ export default function ProfileSetupPage() {
           ethnicity: p.profileComplete ? (p.ethnicity || f.ethnicity) : f.ethnicity,
           dob: p.profileComplete ? (p.dob || f.dob) : f.dob,
           about: p.bio || f.about,
-          hideLocation: bd.hideLocation ?? f.hideLocation,
+          hideLocation: false,
           hideName: bd.hideName ?? f.hideName,
           legalStatus: bd.legalStatus || f.legalStatus,
           education: bd.education || f.education,
@@ -374,7 +374,9 @@ export default function ProfileSetupPage() {
           // Preserve keys this wizard doesn't manage (guardian details from
           // signup) — the API replaces the whole encrypted blob on every write.
           ...extraBiodata,
-          hideLocation: form.hideLocation,
+          // Location is always visible to other members, so never persist a
+          // hide flag — sending false also clears any stale `true`.
+          hideLocation: false,
           hideName: form.hideName,
           legalStatus: form.legalStatus,
           education: form.education.trim(),
@@ -693,17 +695,9 @@ export default function ProfileSetupPage() {
 
             <label className="flex items-start gap-3 cursor-pointer">
               <input type="checkbox" className="mt-0.5 w-4 h-4 accent-amber-500 flex-shrink-0"
-                checked={form.hideLocation} onChange={e => set('hideLocation', e.target.checked)} />
-              <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                Hide my city/state from the public browse page and only show my region.
-              </span>
-            </label>
-
-            <label className="flex items-start gap-3 cursor-pointer">
-              <input type="checkbox" className="mt-0.5 w-4 h-4 accent-amber-500 flex-shrink-0"
                 checked={form.hideName} onChange={e => set('hideName', e.target.checked)} />
               <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                Hide my first name on the public browse page. Only my Public ID will be shown until I accept a connection.
+                Hide my first name on the public browse page. Only my Public ID will be shown to other members.
               </span>
             </label>
           </div>

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/api_exception.dart';
+import '../core/biodata.dart';
 import '../models/info_request.dart';
 import '../models/profile.dart';
 import '../providers.dart';
@@ -284,6 +285,22 @@ class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
     }
   }
 
+  /// The public detail fields (education, work, deen …) the owner filled in.
+  List<(String, String)> _detailRows(ProfileSummary p) => [
+        for (final entry in kBiodataLabels.entries)
+          if (displayBiodataValue(p.biodata[entry.key]) != null)
+            (entry.value, displayBiodataValue(p.biodata[entry.key])!),
+      ];
+
+  List<(String, String)> _lookingFor(ProfileSummary p) {
+    final rows = <(String, String)>[];
+    final prefs = displayBiodataValue(p.biodata['partnerPreferences']);
+    final deal = displayBiodataValue(p.biodata['dealBreakers']);
+    if (prefs != null) rows.add(("What they're looking for", prefs));
+    if (deal != null) rows.add(('Deal breakers', deal));
+    return rows;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -392,6 +409,40 @@ class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
                       Text('About', style: theme.textTheme.titleMedium),
                       const SizedBox(height: 8),
                       Text(p.bio!, style: theme.textTheme.bodyMedium),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            if (_detailRows(p).isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Details', style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 12),
+                      for (final row in _detailRows(p))
+                        _DetailRow(label: row.$1, value: row.$2),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            if (_lookingFor(p).isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Looking For', style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 12),
+                      for (final row in _lookingFor(p))
+                        _DetailRow(label: row.$1, value: row.$2),
                     ],
                   ),
                 ),
@@ -518,6 +569,38 @@ class _Meta extends StatelessWidget {
         const SizedBox(width: 6),
         Text(label, style: theme.textTheme.bodyMedium),
       ],
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(value, style: theme.textTheme.bodyMedium),
+          ),
+        ],
+      ),
     );
   }
 }

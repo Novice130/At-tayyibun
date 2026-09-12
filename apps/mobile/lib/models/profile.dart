@@ -1,7 +1,8 @@
 /// A row from `GET /api/profiles` (browse) or `GET /api/profiles/:publicId`.
 ///
-/// `firstName`, `city` and `state` arrive as null when the owner set
-/// hideName / hideLocation — always render defensively.
+/// `firstName` arrives null when the owner set hideName — always render
+/// defensively. `biodata` holds the profile detail fields (education,
+/// profession, deen, preferences …) and is only present on the detail endpoint.
 class ProfileSummary {
   ProfileSummary({
     required this.publicId,
@@ -14,6 +15,7 @@ class ProfileSummary {
     required this.avatarUrl,
     required this.bio,
     required this.membershipTier,
+    required this.biodata,
   });
 
   final String publicId;
@@ -26,6 +28,10 @@ class ProfileSummary {
   final String avatarUrl;
   final String? bio;
   final String membershipTier;
+
+  /// Public detail fields from the encrypted biodata blob. Empty on browse
+  /// cards; populated on the profile detail response.
+  final Map<String, dynamic> biodata;
 
   /// Anonymised profiles fall back to the public id.
   String get displayName => firstName ?? publicId;
@@ -45,6 +51,7 @@ class ProfileSummary {
         avatarUrl: json['avatarUrl'] as String? ?? '',
         bio: json['bio'] as String?,
         membershipTier: json['membershipTier'] as String? ?? 'FREE',
+        biodata: (json['biodata'] as Map?)?.cast<String, dynamic>() ?? {},
       );
 }
 

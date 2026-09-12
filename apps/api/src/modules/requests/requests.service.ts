@@ -279,7 +279,7 @@ export class RequestsService {
                 publicId: requester.publicId,
                 profile: requester.profile
                   ? {
-                      firstName: requester.profile.firstName,
+                      firstName: this.maskFirstNameIfHidden(requester.profile),
                       gender: requester.profile.gender,
                       ethnicity: requester.profile.ethnicity,
                       city: requester.profile.city,

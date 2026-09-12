@@ -24,7 +24,11 @@ describe('ProfilesService', () => {
     db = createDbMock();
     service = new ProfilesService(
       { db } as unknown as DrizzleService,
-      { encrypt: (v: string) => `enc:${v}`, decrypt: (v: string) => v.replace(/^enc:/, '') } as unknown as EncryptionService,
+      {
+        encrypt: (v: string) => `enc:${v}`,
+        decrypt: (v: string) => v.replace(/^enc:/, ''),
+        decryptJson: (v: string) => JSON.parse(v.replace(/^enc:/, '')),
+      } as unknown as EncryptionService,
       { getAvatarUrl: () => 'https://api.dicebear.com/x.svg' } as unknown as AvatarService,
     );
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -137,6 +141,96 @@ describe('ProfilesService', () => {
 
       expect(result.data).toHaveLength(0);
       expect(result.meta.total).toBe(0);
+    });
+  });
+
+  describe('getProfileByPublicId', () => {
+    const baseProfile = {
+      id: 'prof-1',
+      userId: 'target-uuid',
+      firstName: 'Fatima',
+      dob: '1998-05-15',
+      gender: Gender.FEMALE,
+      ethnicity: 'Arab',
+      city: 'Chicago',
+      state: 'IL',
+      bioEnc: 'enc:A bio',
+      biodataJsonEnc: 'enc:{}',
+      publicFields: { bio: 'A bio' },
+      profileComplete: true,
+    };
+    const baseUser = {
+      id: 'target-uuid',
+      publicId: 'usr_pub_1',
+      image: 'https://attayyibun.com/avatars/female/female-1.jpg',
+      membershipTier: 'FREE',
+      profiles: baseProfile,
+    };
+
+    it('exposes the whitelisted biodata but never guardian details or nikahIntent', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce({
+        ...baseUser,
+        profiles: {
+          ...baseProfile,
+          biodataJsonEnc:
+            'enc:' +
+            JSON.stringify({
+              education: "Master's",
+              profession: 'Doctor',
+              partnerPreferences: 'Kind and family-oriented',
+              dealBreakers: 'Smoker',
+              guardianName: 'Uncle Bob',
+              guardianPhone: '+15551234567',
+              guardianEmail: 'guardian@example.com',
+              nikahIntent: true,
+            }),
+        },
+      });
+
+      const result: any = await service.getProfileByPublicId('usr_pub_1', true);
+
+      expect(result.biodata).toEqual({
+        education: "Master's",
+        profession: 'Doctor',
+        partnerPreferences: 'Kind and family-oriented',
+        dealBreakers: 'Smoker',
+      });
+      expect(result.biodata).not.toHaveProperty('guardianName');
+      expect(result.biodata).not.toHaveProperty('guardianPhone');
+      expect(result.biodata).not.toHaveProperty('guardianEmail');
+      expect(result.biodata).not.toHaveProperty('nikahIntent');
+    });
+
+    it('always shows city and state even when hideLocation is set', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce({
+        ...baseUser,
+        profiles: { ...baseProfile, publicFields: { bio: 'A bio', hideLocation: true } },
+      });
+
+      const result: any = await service.getProfileByPublicId('usr_pub_1', true);
+
+      expect(result.city).toBe('Chicago');
+      expect(result.state).toBe('IL');
+    });
+
+    it('hides the first name when hideName is set', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce({
+        ...baseUser,
+        profiles: { ...baseProfile, publicFields: { bio: 'A bio', hideName: true } },
+      });
+
+      const result: any = await service.getProfileByPublicId('usr_pub_1', true);
+
+      expect(result.firstName).toBeNull();
+    });
+
+    it('omits biodata for unauthenticated viewers', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce({ ...baseUser });
+
+      const result: any = await service.getProfileByPublicId('usr_pub_1', false);
+
+      expect(result.isFullView).toBe(false);
+      expect(result.biodata).toBeUndefined();
     });
   });
 });

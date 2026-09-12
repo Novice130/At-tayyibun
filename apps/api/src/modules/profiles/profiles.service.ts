@@ -18,6 +18,24 @@ export interface BrowseFilters {
   limit?: number;
 }
 
+/**
+ * Biodata keys safe to show to other members. The encrypted blob also holds
+ * guardian* details captured at signup and nikahIntent (a private consent
+ * flag) — those must never leave the owner's own view.
+ */
+const PUBLIC_BIODATA_KEYS = [
+  'legalStatus',
+  'education',
+  'profession',
+  'relocate',
+  'religiousPractice',
+  'prayerFrequency',
+  'dietaryPreference',
+  'sect',
+  'partnerPreferences',
+  'dealBreakers',
+] as const;
+
 @Injectable()
 export class ProfilesService {
   constructor(
@@ -122,15 +140,14 @@ export class ProfilesService {
     const data = rows.map(({ profile, user }) => {
       const pf = (profile.publicFields && typeof profile.publicFields === 'object') ? (profile.publicFields as any) : {};
       const nameHidden = !!pf['hideName'];
-      const locationHidden = !!pf['hideLocation'];
       return {
         publicId: user.publicId,
         firstName: nameHidden ? null : profile.firstName,
         age: this.calculateAgeFromString(profile.dob),
         gender: profile.gender,
         ethnicity: profile.ethnicity,
-        city: locationHidden ? null : profile.city,
-        state: locationHidden ? null : profile.state,
+        city: profile.city,
+        state: profile.state,
         avatarUrl: user.image?.trim()
           ? user.image
           : this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
@@ -176,17 +193,30 @@ export class ProfilesService {
       }
     }
 
+    let biodata: Record<string, unknown> = {};
+    if (profile.biodataJsonEnc) {
+      try {
+        biodata = this.encryptionService.decryptJson(profile.biodataJsonEnc);
+      } catch {
+        /* keep empty */
+      }
+    }
+    const publicBiodata = Object.fromEntries(
+      PUBLIC_BIODATA_KEYS.map((k) => [k, biodata[k]] as const).filter(
+        ([, v]) => v !== undefined && v !== null && v !== '',
+      ),
+    );
+
     const pf = (profile.publicFields && typeof profile.publicFields === 'object') ? (profile.publicFields as any) : {};
     const nameHidden = !!pf['hideName'];
-    const locationHidden = !!pf['hideLocation'];
     const publicData = {
       publicId: user.publicId,
       firstName: nameHidden ? null : profile.firstName,
       age: this.calculateAgeFromString(profile.dob),
       gender: profile.gender,
       ethnicity: profile.ethnicity,
-      city: locationHidden ? null : profile.city,
-      state: locationHidden ? null : profile.state,
+      city: profile.city,
+      state: profile.state,
       avatarUrl: user.image?.trim()
         ? user.image
         : this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
@@ -195,7 +225,12 @@ export class ProfilesService {
     };
 
     if (!isAuthenticated) return { ...publicData, isFullView: false };
-    return { ...publicData, membershipTier: user.membershipTier, isFullView: true };
+    return {
+      ...publicData,
+      biodata: publicBiodata,
+      membershipTier: user.membershipTier,
+      isFullView: true,
+    };
   }
 
   async getMyProfile(userId: string) {
@@ -242,9 +277,6 @@ export class ProfilesService {
             age: this.calculateAgeFromString(profile.dob),
             gender: profile.gender,
             ethnicity: profile.ethnicity,
-            // This is the owner's own record — hideLocation controls what
-            // *others* see. Masking it here blanked the city in the edit wizard
-            // and rendered the profile header as ", TX".
             city: profile.city,
             state: profile.state,
             bio,
@@ -332,10 +364,11 @@ export class ProfilesService {
         publicFields.bio = data.bio ? data.bio.substring(0, 200) : null;
       }
       if (data.biodata !== undefined) {
-        if (data.biodata.hideLocation !== undefined) publicFields.hideLocation = !!data.biodata.hideLocation;
         if (data.biodata.hideName !== undefined) publicFields.hideName = !!data.biodata.hideName;
       }
-      publicFields.hideLocation = publicFields.hideLocation ?? false;
+      // Location is always visible to other members now, so never persist a
+      // hide flag — and clear any stale `true` left over from before.
+      publicFields.hideLocation = false;
       publicFields.hideName = publicFields.hideName ?? false;
       publicFields.bio = publicFields.bio ?? null;
       updateData.publicFields = publicFields;

@@ -494,7 +494,7 @@ async function main() {
       dob: dob.toISOString().slice(0, 10),
       gender: p.gender,
       ethnicity: p.ethnicity,
-      city: p.biodata.hideLocation ? null : p.city,
+      city: p.city,
       state: p.state,
       bioEnc: encrypt(p.bio),
       biodataJsonEnc: encryptJson(p.biodata),
