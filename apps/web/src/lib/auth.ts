@@ -146,7 +146,18 @@ const firstNameOf = (name?: string | null) => name?.split(" ")[0] || "there";
 export const PLACEHOLDER_EMAIL_DOMAIN = "@phone.attayyibun.invalid";
 
 const options = {
+  baseURL:
+    process.env.BETTER_AUTH_URL?.replace(/^["']|["']$/g, '').trim() ||
+    process.env.WEB_URL?.replace(/^["']|["']$/g, '').trim() ||
+    "https://attayyibun.com",
   basePath: "/auth",
+  trustedOrigins: [
+    "https://attayyibun.com",
+    "https://www.attayyibun.com",
+    "http://attayyibun.10-1-10-60.traefik.me",
+    "https://attayyibun.10-1-10-60.traefik.me",
+    ...(process.env.NODE_ENV !== "production" ? ["http://localhost:3000"] : []),
+  ],
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {

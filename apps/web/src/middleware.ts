@@ -14,6 +14,17 @@ function hasSessionCookie(request: NextRequest): boolean {
 }
 
 export function middleware(request: NextRequest) {
+  // Canonical redirect www.attayyibun.com -> attayyibun.com
+  // Preserves protocol, cookies, and search params without cross-subdomain cookie drops.
+  const host = request.headers.get('host') || '';
+  if (host.startsWith('www.')) {
+    const canonicalUrl = request.nextUrl.clone();
+    canonicalUrl.host = host.replace(/^www\./, '');
+    canonicalUrl.port = '';
+    canonicalUrl.protocol = 'https:';
+    return NextResponse.redirect(canonicalUrl, { status: 301 });
+  }
+
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith('/admin')) {
@@ -49,6 +60,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/browse/:path*', '/requests/:path*', '/profile/:path*'],
+  matcher: ['/((?!_next/static|_next/image|avatars|favicon.ico|.*\\.(?:jpg|jpeg|gif|png|svg|ico|webp|mp4)).*)'],
 };
 

@@ -40,8 +40,21 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
   }
 
   if (!response.ok) {
+    let message: string;
+    if (typeof data === 'string' && data.trim()) {
+      message = data.trim();
+    } else if (Array.isArray(data?.message)) {
+      message = data.message.join(', ');
+    } else if (typeof data?.message === 'string' && data.message.trim()) {
+      message = data.message.trim();
+    } else if (response.status === 429) {
+      message = 'Too many requests. Please wait a moment and try again.';
+    } else {
+      message = `Server error ${response.status}`;
+    }
+
     throw {
-      message: Array.isArray(data?.message) ? data.message.join(', ') : (data?.message || `Server error ${response.status}`),
+      message,
       statusCode: response.status,
     } as ApiError;
   }

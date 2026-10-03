@@ -1,16 +1,29 @@
+import net from 'net';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from './db-schema';
+
+if (typeof (net as any).setDefaultAutoSelectFamily === 'function') {
+  (net as any).setDefaultAutoSelectFamily(false);
+}
 
 const globalForDb = globalThis as unknown as {
   dbPool?: Pool;
   db?: ReturnType<typeof drizzle<typeof schema>>;
 };
 
+const rawDbUrl = process.env.DATABASE_URL?.replace(/^["']|["']$/g, '').trim();
+
+if (!rawDbUrl || rawDbUrl.includes('REPLACE_AFTER_ROTATION')) {
+  console.error(
+    '[db] CRITICAL ERROR: DATABASE_URL is not set or contains REPLACE_AFTER_ROTATION! Neon DB queries will fail.',
+  );
+}
+
 export const pool =
   globalForDb.dbPool ??
   new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: rawDbUrl,
     // Verify TLS certificates; never disable — it defeats the purpose of TLS.
     ssl: { rejectUnauthorized: true },
     max: 10,

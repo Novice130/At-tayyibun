@@ -13,6 +13,10 @@ async function bootstrap() {
       logger: ['error', 'warn', 'log'],
     });
 
+    // Trust reverse proxy (Next.js rewrites, Nginx, Cloudflare) for accurate client IP tracking in rate limiting & audit logs
+    const expressApp = app.getHttpAdapter().getInstance();
+    expressApp.set('trust proxy', 1);
+
     // Parse cookies (required for BetterAuth session tokens)
     app.use(cookieParser());
 

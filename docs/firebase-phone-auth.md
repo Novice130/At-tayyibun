@@ -103,8 +103,8 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=at-tayyibun
 NEXT_PUBLIC_FIREBASE_APP_ID=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 
-FIREBASE_PROJECT_ID=at-tayyibun
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@at-tayyibun.iam.gserviceaccount.com
+FIREBASE_PROJECT_ID=at-tayyibun-e3f79
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-fbsvc@at-tayyibun-e3f79.iam.gserviceaccount.com
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 
 NEXT_PUBLIC_DEFAULT_COUNTRY_CODE="+92"

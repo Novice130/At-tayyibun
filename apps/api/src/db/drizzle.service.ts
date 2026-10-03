@@ -1,8 +1,13 @@
+import * as net from 'net';
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './schema';
 import * as relations from './relations';
+
+if (typeof (net as any).setDefaultAutoSelectFamily === 'function') {
+  (net as any).setDefaultAutoSelectFamily(false);
+}
 
 export type DB = ReturnType<typeof drizzle<typeof schema & typeof relations>>;
 

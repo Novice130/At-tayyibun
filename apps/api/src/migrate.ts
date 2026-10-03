@@ -17,11 +17,16 @@
  * which seeds the ledger with 0000 and 0001 marked applied. Run that once, per
  * database, before this script.
  */
+import * as net from 'net';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
+
+if (typeof (net as any).setDefaultAutoSelectFamily === 'function') {
+  (net as any).setDefaultAutoSelectFamily(false);
+}
 
 // dist/src/migrate.js → the drizzle/ folder copied next to dist in the image,
 // and apps/api/drizzle when run from a local build.

@@ -12,6 +12,7 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     email: '',
@@ -21,7 +22,7 @@ export default function LoginForm() {
   const submittingRef = useRef(false);
 
   const handleGoogleSignIn = async () => {
-    if (googleLoading || isLoading) return;
+    if (googleLoading || appleLoading || isLoading) return;
     setGoogleLoading(true);
     setError('');
     try {
@@ -36,12 +37,41 @@ export default function LoginForm() {
         callbackURL: '/verify-phone',
       });
       if (authError) {
-        setError(authError.message || 'Could not start Google sign-in. Please try again.');
+        const msg =
+          authError.message ||
+          ((authError as any).status
+            ? `Google sign-in failed (HTTP ${(authError as any).status}). If using an ad-blocker, please disable it.`
+            : 'Could not start Google sign-in. Please try again.');
+        setError(msg);
         setGoogleLoading(false);
       }
     } catch (err: any) {
-      setError(err?.message || 'Could not start Google sign-in. Please try again.');
+      setError(err?.message || 'Could not start Google sign-in. Please check your connection or ad-blocker and try again.');
       setGoogleLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    if (appleLoading || googleLoading || isLoading) return;
+    setAppleLoading(true);
+    setError('');
+    try {
+      const { error: authError } = await signIn.social({
+        provider: 'apple',
+        callbackURL: '/verify-phone',
+      });
+      if (authError) {
+        const msg =
+          authError.message ||
+          ((authError as any).status
+            ? `Apple sign-in failed (HTTP ${(authError as any).status}).`
+            : 'Could not start Apple sign-in. Please try again.');
+        setError(msg);
+        setAppleLoading(false);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Could not start Apple sign-in. Please try again.');
+      setAppleLoading(false);
     }
   };
 
@@ -194,14 +224,24 @@ export default function LoginForm() {
               </div>
             </div>
 
-            <div className="mt-4">
-              {/* Facebook was removed rather than left in place: it had no
-                  handler, no configured provider, and clicking it did nothing. */}
+            <div className="mt-4 space-y-3">
+              <button
+                type="button"
+                onClick={handleAppleSignIn}
+                disabled={isLoading || googleLoading || appleLoading}
+                className="btn-secondary py-3 text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center bg-black hover:bg-neutral-900 text-white border-neutral-700"
+              >
+                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.84c.66-.82 1.11-1.96.99-3.1-.96.04-2.12.64-2.8 1.44-.6.69-1.12 1.83-1 2.95 1.08.08 2.16-.54 2.81-1.29z"/>
+                </svg>
+                {appleLoading ? 'Redirecting…' : 'Continue with Apple'}
+              </button>
+
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
-                disabled={isLoading || googleLoading}
-                className="btn-secondary py-3 text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading || googleLoading || appleLoading}
+                className="btn-secondary py-3 text-sm w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

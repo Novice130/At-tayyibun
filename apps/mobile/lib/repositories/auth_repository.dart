@@ -122,7 +122,17 @@ class AuthRepository {
       '/auth/sign-in/social',
       body: {
         'provider': 'apple',
-        'idToken': {'token': idToken, 'nonce': rawNonce},
+        'idToken': {
+          'token': idToken,
+          'nonce': rawNonce,
+          if (name.isNotEmpty)
+            'user': {
+              'name': {
+                if (given.isNotEmpty) 'firstName': given,
+                if (family.isNotEmpty) 'lastName': family,
+              },
+            },
+        },
         if (name.isNotEmpty) 'name': name,
       },
     );
@@ -149,8 +159,9 @@ class AuthRepository {
     final String idToken;
     try {
       debugPrint('[auth_repository] stage: google_initialize');
+      final isIos = defaultTargetPlatform == TargetPlatform.iOS;
       await GoogleSignIn.instance.initialize(
-        clientId: kGoogleIosClientId.isNotEmpty ? kGoogleIosClientId : null,
+        clientId: (isIos && kGoogleIosClientId.isNotEmpty) ? kGoogleIosClientId : null,
         serverClientId:
             kGoogleServerClientId.isNotEmpty ? kGoogleServerClientId : null,
       );

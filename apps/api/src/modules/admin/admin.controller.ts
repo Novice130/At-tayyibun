@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AdminService } from './admin.service';
 import { Roles, CurrentUser } from '../../common/decorators';
 import { RolesGuard } from '../../common/guards';
@@ -26,6 +27,7 @@ import {
 @Controller('admin')
 @UseGuards(RolesGuard)
 @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+@SkipThrottle()
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 

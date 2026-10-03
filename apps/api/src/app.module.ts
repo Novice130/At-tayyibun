@@ -74,13 +74,6 @@ import { ThrottlerGuard } from "@nestjs/throttler";
           ttl: 60000,
           limit: 300,
         },
-        {
-          // Dedicated bucket for credential/OTP endpoints. Wired to env knobs
-          // so operators can tune it without a code change.
-          name: "auth",
-          ttl: config.get<number>('RATE_LIMIT_LOGIN_WINDOW_MS', 60000),
-          limit: config.get<number>('RATE_LIMIT_LOGIN_MAX', 5),
-        },
       ],
     }),
 

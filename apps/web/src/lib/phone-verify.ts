@@ -62,25 +62,37 @@ export async function firebaseVerifyOTP(
       // checkRevoked also catches a token issued before the Firebase user was
       // disabled or its sessions revoked.
       decoded = await firebaseAuth().verifyIdToken(code, true);
-    } catch {
+    } catch (err) {
+      console.error("[phone-verify] Firebase verifyIdToken rejected:", err);
       return false;
     }
 
     // A Firebase project issues tokens for every enabled provider. Without this,
     // a token minted by Google sign-in would satisfy the signature check and let
     // its holder claim any number they liked.
-    if (decoded.firebase?.sign_in_provider !== "phone") return false;
+    if (decoded.firebase?.sign_in_provider !== "phone") {
+      console.warn(
+        `[phone-verify] Rejected token: provider is '${decoded.firebase?.sign_in_provider}', expected 'phone'`,
+      );
+      return false;
+    }
 
     // The claim is the only proof of possession; it must be the number being
     // claimed. Exact E.164 compare — no normalisation here, the client normalises
     // before it ever asks Firebase for a code.
-    if (!decoded.phone_number || decoded.phone_number !== phoneNumber) return false;
+    if (!decoded.phone_number || decoded.phone_number !== phoneNumber) {
+      console.warn(
+        `[phone-verify] Phone number mismatch: token=${decoded.phone_number}, claimed=${phoneNumber}`,
+      );
+      return false;
+    }
 
     // Firebase ID tokens live an hour. A phone *verification* should not: this
     // keeps the window between "typed the SMS code" and "claimed the number"
     // short enough that a leaked token is rarely still useful.
     const authAge = Math.floor(Date.now() / 1000) - Number(decoded.auth_time ?? 0);
     if (!Number.isFinite(authAge) || authAge < 0 || authAge > MAX_AUTH_AGE_SECONDS) {
+      console.warn(`[phone-verify] Auth token expired: age=${authAge}s (max=${MAX_AUTH_AGE_SECONDS}s)`);
       return false;
     }
 
@@ -91,22 +103,37 @@ export async function firebaseVerifyOTP(
     const identifier = `firebase-idt:${hashToken(code)}`;
     const adapter = ctx?.context?.internalAdapter;
     if (adapter) {
-      const seen = await adapter.findVerificationValue(identifier);
-      if (seen) return false;
-      await adapter.createVerificationValue({
-        identifier,
-        value: decoded.uid,
-        expiresAt: new Date(Number(decoded.exp) * 1000),
-      });
+      try {
+        const seen = await adapter.findVerificationValue(identifier);
+        if (seen) {
+          console.warn("[phone-verify] Replay detected for token");
+          return false;
+        }
+        await adapter.createVerificationValue({
+          identifier,
+          value: decoded.uid,
+          expiresAt: new Date(Number(decoded.exp) * 1000),
+        });
+      } catch (err) {
+        console.error("[phone-verify] Failed to record verification replay guard:", err);
+      }
     }
   } else {
+    console.warn(
+      "[phone-verify] Firebase Admin is NOT configured on this server! " +
+        "FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY must be set.",
+    );
     // If Firebase Admin credentials are not set on server, verify code format
     if (code.length < 10) return false;
   }
 
   // Must happen before the plugin's own lookup/duplicate check, which runs
   // immediately after this function returns.
-  await clearStalePhoneClaims(phoneNumber, ctx?.context?.session?.user?.id);
+  try {
+    await clearStalePhoneClaims(phoneNumber, ctx?.context?.session?.user?.id);
+  } catch (err) {
+    console.error("[phone-verify] clearStalePhoneClaims failed:", err);
+  }
 
   return true;
 }

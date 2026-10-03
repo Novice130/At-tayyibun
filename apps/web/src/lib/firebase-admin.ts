@@ -9,10 +9,15 @@ const APP_NAME = "attayyibun-phone-auth";
 
 let cached: Auth | null = null;
 
+function cleanEnv(val?: string): string {
+  if (!val) return "";
+  return val.replace(/^["']|["']$/g, "").trim();
+}
+
 function buildApp(): App {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const rawKey = process.env.FIREBASE_PRIVATE_KEY;
+  const projectId = cleanEnv(process.env.FIREBASE_PROJECT_ID);
+  const clientEmail = cleanEnv(process.env.FIREBASE_CLIENT_EMAIL);
+  const rawKey = cleanEnv(process.env.FIREBASE_PRIVATE_KEY);
 
   if (!projectId || !clientEmail || !rawKey) {
     throw new Error(
@@ -29,10 +34,15 @@ function buildApp(): App {
   const existing = getApps().find((a) => a.name === APP_NAME);
   if (existing) return existing;
 
-  return initializeApp(
-    { credential: cert({ projectId, clientEmail, privateKey }) },
-    APP_NAME,
-  );
+  try {
+    return initializeApp(
+      { credential: cert({ projectId, clientEmail, privateKey }) },
+      APP_NAME,
+    );
+  } catch (err) {
+    console.error("[firebase-admin] Failed to initialize Firebase app:", err);
+    throw err;
+  }
 }
 
 export function firebaseAuth(): Auth {
@@ -44,8 +54,8 @@ export function firebaseAuth(): Auth {
 
 export function isFirebaseConfigured(): boolean {
   return Boolean(
-    process.env.FIREBASE_PROJECT_ID &&
-      process.env.FIREBASE_CLIENT_EMAIL &&
-      process.env.FIREBASE_PRIVATE_KEY,
+    cleanEnv(process.env.FIREBASE_PROJECT_ID) &&
+      cleanEnv(process.env.FIREBASE_CLIENT_EMAIL) &&
+      cleanEnv(process.env.FIREBASE_PRIVATE_KEY),
   );
 }
