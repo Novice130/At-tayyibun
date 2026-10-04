@@ -184,8 +184,10 @@ export class ProfilesService {
       if (blockRow) throw new NotFoundException('Profile not found');
     }
 
+    // The full bio is members-only. Anonymous visitors get the 200-character
+    // preview stored in publicFields, same as browse.
     let fullBio: string | null = null;
-    if (profile.bioEnc) {
+    if (isAuthenticated && profile.bioEnc) {
       try {
         fullBio = this.encryptionService.decrypt(profile.bioEnc);
       } catch {

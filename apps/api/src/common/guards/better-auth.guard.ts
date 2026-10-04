@@ -26,7 +26,8 @@ const SESSION_COOKIES = [
  * signed with BETTER_AUTH_SECRET — the same scheme better-call uses) before
  * touching the database, and compares the token against the session table in
  * constant time. All routes require a valid session unless the handler is
- * marked with @Public().
+ * marked with @Public(); those still get request.user when a valid session
+ * cookie happens to be present.
  *
  * Also enforces the phone gate: a signed-in user with no verified phone number
  * is refused unless the handler is marked @AllowUnverifiedPhone(). This is the
@@ -70,14 +71,11 @@ export class BetterAuthGuard implements CanActivate {
     }
   }
 
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (isPublic) return true;
-
-    const request = context.switchToHttp().getRequest();
+  /**
+   * Validates the session cookie and attaches session + user to the request.
+   * Throws UnauthorizedException on any failure.
+   */
+  private async authenticate(request: any): Promise<any> {
     const rawCookie = SESSION_COOKIES
       .map((name) => request.cookies?.[name])
       .find((value) => typeof value === 'string' && value.length > 0);
@@ -124,6 +122,30 @@ export class BetterAuthGuard implements CanActivate {
         profile: Array.isArray(profileRows) ? profileRows[0] ?? null : profileRows ?? null,
       };
     }
+    return user;
+  }
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    const request = context.switchToHttp().getRequest();
+
+    // Public routes never require a session, but a signed-in caller is still
+    // identified so handlers can apply viewer-specific rules (e.g. blocks).
+    // A missing or bad cookie just means an anonymous viewer. The phone gate
+    // is not enforced here — handlers that care must check it themselves.
+    if (isPublic) {
+      try {
+        await this.authenticate(request);
+      } catch {
+        /* anonymous */
+      }
+      return true;
+    }
+
+    const user = await this.authenticate(request);
 
     // Phone gate. phoneGateExempt covers accounts that predate phone
     // verification, so nobody who already signed up is locked out.

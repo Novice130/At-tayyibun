@@ -46,20 +46,28 @@ export class ProfilesController {
     @Query("limit") limit?: number,
     @CurrentUser("id") userId?: string
   ) {
-    const parsedMinAge = minAge !== undefined && minAge !== null && String(minAge).trim() !== '' ? Number(minAge) : undefined;
-    const parsedMaxAge = maxAge !== undefined && maxAge !== null && String(maxAge).trim() !== '' ? Number(maxAge) : undefined;
-    const parsedPage = page !== undefined && page !== null ? Math.max(1, Number(page)) : 1;
-    const parsedLimit = limit !== undefined && limit !== null ? Math.min(Math.max(1, Number(limit)), 50) : 20;
+    // Anything unparseable or out of range falls back to the default rather
+    // than reaching the query as NaN or an invalid enum literal.
+    const toInt = (value: unknown): number | undefined => {
+      if (value === undefined || value === null || String(value).trim() === '') return undefined;
+      const n = Number(value);
+      return Number.isFinite(n) ? Math.trunc(n) : undefined;
+    };
+    const oneOf = <T extends string>(value: unknown, allowed: readonly T[]): T | undefined =>
+      allowed.includes(value as T) ? (value as T) : undefined;
+
+    const parsedMinAge = toInt(minAge);
+    const parsedMaxAge = toInt(maxAge);
 
     const filters: BrowseFilters = {
-      ethnicity: ethnicity?.trim() || undefined,
-      gender,
-      minAge: parsedMinAge && !isNaN(parsedMinAge) ? parsedMinAge : undefined,
-      maxAge: parsedMaxAge && !isNaN(parsedMaxAge) ? parsedMaxAge : undefined,
-      sortBy,
-      order,
-      page: parsedPage,
-      limit: parsedLimit,
+      ethnicity: typeof ethnicity === 'string' ? ethnicity.trim().slice(0, 50) || undefined : undefined,
+      gender: oneOf(gender, [Gender.MALE, Gender.FEMALE]),
+      minAge: parsedMinAge && parsedMinAge > 0 && parsedMinAge <= 120 ? parsedMinAge : undefined,
+      maxAge: parsedMaxAge && parsedMaxAge > 0 && parsedMaxAge <= 120 ? parsedMaxAge : undefined,
+      sortBy: oneOf(sortBy, ['age', 'createdAt', 'rankBoost'] as const),
+      order: oneOf(order, ['asc', 'desc'] as const),
+      page: Math.min(Math.max(1, toInt(page) ?? 1), 100000),
+      limit: Math.min(Math.max(1, toInt(limit) ?? 20), 50),
     };
 
     return this.profilesService.browseProfiles(filters, userId);
@@ -94,8 +102,12 @@ export class ProfilesController {
   @ApiResponse({ status: 200, description: "Profile details" })
   @ApiResponse({ status: 404, description: "Profile not found" })
   async getProfile(@Param("publicId") publicId: string, @Req() req: Request) {
-    const isAuthenticated = !!req.user;
-    const viewerId = (req.user as any)?.id as string | undefined;
+    // The route is public, so the guard does not apply the phone gate. The
+    // full view is members-only: require the same phone check here. viewerId
+    // is passed regardless so blocks hold for any signed-in viewer.
+    const user = req.user as any;
+    const viewerId = user?.id as string | undefined;
+    const isAuthenticated = !!user && (!!user.isPhoneVerified || !!user.phoneGateExempt);
     return this.profilesService.getProfileByPublicId(publicId, isAuthenticated, viewerId);
   }
 }

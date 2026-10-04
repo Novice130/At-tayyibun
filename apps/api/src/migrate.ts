@@ -37,9 +37,9 @@ async function main() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set');
 
-  // Refuse to run against a database that has never been bootstrapped. The
-  // migrator would create the ledger empty and then treat 0000 — the initial
-  // whole-schema migration — as pending.
+  // Refuse to run against an existing schema that has never been bootstrapped.
+  // The migrator would create the ledger empty and then treat 0000 — the
+  // initial whole-schema migration — as pending.
   const pool = new Pool({
     connectionString: url,
     // Verify TLS certificates; never disable — it defeats the purpose of TLS.
@@ -53,15 +53,24 @@ async function main() {
       `select to_regclass('drizzle.__drizzle_migrations') is not null as exists`,
     );
     if (!rows[0]?.exists) {
-      const journal = JSON.parse(
-        readFileSync(`${MIGRATIONS_FOLDER}/meta/_journal.json`, 'utf8'),
-      ) as { entries: { tag: string }[] };
-      throw new Error(
-        'drizzle.__drizzle_migrations does not exist on this database. ' +
-          'Running the migrator now would replay every migration from ' +
-          `${journal.entries[0]?.tag} against the existing schema. Apply ` +
-          'apps/api/scripts/bootstrap-migrations.sql first.',
+      // No ledger is only a problem when the schema is already there. A fresh,
+      // empty database has nothing to collide with, so the migrator can create
+      // the ledger and apply everything from 0000.
+      const { rows: existing } = await pool.query<{ exists: boolean }>(
+        `select to_regclass('public.users') is not null as exists`,
       );
+      if (existing[0]?.exists) {
+        const journal = JSON.parse(
+          readFileSync(`${MIGRATIONS_FOLDER}/meta/_journal.json`, 'utf8'),
+        ) as { entries: { tag: string }[] };
+        throw new Error(
+          'drizzle.__drizzle_migrations does not exist on this database. ' +
+            'Running the migrator now would replay every migration from ' +
+            `${journal.entries[0]?.tag} against the existing schema. Apply ` +
+            'apps/api/scripts/bootstrap-migrations.sql first.',
+        );
+      }
+      console.log('[migrate] empty database, applying all migrations');
     }
 
     const db = drizzle(pool);

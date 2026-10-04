@@ -3,10 +3,11 @@ import { and, desc, eq, or, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { DrizzleService } from '../../db/drizzle.service';
-import { blocks, reports, infoRequests, users, photos, skipReasons, messages, emailCampaigns, auditLogs } from '../../db/schema';
+import { blocks, reports, infoRequests, users, photos, skipReasons, messages, emailCampaigns, campaignRecipients, auditLogs } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
 import { StorageService } from '../../services/storage.service';
+import { escapeHtml } from '../../common/utils/html';
 import { ReportReason, ReportStatus, RequestStatus } from '../../common/types/role';
 
 const REPORT_REASONS = Object.values(ReportReason);
@@ -162,9 +163,9 @@ export class ModerationService {
         subject: `[Moderation] New ${reason} report`,
         html: `<p>A new report was filed:</p>
                <ul>
-                 <li><strong>Reason:</strong> ${reason}</li>
-                 <li><strong>Reported user:</strong> ${target.publicId}</li>
-                 <li><strong>Details:</strong> ${details ?? '—'}</li>
+                 <li><strong>Reason:</strong> ${escapeHtml(reason)}</li>
+                 <li><strong>Reported user:</strong> ${escapeHtml(target.publicId)}</li>
+                 <li><strong>Details:</strong> ${details ? escapeHtml(details.substring(0, 500)) : '—'}</li>
                </ul>
                <p>Review it in the admin panel. Guideline 1.2 requires action within 24 hours.</p>`,
       });
@@ -276,6 +277,7 @@ export class ModerationService {
       await tx.delete(infoRequests).where(or(eq(infoRequests.requesterId, userId), eq(infoRequests.targetId, userId)));
       await tx.delete(skipReasons).where(or(eq(skipReasons.requesterId, userId), eq(skipReasons.targetId, userId)));
       await tx.delete(messages).where(or(eq(messages.senderId, userId), eq(messages.recipientId, userId)));
+      await tx.delete(campaignRecipients).where(eq(campaignRecipients.userId, userId));
       await tx.delete(emailCampaigns).where(eq(emailCampaigns.createdById, userId));
       // blocks cascade from users; reports set-null. Nothing to do here.
 

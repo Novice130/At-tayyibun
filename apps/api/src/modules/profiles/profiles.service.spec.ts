@@ -232,5 +232,27 @@ describe('ProfilesService', () => {
       expect(result.isFullView).toBe(false);
       expect(result.biodata).toBeUndefined();
     });
+
+    it('gives unauthenticated viewers the truncated bio, not the decrypted one', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce({
+        ...baseUser,
+        profiles: { ...baseProfile, bioEnc: 'enc:Full bio, call me on 555-0100', publicFields: { bio: 'Full bio' } },
+      });
+
+      const result: any = await service.getProfileByPublicId('usr_pub_1', false);
+
+      expect(result.bio).toBe('Full bio');
+    });
+
+    it('gives authenticated viewers the full bio', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce({
+        ...baseUser,
+        profiles: { ...baseProfile, bioEnc: 'enc:Full bio, call me on 555-0100', publicFields: { bio: 'Full bio' } },
+      });
+
+      const result: any = await service.getProfileByPublicId('usr_pub_1', true);
+
+      expect(result.bio).toBe('Full bio, call me on 555-0100');
+    });
   });
 });

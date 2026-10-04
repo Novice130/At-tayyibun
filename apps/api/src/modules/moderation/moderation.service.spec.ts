@@ -134,6 +134,15 @@ describe('ModerationService', () => {
       expect(values.mock.calls[0][0].details).toHaveLength(500);
     });
 
+    it('escapes report details in the admin notification email', async () => {
+      db.select.mockReturnValueOnce(chain([TARGET])).mockReturnValueOnce(chain([{ value: 0 }]));
+      okInsert();
+      await service.report(VIEWER, TARGET.publicId, ReportReason.OTHER, '<a href="https://evil.test">click</a>');
+      const { html } = email.sendEmail.mock.calls[0][0];
+      expect(html).not.toContain('<a href');
+      expect(html).toContain('&lt;a href=&quot;https://evil.test&quot;&gt;click&lt;/a&gt;');
+    });
+
     it('still records the report when the notification email fails', async () => {
       db.select.mockReturnValueOnce(chain([TARGET])).mockReturnValueOnce(chain([{ value: 0 }]));
       okInsert();
@@ -219,8 +228,9 @@ describe('ModerationService', () => {
     it('clears restrict-FK tables and writes the audit row inside the transaction', async () => {
       db.select.mockReturnValueOnce(chain([]));
       await service.hardDeleteUser(TARGET.id, 'admin-uuid');
-      // info_requests, skip_reasons, messages, email_campaigns, then users.
-      expect(db.delete).toHaveBeenCalledTimes(5);
+      // info_requests, skip_reasons, messages, campaign_recipients,
+      // email_campaigns, then users.
+      expect(db.delete).toHaveBeenCalledTimes(6);
       // The ACCOUNT_DELETED audit row is inserted before the users row dies.
       expect(db.insert).toHaveBeenCalledTimes(1);
     });
