@@ -19,34 +19,13 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError(null);
     try {
-      const client = authClient as any;
-      const redirectUrl = `${window.location.origin}/reset-password`;
-
-      let callResult = null;
-      if (typeof client.forgetPassword === 'function') {
-        callResult = await client.forgetPassword({
-          email: email.trim(),
-          redirectTo: redirectUrl,
-        });
-      } else if (typeof client.requestPasswordReset === 'function') {
-        callResult = await client.requestPasswordReset({
-          email: email.trim(),
-          redirectTo: redirectUrl,
-        });
-      } else {
-        const res = await fetch('/auth/forget-password', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: email.trim(),
-            redirectTo: redirectUrl,
-          }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to request password reset');
-        }
-      }
+      // authClient is a Proxy, so `typeof authClient.anything === 'function'` is
+      // always true and cannot be used to feature-detect. better-auth 1.6
+      // serves this at /request-password-reset; /forget-password is a 404.
+      const callResult = await authClient.requestPasswordReset({
+        email: email.trim(),
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
 
       if (callResult?.error) {
         // Deliberately do not reveal if email doesn't exist, but show other technical errors
