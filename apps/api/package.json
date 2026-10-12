@@ -34,6 +34,7 @@
     "@nestjs/swagger": "^11.0.3",
     "@nestjs/throttler": "^6.3.0",
     "@sendgrid/mail": "^8.1.4",
+    "@sentry/nestjs": "^11",
     "argon2": "^0.45.1",
     "better-auth": "^1.6.27",
     "bullmq": "^5.74.1",
@@ -83,8 +84,8 @@
     "ts-jest": "^29.2.5",
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
-    "tsx": "^4.19.0",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.19.0",
     "typescript": "~5.7.3"
   },
   "jest": {

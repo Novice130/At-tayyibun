@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nestjs';
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
 
 @Catch()
@@ -12,6 +13,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
       : HttpStatus.INTERNAL_SERVER_ERROR;
 
     this.logger.error('Unhandled exception:', exception);
+
+    // Only server faults go to Sentry; 4xx (auth, validation, throttling) is expected traffic.
+    if (!(exception instanceof HttpException) || status >= 500) {
+      Sentry.captureException(exception);
+    }
 
     const message = exception instanceof HttpException
       ? exception.getResponse()

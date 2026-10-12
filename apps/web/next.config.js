@@ -1,3 +1,5 @@
+const { withSentryConfig } = require('@sentry/nextjs/config');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
@@ -29,4 +31,37 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+// Source maps are uploaded only when SENTRY_AUTH_TOKEN is present (CI passes it
+// as a BuildKit secret). Without it the build skips Sentry's upload and release
+// calls silently. The runtime SDK is configured in sentry.*.config.ts and
+// src/instrumentation*.ts, and is disabled when no DSN is set.
+const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
+
+module.exports = withSentryConfig(nextConfig, {
+  org: 'learnnovicecom',
+  project: process.env.SENTRY_PROJECT || 'attayyibun-web',
+  authToken: sentryAuthToken,
+  silent: !process.env.CI,
+  telemetry: false,
+  // Events go through the same origin so ad-blockers do not drop them.
+  // /monitoring is excluded from src/middleware.ts's matcher.
+  tunnelRoute: '/monitoring',
+  release: {
+    name: process.env.SENTRY_RELEASE || undefined,
+    create: Boolean(sentryAuthToken),
+    finalize: Boolean(sentryAuthToken),
+    setCommits: false,
+  },
+  sourcemaps: { disable: !sentryAuthToken },
+  // A Sentry outage or bad token must never fail the image build.
+  errorHandler: (err) => {
+    console.warn(`[sentry] build step skipped: ${err.message}`);
+  },
+  // Session Replay is never enabled, so drop its code from the client bundle.
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+    excludeReplayShadowDom: true,
+    excludeReplayIframe: true,
+    excludeReplayWorker: true,
+  },
+});

@@ -1,0 +1,285 @@
+# Build images, push to GHCR, redeploy staging, and promote a commit to production.
+#
+#   push to main       -> build api + web(staging) + web(prod) images, then
+#                         trigger the staging redeploy hooks (Dokploy).
+#   workflow_dispatch  -> promote an already-built commit (input: sha) to
+#                         production. Nothing is built; the server pulls.
+#
+# Images pushed (all linux/amd64):
+#   ghcr.io/novice130/at-tayyibun-api:<sha>          and  :staging
+#   ghcr.io/novice130/at-tayyibun-web:staging-<sha>  and  :staging
+#   ghcr.io/novice130/at-tayyibun-web:prod-<sha>
+#
+# ---------------------------------------------------------------------------
+# Repository SECRETS
+#   STAGING_DEPLOY_HOOK_WEB   Dokploy redeploy webhook URL, staging web app
+#   STAGING_DEPLOY_HOOK_API   Dokploy redeploy webhook URL, staging api app
+#   CF_ACCESS_CLIENT_ID       Cloudflare Access service token id (Dokploy panel)
+#   CF_ACCESS_CLIENT_SECRET   Cloudflare Access service token secret
+#   TS_OAUTH_CLIENT_ID        Tailscale OAuth client id (may mint tag:ci nodes)
+#   TS_OAUTH_SECRET           Tailscale OAuth client secret
+#   DEPLOY_SSH_KEY            Private key of the CI deploy key (forced command
+#                             deploy.sh on the production server)
+#   SENTRY_AUTH_TOKEN         Sentry org auth token (org learnnovicecom); uploads
+#                             web source maps at build time, passed to the web
+#                             builds only as a BuildKit secret. Optional: when
+#                             empty the build skips the upload.
+#   (GITHUB_TOKEN is provided automatically and is used for GHCR.)
+#   The last three may be scoped to the `production` environment instead.
+#
+# Repository VARIABLES (public values, baked into the web bundle)
+#   STAGING_NEXT_PUBLIC_WEB_URL                    PROD_NEXT_PUBLIC_WEB_URL
+#   STAGING_NEXT_PUBLIC_DEFAULT_COUNTRY_CODE       PROD_NEXT_PUBLIC_DEFAULT_COUNTRY_CODE
+#   STAGING_NEXT_PUBLIC_FIREBASE_API_KEY           PROD_NEXT_PUBLIC_FIREBASE_API_KEY
+#   STAGING_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN       PROD_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+#   STAGING_NEXT_PUBLIC_FIREBASE_PROJECT_ID        PROD_NEXT_PUBLIC_FIREBASE_PROJECT_ID
+#   STAGING_NEXT_PUBLIC_FIREBASE_APP_ID            PROD_NEXT_PUBLIC_FIREBASE_APP_ID
+#   STAGING_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+#   PROD_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+#   STAGING_NEXT_PUBLIC_SENTRY_DSN                 PROD_NEXT_PUBLIC_SENTRY_DSN
+#     Sentry client DSN. Empty/unset leaves the web SDK disabled. The
+#     environment name and trace sample rate are fixed in this workflow.
+#     An unset variable is passed as an empty string, which the app treats the
+#     same as "not set" (it falls back to its in-code default).
+#   PROD_HOST                 Production server address on the tailnet
+#   PROD_SSH_KNOWN_HOSTS      known_hosts line(s) for PROD_HOST, e.g. the output
+#                             of `ssh-keyscan -t ed25519 <PROD_HOST>` after
+#                             checking the fingerprint. Must use the same host
+#                             name/IP as PROD_HOST.
+#
+# Environment
+#   production                Add required reviewers to gate production deploys.
+# ---------------------------------------------------------------------------
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full 40-character commit SHA to promote to production (must already be built)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+# One run per target at a time. A run already in progress is never cancelled;
+# if several pushes queue up, GitHub keeps only the newest waiting one, so a
+# skipped commit has no images and cannot be promoted (re-run it if needed).
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && 'production' || 'staging' }}
+  cancel-in-progress: false
+
+env:
+  API_IMAGE: ghcr.io/novice130/at-tayyibun-api
+  WEB_IMAGE: ghcr.io/novice130/at-tayyibun-web
+
+jobs:
+  build:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.api
+          push: true
+          tags: |
+            ${{ env.API_IMAGE }}:${{ github.sha }}
+            ${{ env.API_IMAGE }}:staging
+          build-args: |
+            SENTRY_RELEASE=${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - name: Build and push web (staging)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.web
+          push: true
+          tags: |
+            ${{ env.WEB_IMAGE }}:staging-${{ github.sha }}
+            ${{ env.WEB_IMAGE }}:staging
+          build-args: |
+            NEXT_PUBLIC_WEB_URL=${{ vars.STAGING_NEXT_PUBLIC_WEB_URL }}
+            NEXT_PUBLIC_DEFAULT_COUNTRY_CODE=${{ vars.STAGING_NEXT_PUBLIC_DEFAULT_COUNTRY_CODE }}
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ vars.STAGING_NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ vars.STAGING_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ vars.STAGING_NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ vars.STAGING_NEXT_PUBLIC_FIREBASE_APP_ID }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ vars.STAGING_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.STAGING_NEXT_PUBLIC_SENTRY_DSN }}
+            NEXT_PUBLIC_SENTRY_ENVIRONMENT=staging
+            NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=0.2
+            SENTRY_RELEASE=${{ github.sha }}
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
+          cache-from: type=gha,scope=web-staging
+          cache-to: type=gha,scope=web-staging,mode=max
+
+      - name: Build and push web (prod)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.web
+          push: true
+          tags: |
+            ${{ env.WEB_IMAGE }}:prod-${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_WEB_URL=${{ vars.PROD_NEXT_PUBLIC_WEB_URL }}
+            NEXT_PUBLIC_DEFAULT_COUNTRY_CODE=${{ vars.PROD_NEXT_PUBLIC_DEFAULT_COUNTRY_CODE }}
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ vars.PROD_NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ vars.PROD_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ vars.PROD_NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ vars.PROD_NEXT_PUBLIC_FIREBASE_APP_ID }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ vars.PROD_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ vars.PROD_NEXT_PUBLIC_SENTRY_DSN }}
+            NEXT_PUBLIC_SENTRY_ENVIRONMENT=production
+            NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE=0.05
+            SENTRY_RELEASE=${{ github.sha }}
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
+          # The dependency layers are identical to the staging build just above
+          cache-from: |
+            type=gha,scope=web-prod
+            type=gha,scope=web-staging
+          cache-to: type=gha,scope=web-prod,mode=max
+
+  deploy-staging:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger staging redeploy hooks
+        env:
+          HOOK_WEB: ${{ secrets.STAGING_DEPLOY_HOOK_WEB }}
+          HOOK_API: ${{ secrets.STAGING_DEPLOY_HOOK_API }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+
+          trigger() {
+            local name="$1" url="$2" code
+            if [ -z "$url" ]; then
+              echo "::notice::Staging deploy hook for ${name} is not set; skipping."
+              return 0
+            fi
+            # A redirect (e.g. to a login page, or a hook that declined the
+            # request) is not a deploy, so anything but 2xx fails the job.
+            code="$(curl --fail --silent --show-error \
+              --max-time 60 --retry 3 --retry-delay 5 \
+              --request POST \
+              --header "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+              --header "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+              --header "Content-Type: application/json" \
+              --data '{}' \
+              --output /dev/null --write-out '%{http_code}' \
+              "$url")"
+            case "$code" in
+              2??) echo "Staging ${name} redeploy triggered (HTTP ${code})." ;;
+              *)
+                echo "::error::Staging ${name} deploy hook answered HTTP ${code}."
+                return 1
+                ;;
+            esac
+          }
+
+          # api first: it runs the database migrations
+          trigger api "$HOOK_API"
+          trigger web "$HOOK_WEB"
+
+  deploy-production:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      SHA: ${{ inputs.sha }}
+    steps:
+      - name: Validate sha input
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$SHA" | grep -Eqx '[0-9a-f]{40}'; then
+            echo "::error::Input 'sha' must be a full 40-character lowercase hex commit SHA."
+            exit 1
+          fi
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify images exist in GHCR
+        run: |
+          set -euo pipefail
+          missing=0
+          for ref in "${WEB_IMAGE}:prod-${SHA}" "${API_IMAGE}:${SHA}"; do
+            if docker manifest inspect "$ref" >/dev/null 2>&1; then
+              echo "found   $ref"
+            else
+              echo "::error::Image not found in GHCR: $ref (was this commit built by a push to main?)"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Join tailnet
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Deploy over SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          PROD_SSH_KNOWN_HOSTS: ${{ vars.PROD_SSH_KNOWN_HOSTS }}
+          PROD_HOST: ${{ vars.PROD_HOST }}
+        run: |
+          set -euo pipefail
+          for v in DEPLOY_SSH_KEY PROD_SSH_KNOWN_HOSTS PROD_HOST; do
+            if [ -z "${!v}" ]; then
+              echo "::error::$v is not set."
+              exit 1
+            fi
+          done
+
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          printf '%s\n' "$PROD_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+          # The key's forced command on the server is deploy.sh, which pulls,
+          # health-checks and rolls back by itself. Its exit code is ours.
+          ssh -i "$HOME/.ssh/deploy_key" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=20 \
+            "deploy@${PROD_HOST}" "attayyibun ${SHA}"
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f "$HOME/.ssh/deploy_key"

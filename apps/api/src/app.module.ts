@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { ThrottlerModule } from "@nestjs/throttler";
 import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { BullModule } from '@nestjs/bullmq';
+import { SentryModule } from "@sentry/nestjs/setup";
 // Core modules
 import { DrizzleModule } from "./db/drizzle.module";
 import { SharedServicesModule } from "./services/shared-services.module";
@@ -21,6 +22,9 @@ import { ThrottlerGuard } from "@nestjs/throttler";
 
 @Module({
   imports: [
+    // Error/performance reporting; inert when SENTRY_DSN is unset
+    SentryModule.forRoot(),
+
     // Configuration
     ConfigModule.forRoot({
       isGlobal: true,

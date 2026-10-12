@@ -42,6 +42,11 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# Git SHA, reported as the Sentry release. DSN/environment come from the
+# container's runtime environment.
+ARG SENTRY_RELEASE
+ENV SENTRY_RELEASE=$SENTRY_RELEASE
+
 RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 nestjs
 
@@ -62,4 +67,7 @@ ENV HOSTNAME="0.0.0.0"
 # the container rather than letting a new build start against an old schema.
 # The migrate script refuses to run at all if drizzle's ledger is missing —
 # see apps/api/scripts/bootstrap-migrations.sql.
-CMD ["sh", "-c", "node dist/src/migrate && exec node dist/src/main"]
+# MIGRATION_DATABASE_URL (the DDL-capable role, optional) is dropped from the
+# environment before the server starts, so the long-running process only ever
+# holds the DML-only DATABASE_URL.
+CMD ["sh", "-c", "node dist/src/migrate && unset MIGRATION_DATABASE_URL && exec node dist/src/main"]
