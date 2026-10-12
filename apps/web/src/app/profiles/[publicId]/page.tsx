@@ -157,9 +157,13 @@ export default function ProfileDetailPage() {
   const displayName = profile.firstName ?? profile.publicId;
   const isAnon = !profile.firstName;
 
-  const details = BIODATA_LABELS
-    .map(([key, label]) => [label, biodataValue(profile.biodata?.[key])] as const)
-    .filter((row): row is readonly [string, string] => row[1] !== null);
+  // Same rows, same order as the owner's own Details card on /profile.
+  const details = [
+    ['Gender', biodataValue(profile.gender)] as const,
+    ['Ethnicity', biodataValue(profile.ethnicity)] as const,
+    ['Public ID', biodataValue(profile.publicId)] as const,
+    ...BIODATA_LABELS.map(([key, label]) => [label, biodataValue(profile.biodata?.[key])] as const),
+  ].filter((row): row is readonly [string, string] => row[1] !== null);
   const lookingFor: Array<[string, string]> = [
     ["What they're looking for", biodataValue(profile.biodata?.['partnerPreferences'])],
     ['Deal breakers', biodataValue(profile.biodata?.['dealBreakers'])],
@@ -246,7 +250,7 @@ export default function ProfileDetailPage() {
                 {lookingFor.map(([label, value]) => (
                   <div key={label}>
                     <p className="text-sm mb-1" style={{ color: 'var(--color-text-muted)' }}>{label}</p>
-                    <p className="leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>{value}</p>
+                    <p className="leading-relaxed whitespace-pre-line" style={{ color: 'var(--color-text-secondary)' }}>{value}</p>
                   </div>
                 ))}
               </div>

@@ -1,0 +1,46 @@
+# CI: install, lint and unit-test the web + api workspaces.
+# The Flutter app in apps/mobile is not covered here.
+# Needs no secrets or variables.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Version comes from "packageManager": "pnpm@9.15.4" in package.json
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # turbo lint -> `next lint` (web) + `eslint` (api).
+      # Non-blocking for now: the repo has no ESLint config file yet, so both
+      # fail. Remove continue-on-error once eslint.config.* files are added.
+      - name: Lint
+        run: pnpm lint
+        continue-on-error: true
+
+      # turbo test -> jest in apps/api (web has no unit-test script).
+      # There is no typecheck script in any package.json; add one and call it
+      # here when it exists.
+      - name: Test
+        run: pnpm test

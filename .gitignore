@@ -60,3 +60,13 @@ opencode-mcp-export.json
 # Local image scratch (sources copied into apps/web/public/)
 Images/
 Images_New/
+
+# Sentry Config File
+.env.sentry-build-plugin
+
+# Local-only docs holding credentials (never commit)
+docs/*.local.md
+
+# Load test: account pool holds live staging session cookies
+loadtest/accounts.jsonl
+loadtest/results/

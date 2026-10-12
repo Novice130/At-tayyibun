@@ -1,5 +1,6 @@
-version: "3.8"
-
+# Local development only. Never run this on the production VM: the credentials
+# are throwaway defaults. Ports bind to loopback so nothing is reachable from
+# the LAN (Docker-published ports bypass UFW).
 services:
   postgres:
     image: postgres:15-alpine
@@ -9,7 +10,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: at_tayyibun
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +23,7 @@ services:
     image: redis:7-alpine
     container_name: at-tayyibun-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -31,12 +32,13 @@ services:
       timeout: 5s
       retries: 5
 
-  # Optional: Adminer for DB management
+  # Optional: Adminer for DB management — `docker compose --profile tools up`
   adminer:
     image: adminer:latest
     container_name: at-tayyibun-adminer
+    profiles: ["tools"]
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       - postgres
 

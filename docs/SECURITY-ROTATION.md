@@ -16,6 +16,10 @@ rotated, assume it can be used by an attacker.
       connection string.
 - [ ] Put the new value in local env files (root `.env`, `apps/api/.env`,
       `apps/web/.env.local` — all gitignored) replacing `REPLACE_AFTER_ROTATION`.
+- [ ] While rotating, split the credential by role instead of reusing the owner role
+      everywhere: `app_api` / `app_web` (DML only) as each container's `DATABASE_URL`,
+      and a schema-owning role as the API's `MIGRATION_DATABASE_URL`. SQL and steps in
+      `docs/infra-hardening.md` §1.
 
 ## 2. Better-auth
 

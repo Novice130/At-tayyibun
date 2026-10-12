@@ -34,8 +34,13 @@ const MIGRATIONS_FOLDER =
   process.env.MIGRATIONS_FOLDER ?? resolve(__dirname, '../../drizzle');
 
 async function main() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('DATABASE_URL is not set');
+  // MIGRATION_DATABASE_URL lets migrations run as a schema-owning role while
+  // the server's DATABASE_URL stays a DML-only role. Dockerfile.api unsets it
+  // before the server starts. Falls back to DATABASE_URL when not split.
+  const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error('Neither MIGRATION_DATABASE_URL nor DATABASE_URL is set');
+  }
 
   // Refuse to run against an existing schema that has never been bootstrapped.
   // The migrator would create the ledger empty and then treat 0000 — the

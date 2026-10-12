@@ -27,6 +27,13 @@ coverage
 .env
 .env.*
 !.env.example
+*.p8
+*.pem
+*.key
+*.jks
+key.properties
+service-account.json
+*firebase-adminsdk*.json
 
 # Logs / temp
 *.log
@@ -52,11 +59,15 @@ test-*.ts
 /*.jpg
 /*.jpeg
 /*.gif
+/*.mp4
 
 # Misc tracked artifacts not needed in image
 graphify-out
 .playwright-mcp
 docs
+memory-bank
+diagnostics
+apps/mobile
 
 # Dokploy / CI
 .github
