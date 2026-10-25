@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import * as sharp from 'sharp';
+import type Sharp from 'sharp';
+
+// sharp >= 0.35 keeps its CommonJS typings behind package.json "exports", which
+// this project's node10 module resolution ignores, so TypeScript sees the ESM
+// typings (a default export). At runtime require('sharp') is the function itself.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const sharp: typeof Sharp = require('sharp');
 
 export interface ProcessedImages {
   original: Buffer;
