@@ -233,7 +233,7 @@ export default function ProfilePage() {
             <div className="card p-6 sm:p-8 border-red-500/30">
               <h2 className="font-heading text-xl font-bold mb-2 text-red-500">Danger Zone</h2>
               <p className="mb-4 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                Deleting your account is permanent and immediate. Your profile, photos,
+                Deleting your account is permanent and immediate. Your profile,
                 requests and messages are removed right away and cannot be recovered.
               </p>
               <div className="flex flex-col sm:flex-row gap-3">

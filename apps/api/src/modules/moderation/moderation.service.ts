@@ -3,10 +3,9 @@ import { and, desc, eq, or, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { DrizzleService } from '../../db/drizzle.service';
-import { blocks, reports, infoRequests, users, photos, skipReasons, messages, emailCampaigns, campaignRecipients, auditLogs } from '../../db/schema';
+import { blocks, reports, infoRequests, users, skipReasons, messages, emailCampaigns, campaignRecipients, auditLogs } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
-import { StorageService } from '../../services/storage.service';
 import { escapeHtml } from '../../common/utils/html';
 import { ReportReason, ReportStatus, RequestStatus } from '../../common/types/role';
 
@@ -18,7 +17,6 @@ export class ModerationService {
     private readonly drizzle: DrizzleService,
     private readonly auditService: AuditService,
     private readonly emailService: EmailService,
-    private readonly storageService: StorageService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -257,20 +255,6 @@ export class ModerationService {
    */
   async hardDeleteUser(userId: string, deletedBy: string) {
     const db = this.drizzle.db;
-
-    // Delete GCS objects while the rows still exist — the paths die with them.
-    const userPhotos = await db.select().from(photos).where(eq(photos.userId, userId));
-    for (const photo of userPhotos) {
-      for (const path of [photo.gcsOriginalPath, photo.gcsThumbnailPath, photo.gcsDisplayPath]) {
-        if (path) {
-          try {
-            await this.storageService.deleteFile(path);
-          } catch (error) {
-            console.error('GCS delete failed:', path, error);
-          }
-        }
-      }
-    }
 
     await db.transaction(async (tx) => {
       // onDelete restrict → explicit deletes first.

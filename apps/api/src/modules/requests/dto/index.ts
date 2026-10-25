@@ -13,11 +13,11 @@ export class RespondRequestDto {
   approved: boolean;
 
   @ApiPropertyOptional({
-    example: ['photo', 'phone', 'email'],
+    example: ['phone', 'email'],
     description: 'Items to share (only used when approved is true)',
   })
   @IsOptional()
   @IsArray()
-  @IsIn(['photo', 'phone', 'email'], { each: true })
+  @IsIn(['phone', 'email'], { each: true })
   shareItems?: string[];
 }

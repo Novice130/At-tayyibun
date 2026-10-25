@@ -200,18 +200,11 @@ export class EmailService {
     recipientEmail: string,
     recipientName: string,
     sharedBy: string,
-    shares: { photo?: string; phone?: string; email?: string },
-    expiresIn = '24 hours',
+    shares: { phone?: string; email?: string },
   ): Promise<void> {
     const safeRecipientName = escapeHtml(recipientName);
     const safeSharedBy = escapeHtml(sharedBy);
     const sharedItems: string[] = [];
-    if (shares.photo) {
-      // Photo is a generated signed URL, not user input, but escape it in
-      // attributes anyway (defense in depth).
-      const safePhoto = escapeHtml(shares.photo);
-      sharedItems.push(`<p><strong>Photo:</strong> <a href="${safePhoto}" style="color: #D4AF37;">View Photo</a> (expires in ${escapeHtml(expiresIn)})</p>`);
-    }
     if (shares.phone) {
       sharedItems.push(`<p><strong>Phone:</strong> ${escapeHtml(shares.phone)}</p>`);
     }
@@ -226,7 +219,6 @@ export class EmailService {
       <div style="background: #f8f4ed; padding: 20px; border-radius: 8px; margin: 24px 0; border-left: 4px solid #D4AF37;">
         ${sharedItems.join('')}
       </div>
-      <p style="color: #888; font-size: 13px;">Photo links expire in ${escapeHtml(expiresIn)} for your privacy and security.</p>
       <p>May Allah bless your journey towards finding a righteous spouse.</p>
     `);
 

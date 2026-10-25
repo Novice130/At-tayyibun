@@ -238,12 +238,11 @@ export class ProfilesService {
   async getMyProfile(userId: string) {
     const user = await this.drizzle.db.query.users.findFirst({
       where: eq(users.id, userId),
-      with: { profiles: true, photos: true },
+      with: { profiles: true },
     });
     if (!user) throw new NotFoundException('User not found');
 
     const profile = Array.isArray((user as any).profiles) ? (user as any).profiles[0] ?? null : (user as any).profiles ?? null;
-    const photos = (user as any).photos ?? [];
 
     let lastName = '';
     let biodata: Record<string, unknown> = {};
@@ -286,12 +285,6 @@ export class ProfilesService {
             profileComplete: profile.profileComplete,
           }
         : null,
-      photos: photos.map((p: any) => ({
-        id: p.id,
-        type: p.type,
-        isPrimary: p.isPrimary,
-        visibility: p.visibility,
-      })),
     };
   }
 

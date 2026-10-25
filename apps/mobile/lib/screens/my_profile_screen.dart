@@ -79,7 +79,7 @@ class _Body extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Delete account?'),
         content: const Text(
-          'This is permanent and immediate. Your profile, photos, requests '
+          'This is permanent and immediate. Your profile, requests '
           'and messages are removed right away and cannot be recovered.',
         ),
         actions: [

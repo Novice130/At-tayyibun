@@ -8,10 +8,9 @@ import {
 import { and, desc, eq, or } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { DrizzleService } from '../../db/drizzle.service';
-import { infoRequests, users, photos, blocks } from '../../db/schema';
+import { infoRequests, users, blocks } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
-import { StorageService } from '../../services/storage.service';
 import { EncryptionService } from '../../services/encryption.service';
 import { RequestStatus } from '../../common/types/role';
 import { RespondRequestDto } from './dto';
@@ -22,7 +21,6 @@ export class RequestsService {
     private readonly drizzle: DrizzleService,
     private readonly auditService: AuditService,
     private readonly emailService: EmailService,
-    private readonly storageService: StorageService,
     private readonly encryptionService: EncryptionService,
   ) {}
 
@@ -179,18 +177,7 @@ export class RequestsService {
         })
         .where(eq(infoRequests.id, requestId));
 
-      const sharedInfo: { photo?: string; phone?: string; email?: string } = {};
-
-      if (allowedShares.includes('photo')) {
-        const [primary] = await db
-          .select()
-          .from(photos)
-          .where(and(eq(photos.userId, target.id), eq(photos.isPrimary, true)))
-          .limit(1);
-        if (primary?.gcsDisplayPath) {
-          sharedInfo.photo = await this.storageService.getOneTimeSignedUrl(primary.gcsDisplayPath);
-        }
-      }
+      const sharedInfo: { phone?: string; email?: string } = {};
 
       // A phone-first account holds a +<e164>@phone.attayyibun.invalid
       // placeholder until it supplies a real address; handing that to the
@@ -340,19 +327,8 @@ export class RequestsService {
     const target = await this.getUserWithProfile(eq(users.id, request.targetId));
     if (!target) throw new NotFoundException('Target not found');
 
-    const result: { photoUrl?: string; phone?: string; email?: string } = {};
+    const result: { phone?: string; email?: string } = {};
     const allowedShares = request.allowedShares ?? [];
-
-    if (allowedShares.includes('photo')) {
-      const [primary] = await db
-        .select()
-        .from(photos)
-        .where(and(eq(photos.userId, target.id), eq(photos.isPrimary, true)))
-        .limit(1);
-      if (primary?.gcsDisplayPath) {
-        result.photoUrl = await this.storageService.getSignedUrl(primary.gcsDisplayPath, 60);
-      }
-    }
 
     if (allowedShares.includes('phone')) {
       result.phone = target.isPhoneVerified ? target.phone || undefined : undefined;

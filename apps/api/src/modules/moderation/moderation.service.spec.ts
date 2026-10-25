@@ -4,7 +4,6 @@ import { ModerationService } from './moderation.service';
 import { DrizzleService } from '../../db/drizzle.service';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
-import { StorageService } from '../../services/storage.service';
 import { ReportReason, ReportStatus } from '../../common/types/role';
 import { chain, createDbMock } from '../../test/drizzle-mock';
 
@@ -15,19 +14,16 @@ describe('ModerationService', () => {
   let db: ReturnType<typeof createDbMock>;
   let audit: { log: jest.Mock; logAdminAction: jest.Mock };
   let email: { sendEmail: jest.Mock };
-  let storage: { deleteFile: jest.Mock };
   let service: ModerationService;
 
   beforeEach(() => {
     db = createDbMock();
     audit = { log: jest.fn(), logAdminAction: jest.fn() };
     email = { sendEmail: jest.fn().mockResolvedValue(undefined) };
-    storage = { deleteFile: jest.fn().mockResolvedValue(undefined) };
     service = new ModerationService(
       { db } as unknown as DrizzleService,
       audit as unknown as AuditService,
       email as unknown as EmailService,
-      storage as unknown as StorageService,
       new ConfigService({ ADMIN_EMAIL: 'admin@attayyibun.com' }),
     );
   });
@@ -197,36 +193,7 @@ describe('ModerationService', () => {
   });
 
   describe('hardDeleteUser', () => {
-    it('deletes stored photo objects before the rows go', async () => {
-      db.select.mockReturnValueOnce(
-        chain([
-          {
-            gcsOriginalPath: 'orig.jpg',
-            gcsThumbnailPath: 'thumb.jpg',
-            gcsDisplayPath: null,
-            userId: TARGET.id,
-          },
-        ]),
-      );
-      await service.hardDeleteUser(TARGET.id, TARGET.id);
-      expect(storage.deleteFile).toHaveBeenCalledWith('orig.jpg');
-      expect(storage.deleteFile).toHaveBeenCalledWith('thumb.jpg');
-      // Null paths are skipped rather than passed through.
-      expect(storage.deleteFile).toHaveBeenCalledTimes(2);
-    });
-
-    it('continues the deletion when object storage fails', async () => {
-      db.select.mockReturnValueOnce(
-        chain([{ gcsOriginalPath: 'orig.jpg', gcsThumbnailPath: null, gcsDisplayPath: null }]),
-      );
-      storage.deleteFile.mockRejectedValueOnce(new Error('GCS 500'));
-      jest.spyOn(console, 'error').mockImplementation(() => undefined);
-      await expect(service.hardDeleteUser(TARGET.id, TARGET.id)).resolves.toBeUndefined();
-      expect(db.transaction).toHaveBeenCalledTimes(1);
-    });
-
     it('clears restrict-FK tables and writes the audit row inside the transaction', async () => {
-      db.select.mockReturnValueOnce(chain([]));
       await service.hardDeleteUser(TARGET.id, 'admin-uuid');
       // info_requests, skip_reasons, messages, campaign_recipients,
       // email_campaigns, then users.

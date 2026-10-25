@@ -2,8 +2,6 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
-import { AdminPhotosController } from './controllers/admin-photos.controller';
-import { AdminPhotosService } from './services/admin-photos.service';
 import { AdminAdsController } from './controllers/admin-ads.controller';
 import { AdminAdsService } from './services/admin-ads.service';
 import { AdminCouponsController } from './controllers/admin-coupons.controller';
@@ -19,7 +17,6 @@ import { AdminSchemasService } from './services/admin-schemas.service';
   ],
   controllers: [
     AdminController,
-    AdminPhotosController,
     AdminAdsController,
     AdminCouponsController,
     AdminCampaignsController,
@@ -27,7 +24,6 @@ import { AdminSchemasService } from './services/admin-schemas.service';
   ],
   providers: [
     AdminService,
-    AdminPhotosService,
     AdminAdsService,
     AdminCouponsService,
     AdminCampaignsService,

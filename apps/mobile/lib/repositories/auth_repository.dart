@@ -251,7 +251,7 @@ class AuthRepository {
   }
 
   /// Permanently deletes the caller's own account, then drops the session
-  /// cookie. The server does the real deletion (profiles, photos, requests);
+  /// cookie. The server does the real deletion (profile, requests, messages);
   /// clearing the jar here makes the signed-out state stick.
   Future<void> deleteAccount() async {
     await _api.delete<dynamic>('/api/users/me');

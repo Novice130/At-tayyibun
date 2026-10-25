@@ -112,7 +112,7 @@ From the code as of this date:
 | `MIGRATION_DATABASE_URL` | no | yes |
 | `BETTER_AUTH_SECRET` | yes | yes |
 | `ENCRYPTION_KEY` | **no** | yes |
-| `REDIS_URL`, `GCS_*` | no | yes |
+| `REDIS_URL` | no | yes |
 | `FIREBASE_PRIVATE_KEY`, `FIREBASE_CLIENT_EMAIL` | yes | **no** |
 | `GOOGLE_CLIENT_SECRET` | yes | **no** |
 | `APPLE_CLIENT_SECRET`, `RESEND_API_KEY` | yes | yes |

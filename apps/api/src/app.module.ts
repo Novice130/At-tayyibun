@@ -10,7 +10,6 @@ import { SharedServicesModule } from "./services/shared-services.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { UsersModule } from "./modules/users/users.module";
 import { ProfilesModule } from "./modules/profiles/profiles.module";
-import { PhotosModule } from "./modules/photos/photos.module";
 import { RequestsModule } from "./modules/requests/requests.module";
 import { ModerationModule } from "./modules/moderation/moderation.module";
 import { AdminModule } from "./modules/admin/admin.module";
@@ -84,7 +83,7 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     // Database
     DrizzleModule,
 
-    // Global shared services (Encryption, Email, Storage, Avatar, Audit)
+    // Global shared services (Encryption, Email, Avatar, Audit)
     SharedServicesModule,
 
     // Feature modules
@@ -93,7 +92,6 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     ProfilesModule,
     RequestsModule,
     ModerationModule,
-    PhotosModule,
     AdminModule,
   ],
   providers: [

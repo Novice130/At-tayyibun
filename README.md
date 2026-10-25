@@ -77,7 +77,7 @@ at-tayyibun/
 
 - **Passwords**: Hashed with Argon2id
 - **Biodata**: Encrypted with AES-256-GCM before storage
-- **Photos**: Private by default, accessed via signed URLs
+- **Photos**: None. Profiles use preset cartoon avatars; real photos are never uploaded
 - **Auth**: Better Auth with Argon2id hashing and multi-factor support
 - **Rate Limiting**: Redis-backed per-endpoint limits
 - **Headers**: HSTS, CSP, X-Frame-Options configured

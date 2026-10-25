@@ -31,7 +31,7 @@ const features = [
   {
     icon: Shield,
     title: 'Privacy Sanctuary',
-    description: 'Your real photos are private by default. Only you decide who sees them, with time-limited, expiring links.',
+    description: 'No real photos, ever. Profiles show a cartoon avatar, and contact details are shared only when you approve a request.',
   },
   {
     icon: Users,

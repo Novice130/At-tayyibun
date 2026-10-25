@@ -274,8 +274,6 @@ are not skewed.
 
 **Left out, and why**
 
-- Photo upload (`POST /api/photos`): writes to Google Cloud Storage. Ask the
-  owner what bucket staging uses before touching it.
 - Google and Apple sign-in: not configured on staging.
 - Admin panel: needs an emailed 2FA code, and staging sends no email.
 - The Flutter app: it calls the same API, so the API journeys cover it.

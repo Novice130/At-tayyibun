@@ -40,8 +40,8 @@ export default function AboutPage() {
               <Shield className="w-10 h-10 text-gold-500 mb-4" />
               <h3 className="font-heading text-xl font-semibold mb-2">Privacy First</h3>
               <p className="text-secondary">
-                Your photos remain private by default. Only you decide who can see them, 
-                through time-limited, expiring links.
+                Real photos are never uploaded. Profiles show a cartoon avatar, and your
+                contact details are shared only when you approve a request.
               </p>
             </div>
             <div className="card p-6">

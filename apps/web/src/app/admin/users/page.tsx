@@ -233,7 +233,7 @@ export default function AdminUsersPage() {
   const deleteUser = async (userId: string, label: string) => {
     if (
       !confirm(
-        `Permanently delete ${label}? This removes their photos, profile, sessions, and pending requests. Cannot be undone.`
+        `Permanently delete ${label}? This removes their profile, sessions, and pending requests. Cannot be undone.`
       )
     )
       return;

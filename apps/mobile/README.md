@@ -77,6 +77,6 @@ debug signing so it still compiles.
 
 ## Not in this version
 
-Photo upload (`POST /api/photos`), the admin panel, push notifications, and 2FA
-enrolment. Admin accounts with 2FA enabled cannot complete sign-in in the app —
-they are told to use the website.
+The admin panel, push notifications, and 2FA enrolment. Admin accounts with
+2FA enabled cannot complete sign-in in the app — they are told to use the
+website.

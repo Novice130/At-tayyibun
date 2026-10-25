@@ -137,12 +137,6 @@ export function InspectorContent({
           </dd>
         </div>
         <div>
-          <dt style={{ color: 'var(--color-text-secondary)' }}>Photos Uploaded</dt>
-          <dd className="font-medium mt-0.5" style={{ color: 'var(--color-text)' }}>
-            {detail.photos?.length ?? 0} photos
-          </dd>
-        </div>
-        <div>
           <dt style={{ color: 'var(--color-text-secondary)' }}>Member Since</dt>
           <dd className="font-medium mt-0.5" style={{ color: 'var(--color-text)' }}>
             {detail.createdAt ? new Date(detail.createdAt).toLocaleDateString() : '—'}
@@ -306,7 +300,7 @@ export function InspectorContent({
             <Trash2 className="w-4 h-4" /> Permanently Delete Account
           </button>
           <p className="text-[10px] mt-1.5 text-muted leading-tight">
-            Permanently removes profile, uploaded photos, sessions, and connections.
+            Permanently removes profile, sessions, and connections.
           </p>
         </section>
       )}

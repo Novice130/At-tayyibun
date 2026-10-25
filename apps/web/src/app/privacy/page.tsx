@@ -20,11 +20,11 @@ export default function PrivacyPage() {
             <div className="card p-6">
               <div className="flex items-center gap-3 mb-3">
                 <EyeOff className="w-6 h-6 text-gold-500" />
-                <h2 className="font-heading text-xl font-semibold">Photos stay private</h2>
+                <h2 className="font-heading text-xl font-semibold">No real photos</h2>
               </div>
               <p className="text-secondary">
-                Your photos are hidden from browsing by default. They are only shared
-                through time-limited, expiring links when you approve a contact request.
+                Profiles show a cartoon avatar you pick. Real photos are never uploaded,
+                stored, or shared.
               </p>
             </div>
 

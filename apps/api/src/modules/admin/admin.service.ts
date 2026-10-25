@@ -118,7 +118,6 @@ export class AdminService {
       where: or(eq(users.id, identifier), eq(users.publicId, identifier)),
       with: {
         profiles: true,
-        photos: true,
         infoRequests_requesterId: { limit: 10, orderBy: (t, { desc }) => [desc(t.createdAt)] },
         infoRequests_targetId: { limit: 10, orderBy: (t, { desc }) => [desc(t.createdAt)] },
       },

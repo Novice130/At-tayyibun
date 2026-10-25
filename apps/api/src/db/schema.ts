@@ -11,6 +11,9 @@ export const reportStatus = pgEnum("ReportStatus", ['PENDING', 'REVIEWED', 'DISM
 export const role = pgEnum("Role", ['USER', 'ADMIN', 'SUPER_ADMIN'])
 
 
+// Legacy: nothing writes this table any more. Avatars are preset images stored
+// as a URL in users.image, and real photos are never uploaded. Kept until a
+// cleanup migration drops it (with profiles.ai_avatar_id, which points here).
 export const photos = pgTable("photos", {
 	id: uuid().primaryKey().notNull(),
 	userId: uuid("user_id").notNull(),
