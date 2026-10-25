@@ -16,7 +16,7 @@ export class StorageService {
 
   private getStorage(): Storage {
     if (!this.storage) {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { Storage } = require('@google-cloud/storage') as { Storage: new (opts: any) => Storage };
       this.storage = new Storage({
         projectId: this.configService.get<string>('GCS_PROJECT_ID'),

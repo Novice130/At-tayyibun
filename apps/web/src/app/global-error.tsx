@@ -16,6 +16,8 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
           <p style={{ margin: 0, color: '#a0a0b8' }}>
             An unexpected error occurred. Please refresh the page, or return to the home page.
           </p>
+          {/* Plain <a> on purpose: the root layout has crashed, so do a full reload. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a
             href="/"
             style={{ display: 'inline-block', marginTop: '8px', padding: '12px 32px', borderRadius: '8px', background: '#D4AF37', color: '#1a1a2e', fontWeight: 700, textDecoration: 'none' }}
