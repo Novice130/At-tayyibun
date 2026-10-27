@@ -425,7 +425,12 @@ export class ProfilesService {
       if (data.openToDivorced !== undefined) updateData.openToDivorced = data.openToDivorced;
       if (data.openToWidowed !== undefined) updateData.openToWidowed = data.openToWidowed;
       if (data.openToChildren !== undefined) updateData.openToChildren = data.openToChildren;
-      const effectiveHasChildren = data.hasChildren ?? existingProfile?.hasChildren ?? null;
+      // Use the value actually being stored: `??` would fall back to the stored
+      // answer when null is sent, so a cleared answer could still look complete.
+      const effectiveHasChildren =
+        data.hasChildren !== undefined ? data.hasChildren : (existingProfile?.hasChildren ?? null);
+      const effectiveMaritalStatus =
+        data.maritalStatus !== undefined ? data.maritalStatus : (existingProfile?.maritalStatus ?? null);
       if (effectiveHasChildren !== true) {
         if (data.childrenCount !== undefined || data.hasChildren !== undefined) updateData.childrenCount = null;
       } else if (data.childrenCount !== undefined) {
@@ -441,7 +446,7 @@ export class ProfilesService {
         gender: data.gender ?? existingProfile?.gender,
         ethnicity: data.ethnicity ?? existingProfile?.ethnicity,
         bio: data.bio ?? existingProfile?.bioEnc,
-        maritalStatus: data.maritalStatus ?? existingProfile?.maritalStatus,
+        maritalStatus: effectiveMaritalStatus,
         hasChildren: effectiveHasChildren,
       };
       const isComplete = !!(

@@ -47,13 +47,13 @@ describe('RequestsService', () => {
 
   describe('createRequest', () => {
     /**
-     * findFirst #1 -> target, #2 -> requester. select #1 is the block check,
+     * findFirst #1 -> requester, #2 -> target. select #1 is the block check,
      * #2 the existing pending request lookup.
      */
     function arrange(requesterProfile: unknown, targetProfile: unknown, blocked = false) {
       db.query.users.findFirst
-        .mockResolvedValueOnce({ id: TARGET_ID, publicId: 'usr_pub_t', email: 't@example.com', profiles: [targetProfile] })
-        .mockResolvedValueOnce({ id: REQUESTER_ID, publicId: 'usr_pub_r', email: 'r@example.com', profiles: [requesterProfile] });
+        .mockResolvedValueOnce({ id: REQUESTER_ID, publicId: 'usr_pub_r', email: 'r@example.com', profiles: [requesterProfile] })
+        .mockResolvedValueOnce({ id: TARGET_ID, publicId: 'usr_pub_t', email: 't@example.com', profiles: [targetProfile] });
       db.select
         .mockReturnValueOnce(chain(blocked ? [{ id: 'block-1' }] : []))
         .mockReturnValueOnce(chain([]));
@@ -87,6 +87,34 @@ describe('RequestsService', () => {
       const err = await service.createRequest(REQUESTER_ID, 'usr_pub_t').catch((e) => e);
       expect(err).toBeInstanceOf(BadRequestException);
       expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('gives an incomplete requester the 400 even when blocked (no block oracle)', async () => {
+      arrange(profile({ profileComplete: false }), profile(), true);
+      const err = await service.createRequest(REQUESTER_ID, 'usr_pub_t').catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(err.message).toBe('Please complete your profile before sending a request.');
+      expect(db.select).not.toHaveBeenCalled();
+      expect(db.insert).not.toHaveBeenCalled();
+    });
+
+    it('gives an incomplete requester the 400 before looking up the target at all', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce({
+        id: REQUESTER_ID,
+        publicId: 'usr_pub_r',
+        profiles: [profile({ profileComplete: false })],
+      });
+      const err = await service.createRequest(REQUESTER_ID, 'usr_pub_missing').catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(err.message).toBe('Please complete your profile before sending a request.');
+      expect(db.query.users.findFirst).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives an incomplete requester the 400 even when the target ruled them out', async () => {
+      arrange(profile({ maritalStatus: null }), profile({ hasChildren: true }));
+      const err = await service.createRequest(REQUESTER_ID, 'usr_pub_t').catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(err.message).toBe('Please complete your profile before sending a request.');
     });
 
     it('404s with the block message when the target ruled the requester out', async () => {

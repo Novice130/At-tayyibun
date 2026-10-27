@@ -69,13 +69,17 @@ export class UpdateProfileDto {
   @IsObject()
   biodata?: Record<string, unknown>;
 
+  // The marital answers may be omitted from a PUT but never set to null:
+  // @IsOptional would let null through, the service would store it, and a
+  // cleared answer must not leave a profile complete (the open-to columns are
+  // also NOT NULL, so null there would be a 500 rather than a 400).
   @ApiPropertyOptional({ enum: MARITAL_STATUSES })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsIn(MARITAL_STATUSES)
   maritalStatus?: MaritalStatus;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsBoolean()
   hasChildren?: boolean;
 
@@ -88,17 +92,17 @@ export class UpdateProfileDto {
   childrenCount?: number | null;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsBoolean()
   openToDivorced?: boolean;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsBoolean()
   openToWidowed?: boolean;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsBoolean()
   openToChildren?: boolean;
 }

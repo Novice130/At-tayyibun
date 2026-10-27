@@ -219,6 +219,18 @@ describe('ProfilesService', () => {
       expect(set.mock.calls[0][0]).toMatchObject({ profileComplete: true });
     });
 
+    it('is never complete when null status is sent over a stored answer', async () => {
+      const set = arrange({ ...COMPLETE_ROW, maritalStatus: 'DIVORCED', hasChildren: false });
+      await service.updateMyProfile(USER_ID, { maritalStatus: null as any });
+      expect(set.mock.calls[0][0]).toMatchObject({ maritalStatus: null, profileComplete: false });
+    });
+
+    it('is never complete when null hasChildren is sent over a stored answer', async () => {
+      const set = arrange({ ...COMPLETE_ROW, maritalStatus: 'DIVORCED', hasChildren: false });
+      await service.updateMyProfile(USER_ID, { hasChildren: null as any });
+      expect(set.mock.calls[0][0]).toMatchObject({ hasChildren: null, profileComplete: false });
+    });
+
     it('uses stored status and hasChildren when not sent (hasChildren false counts)', async () => {
       const set = arrange({ ...COMPLETE_ROW, maritalStatus: 'DIVORCED', hasChildren: false });
       await service.updateMyProfile(USER_ID, { city: 'Chicago' });

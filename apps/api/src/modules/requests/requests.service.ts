@@ -39,18 +39,21 @@ export class RequestsService {
   }
 
   async createRequest(requesterId: string, targetPublicId: string): Promise<{ id: string }> {
-    const target = await this.getUserWithProfile(eq(users.publicId, targetPublicId));
-    if (!target) throw new NotFoundException('User not found');
-    if (target.id === requesterId) throw new BadRequestException('Cannot request your own information');
-
     // Both sides must have a profile before a request is worth creating. The
     // notification email below is skipped when either is missing, so without
     // this guard the row was still written — consuming the requester's single
     // pending-request slot — while the target was never told about it.
+    // The requester is checked first, before anything about the target (exists,
+    // blocked, matches), so an incomplete requester always gets this same 400
+    // and cannot use a 404 vs 400 difference to learn about the target.
     const requester = await this.getUserWithProfile(eq(users.id, requesterId));
-    if (!requester?.profile) {
+    if (!requester?.profile || !hasCompleteProfile(requester.profile)) {
       throw new BadRequestException('Please complete your profile before sending a request.');
     }
+
+    const target = await this.getUserWithProfile(eq(users.publicId, targetPublicId));
+    if (!target) throw new NotFoundException('User not found');
+    if (target.id === requesterId) throw new BadRequestException('Cannot request your own information');
     if (!target.profile) {
       throw new BadRequestException('This member has not finished setting up their profile yet.');
     }
@@ -73,9 +76,6 @@ export class RequestsService {
     // Browse already hides incompatible pairs; re-check here so a publicId
     // found elsewhere cannot be used to reach someone who ruled the requester
     // out. A non-match gets the same answer as a block.
-    if (!hasCompleteProfile(requester.profile)) {
-      throw new BadRequestException('Please complete your profile before sending a request.');
-    }
     if (!isMutualMatch(toMatchSide(requester.profile), toMatchSide(target.profile))) {
       throw new NotFoundException('User not found');
     }
