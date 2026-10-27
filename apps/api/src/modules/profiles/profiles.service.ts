@@ -239,11 +239,14 @@ export class ProfilesService {
       // in either direction and any status, keeps links from the requests
       // page working after either side changes their answers.
       const [viewerProfile] = await this.drizzle.db
-        .select(MATCH_COLUMNS)
+        .select({ gender: profiles.gender, ...MATCH_COLUMNS })
         .from(profiles)
         .where(eq(profiles.userId, viewerId))
         .limit(1);
-      if (!isMutualMatch(toMatchSide(viewerProfile), toMatchSide(profile))) {
+      // The rule only applies across genders (browse is opposite-gender only);
+      // same-gender views keep their pre-feature behaviour.
+      const crossGender = !viewerProfile?.gender || viewerProfile.gender !== profile.gender;
+      if (crossGender && !isMutualMatch(toMatchSide(viewerProfile), toMatchSide(profile))) {
         const [requestRow] = await this.drizzle.db
           .select({ id: infoRequests.id })
           .from(infoRequests)
@@ -436,7 +439,31 @@ export class ProfilesService {
       } else if (data.childrenCount !== undefined) {
         updateData.childrenCount = data.childrenCount;
       }
-      const maritalKeysSent = MARITAL_KEYS.filter((k) => data[k] !== undefined);
+      // Audit only answers whose stored value really changes. Clients send all
+      // six keys on every save, so "sent" is not "changed". Compared after the
+      // same normalisation the write applies; no profile row means all unset.
+      const storedAfter: Record<(typeof MARITAL_KEYS)[number], unknown> = {
+        maritalStatus: data.maritalStatus !== undefined ? data.maritalStatus : (existingProfile?.maritalStatus ?? null),
+        hasChildren: effectiveHasChildren,
+        childrenCount:
+          effectiveHasChildren !== true
+            ? null
+            : data.childrenCount !== undefined
+              ? data.childrenCount
+              : (existingProfile?.childrenCount ?? null),
+        openToDivorced: data.openToDivorced ?? existingProfile?.openToDivorced ?? false,
+        openToWidowed: data.openToWidowed ?? existingProfile?.openToWidowed ?? false,
+        openToChildren: data.openToChildren ?? existingProfile?.openToChildren ?? false,
+      };
+      const storedBefore: Record<(typeof MARITAL_KEYS)[number], unknown> = {
+        maritalStatus: existingProfile?.maritalStatus ?? null,
+        hasChildren: existingProfile?.hasChildren ?? null,
+        childrenCount: existingProfile?.childrenCount ?? null,
+        openToDivorced: existingProfile?.openToDivorced ?? false,
+        openToWidowed: existingProfile?.openToWidowed ?? false,
+        openToChildren: existingProfile?.openToChildren ?? false,
+      };
+      const maritalKeysChanged = MARITAL_KEYS.filter((k) => storedAfter[k] !== storedBefore[k]);
 
       // Profile is complete when every required field is present after this update.
       const after = {
@@ -509,13 +536,13 @@ export class ProfilesService {
       // profile is already saved, so a failed audit write must not turn the
       // response into an error; log that it failed, without the error text
       // (a driver error can echo query params).
-      if (maritalKeysSent.length > 0) {
+      if (maritalKeysChanged.length > 0) {
         try {
           await this.auditService.log({
             userId,
             action: 'profile.marital_prefs_updated',
             resourceType: 'profile',
-            metadata: { fields: maritalKeysSent },
+            metadata: { fields: maritalKeysChanged },
           });
         } catch (auditError) {
           const kind = auditError instanceof Error ? auditError.name : 'unknown error';
@@ -525,8 +552,12 @@ export class ProfilesService {
 
       return await this.getMyProfile(userId);
     } catch (error) {
-      console.error('[ProfilesService] updateMyProfile FAILED for userId:', userId);
-      console.error('[ProfilesService] Error:', error);
+      // Name/code only: a driver error's message can echo bound query params,
+      // and some of those are private marital answers.
+      const kind = error instanceof Error ? error.name : 'unknown error';
+      const code = (error as { code?: string; cause?: { code?: string } } | null)?.code
+        ?? (error as { cause?: { code?: string } } | null)?.cause?.code;
+      console.error('[ProfilesService] updateMyProfile FAILED for userId:', userId, kind, code ?? '');
       throw error;
     }
   }

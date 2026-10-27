@@ -264,6 +264,49 @@ describe('ProfilesService', () => {
       warn.mockRestore();
     });
 
+    it('does not audit a resend of unchanged answers', async () => {
+      arrange({
+        ...COMPLETE_ROW,
+        maritalStatus: 'DIVORCED',
+        hasChildren: true,
+        childrenCount: 2,
+        openToDivorced: true,
+        openToWidowed: false,
+        openToChildren: false,
+      });
+      await service.updateMyProfile(USER_ID, {
+        maritalStatus: 'DIVORCED',
+        hasChildren: true,
+        childrenCount: 2,
+        openToDivorced: true,
+        openToWidowed: false,
+        openToChildren: false,
+      });
+      expect(audit.log).not.toHaveBeenCalled();
+    });
+
+    it('audits only the key that changed when everything is resent', async () => {
+      arrange({
+        ...COMPLETE_ROW,
+        maritalStatus: 'DIVORCED',
+        hasChildren: false,
+        childrenCount: null,
+        openToDivorced: false,
+        openToWidowed: false,
+        openToChildren: false,
+      });
+      await service.updateMyProfile(USER_ID, {
+        maritalStatus: 'DIVORCED',
+        hasChildren: false,
+        childrenCount: null as any,
+        openToDivorced: true,
+        openToWidowed: false,
+        openToChildren: false,
+      });
+      expect(audit.log).toHaveBeenCalledTimes(1);
+      expect(audit.log.mock.calls[0][0].metadata).toEqual({ fields: ['openToDivorced'] });
+    });
+
     it('does not audit an update without the marital keys', async () => {
       arrange({ userId: USER_ID });
       await service.updateMyProfile(USER_ID, { city: 'Chicago' });
@@ -651,6 +694,22 @@ describe('ProfilesService', () => {
         expect(text).not.toContain('"info_requests"."status"');
         expect(params.filter((p) => p === VIEWER_ID)).toHaveLength(2);
         expect(params.filter((p) => p === 'target-uuid')).toHaveLength(2);
+      });
+
+      it('does not apply the match rule to a same-gender view', async () => {
+        db.query.users.findFirst.mockResolvedValueOnce(divorcedTarget);
+        db.select
+          .mockReturnValueOnce(chain([]))
+          .mockReturnValueOnce(chain([{ ...neverMarriedViewer, gender: Gender.FEMALE }]));
+        const result: any = await service.getProfileByPublicId('usr_pub_1', true, VIEWER_ID);
+        expect(result.publicId).toBe('usr_pub_1');
+      });
+
+      it('still applies the match rule across genders', async () => {
+        arrange(divorcedTarget, [{ ...neverMarriedViewer, gender: Gender.MALE }]);
+        await expect(service.getProfileByPublicId('usr_pub_1', true, VIEWER_ID)).rejects.toBeInstanceOf(
+          NotFoundException,
+        );
       });
 
       it('shows a mutual match without looking up requests', async () => {
