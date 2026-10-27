@@ -574,7 +574,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           onSelected: (v) => setState(() => _relocate = v),
         ),
         const SizedBox(height: 16),
-        _Label('Marital status'),
+        _Label('Marital Status'),
         Text(kMaritalNotice, style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 8),
         Wrap(
@@ -613,12 +613,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: const InputDecoration(
-              labelText: 'Number of children (optional)',
+              labelText: 'How many? (optional)',
             ),
           ),
         ],
         const SizedBox(height: 16),
-        _Label('I am open to a match who is'),
+        _Label('I am open to meeting'),
         CheckboxListTile(
           contentPadding: EdgeInsets.zero,
           value: _openToDivorced,
