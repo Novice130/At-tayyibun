@@ -1,8 +1,9 @@
-import { pgTable, index, foreignKey, uuid, text, boolean, timestamp, uniqueIndex, varchar, jsonb, integer, date, pgEnum } from "drizzle-orm/pg-core"
+import { pgTable, index, foreignKey, uuid, text, boolean, timestamp, uniqueIndex, varchar, jsonb, integer, date, smallint, pgEnum } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const campaignStatus = pgEnum("CampaignStatus", ['DRAFT', 'SENDING', 'SENT'])
 export const gender = pgEnum("Gender", ['MALE', 'FEMALE'])
+export const maritalStatus = pgEnum("MaritalStatus", ['NEVER_MARRIED', 'DIVORCED', 'WIDOWED'])
 export const membershipTier = pgEnum("MembershipTier", ['FREE', 'SILVER', 'GOLD'])
 export const photoType = pgEnum("PhotoType", ['AI_AVATAR', 'REAL_PHOTO'])
 export const photoVisibility = pgEnum("PhotoVisibility", ['PRIVATE', 'APPROVED_ONLY'])
@@ -405,6 +406,12 @@ export const profiles = pgTable("profiles", {
 	biodataJsonEnc: text("biodata_json_enc"),
 	publicFields: jsonb("public_fields"),
 	aiAvatarId: uuid("ai_avatar_id"),
+	maritalStatus: maritalStatus("marital_status"),
+	hasChildren: boolean("has_children"),
+	childrenCount: smallint("children_count"),
+	openToDivorced: boolean("open_to_divorced").default(false).notNull(),
+	openToWidowed: boolean("open_to_widowed").default(false).notNull(),
+	openToChildren: boolean("open_to_children").default(false).notNull(),
 	profileComplete: boolean("profile_complete").default(false).notNull(),
 	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).notNull(),
 }, (table) => [
