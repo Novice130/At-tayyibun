@@ -66,12 +66,16 @@ export default function BrowsePage() {
       const params = new URLSearchParams(queryParams);
       const data = await api.get('/profiles?' + params.toString());
       setProfiles(data.data || data.items || []);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.statusCode === 403 && error?.code === 'PROFILE_INCOMPLETE') {
+        router.replace('/profile/setup');
+        return;
+      }
       console.error('Failed to fetch profiles:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (!session) return;

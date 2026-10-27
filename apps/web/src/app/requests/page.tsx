@@ -10,6 +10,7 @@ import {
 import { api } from '@/lib/api';
 import { useRequireSession, notifyRequestsChanged } from '@/lib/hooks';
 import { Navbar } from '@/components/Navbar';
+import { formatMaritalLine } from '@/lib/marital';
 
 interface RequestProfile {
   publicId: string;
@@ -19,6 +20,9 @@ interface RequestProfile {
     ethnicity: string;
     city?: string;
     state?: string;
+    maritalStatus?: string | null;
+    hasChildren?: boolean | null;
+    childrenCount?: number | null;
   } | null;
 }
 
@@ -200,6 +204,11 @@ export default function RequestsPage() {
               {incoming.map((req) => {
                 const person = req.requester;
                 const profile = person?.profile;
+                const maritalLine = formatMaritalLine(
+                  profile?.maritalStatus ?? null,
+                  profile?.hasChildren ?? null,
+                  profile?.childrenCount ?? null,
+                );
                 return (
                   <div key={req.id} className="card p-4 sm:p-5">
                     <div className="flex flex-col sm:flex-row sm:items-start gap-4">
@@ -227,6 +236,9 @@ export default function RequestsPage() {
                             )}
                             <span>{timeAgo(req.createdAt)}</span>
                           </div>
+                          {maritalLine && (
+                            <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>{maritalLine}</p>
+                          )}
                         </div>
                       </div>
 

@@ -1,6 +1,7 @@
 export interface ApiError {
   message: string;
   statusCode: number;
+  code?: string;
 }
 
 const API_URL = '/api';
@@ -56,6 +57,7 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
     throw {
       message,
       statusCode: response.status,
+      code: typeof data?.code === 'string' ? data.code : undefined,
     } as ApiError;
   }
 
