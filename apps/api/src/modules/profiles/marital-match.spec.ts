@@ -2,6 +2,7 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import { maritalStatus } from '../../db/schema';
 import {
   DEFAULT_SIDE,
+  hasCompleteProfile,
   isAcceptable,
   isMutualMatch,
   MARITAL_STATUSES,
@@ -99,6 +100,19 @@ describe('marital-match', () => {
     it('keeps the given fields and ignores extra row columns', () => {
       const row = { maritalStatus: 'DIVORCED' as const, hasChildren: true, openToWidowed: true, userId: 'x' };
       expect(toMatchSide(row)).toEqual(side('DIVORCED', true, { openToWidowed: true }));
+    });
+  });
+
+  describe('hasCompleteProfile', () => {
+    it('needs profileComplete and both required answers', () => {
+      const full = { profileComplete: true, maritalStatus: 'NEVER_MARRIED', hasChildren: false };
+      expect(hasCompleteProfile(full)).toBe(true);
+      expect(hasCompleteProfile({ ...full, profileComplete: false })).toBe(false);
+      expect(hasCompleteProfile({ ...full, maritalStatus: null })).toBe(false);
+      expect(hasCompleteProfile({ ...full, hasChildren: null })).toBe(false);
+      expect(hasCompleteProfile({ ...full, hasChildren: undefined })).toBe(false);
+      expect(hasCompleteProfile(null)).toBe(false);
+      expect(hasCompleteProfile(undefined)).toBe(false);
     });
   });
 

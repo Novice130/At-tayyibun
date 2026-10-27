@@ -51,6 +51,17 @@ export function toMatchSide(row: Partial<MatchSide> | null | undefined): MatchSi
   };
 }
 
+/**
+ * A member may browse or send requests only once their profile is complete
+ * and both required marital answers are set. The null checks also catch a
+ * profile marked complete by an older api image that did not ask them.
+ */
+export function hasCompleteProfile<
+  T extends { profileComplete?: boolean | null; maritalStatus?: unknown; hasChildren?: unknown },
+>(p: T | null | undefined): p is T {
+  return !!p?.profileComplete && p.maritalStatus != null && p.hasChildren != null;
+}
+
 /** True when `person` passes the open-to answers of `openTo`. */
 export function isAcceptable(openTo: MatchSide, person: MatchSide): boolean {
   const status = person.maritalStatus ?? 'NEVER_MARRIED';

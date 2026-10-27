@@ -1,4 +1,6 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import { SQL } from 'drizzle-orm';
 import { ProfilesService } from './profiles.service';
 import { DrizzleService } from '../../db/drizzle.service';
 import { EncryptionService } from '../../services/encryption.service';
@@ -6,8 +8,60 @@ import { AvatarService } from '../../services/avatar.service';
 import { AuditService } from '../../services/audit.service';
 import { Gender } from '../../common/types/role';
 import { chain, createDbMock } from '../../test/drizzle-mock';
+import { DEFAULT_SIDE, MatchSide, mutualMatchSql } from './marital-match';
 
 const USER_ID = 'user-uuid';
+
+/** The private keys that must never reach another member. */
+const MARITAL_KEYS = ['maritalStatus', 'hasChildren', 'childrenCount', 'openToDivorced', 'openToWidowed', 'openToChildren'];
+
+const dialect = new PgDialect();
+
+/** Renders a SQL condition with placeholders numbered out, so fragments compare by shape. */
+function render(cond: SQL): { text: string; params: unknown[] } {
+  const { sql: text, params } = dialect.sqlToQuery(cond);
+  return { text: text.replace(/\$\d+/g, '$?'), params };
+}
+
+/**
+ * Like `chain`, but records the argument of every `.where(...)` call so a spec
+ * can inspect the condition the service built.
+ */
+function recordingChain<T>(result: T, wheres: SQL[]): any {
+  const promise = Promise.resolve(result);
+  const proxy: any = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === 'then' || prop === 'catch' || prop === 'finally') {
+          return (promise as any)[prop].bind(promise);
+        }
+        if (prop === 'where') {
+          return (cond: SQL) => {
+            wheres.push(cond);
+            return proxy;
+          };
+        }
+        return () => proxy;
+      },
+    },
+  );
+  return proxy;
+}
+
+/** A complete viewer row as browse's viewer lookup selects it. */
+function viewerRow(over: Partial<MatchSide & { gender: string; profileComplete: boolean }> = {}) {
+  return {
+    gender: Gender.MALE,
+    profileComplete: true,
+    maritalStatus: 'NEVER_MARRIED',
+    hasChildren: false,
+    openToDivorced: false,
+    openToWidowed: false,
+    openToChildren: false,
+    ...over,
+  };
+}
 
 /** A birthday exactly `years` ago, offset by `days` (negative = younger). */
 function birthday(years: number, days = 0): Date {
@@ -181,6 +235,23 @@ describe('ProfilesService', () => {
       expect(JSON.stringify(entry)).not.toContain('DIVORCED');
     });
 
+    it('still returns the saved profile when the audit write fails, with a warning that has no values', async () => {
+      arrange({ userId: USER_ID });
+      audit.log.mockRejectedValueOnce(new Error('insert into audit_logs failed: DIVORCED'));
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      await expect(
+        service.updateMyProfile(USER_ID, { maritalStatus: 'DIVORCED', hasChildren: true }),
+      ).resolves.toEqual({ ok: true });
+
+      expect(db.update).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledTimes(1);
+      const logged = JSON.stringify(warn.mock.calls[0]);
+      expect(logged).not.toContain('DIVORCED');
+      expect(logged).not.toContain('hasChildren');
+      warn.mockRestore();
+    });
+
     it('does not audit an update without the marital keys', async () => {
       arrange({ userId: USER_ID });
       await service.updateMyProfile(USER_ID, { city: 'Chicago' });
@@ -229,8 +300,8 @@ describe('ProfilesService', () => {
         createdAt: '2026-01-01',
       };
 
-      // 1. Viewer gender lookup (MALE -> sees FEMALE)
-      db.select.mockReturnValueOnce(chain([{ gender: Gender.MALE }]));
+      // 1. Viewer lookup (MALE -> sees FEMALE), complete profile
+      db.select.mockReturnValueOnce(chain([viewerRow()]));
       // 2. Browse query rows
       db.select.mockReturnValueOnce(chain([{ profile: mockProfile, user: mockUser }]));
       // 3. Count query
@@ -266,6 +337,122 @@ describe('ProfilesService', () => {
 
       expect(result.data).toHaveLength(0);
       expect(result.meta.total).toBe(0);
+    });
+
+    describe('profile completeness gate', () => {
+      async function expectIncomplete(rows: unknown[]) {
+        db.select.mockReturnValueOnce(chain(rows));
+        const err = await service.browseProfiles({}, 'viewer-uuid').catch((e) => e);
+        expect(err).toBeInstanceOf(ForbiddenException);
+        expect(err.getStatus()).toBe(403);
+        expect(err.getResponse()).toEqual({
+          statusCode: 403,
+          code: 'PROFILE_INCOMPLETE',
+          message: 'Please complete your profile to browse.',
+        });
+        // Only the viewer lookup ran: no page or count query.
+        expect(db.select).toHaveBeenCalledTimes(1);
+      }
+
+      it('rejects a viewer whose profile is not complete', async () => {
+        await expectIncomplete([viewerRow({ profileComplete: false })]);
+      });
+
+      it('rejects a complete viewer with no marital status (completed by an older image)', async () => {
+        await expectIncomplete([viewerRow({ maritalStatus: null })]);
+      });
+
+      it('rejects a complete viewer with hasChildren unanswered', async () => {
+        await expectIncomplete([viewerRow({ hasChildren: null })]);
+      });
+
+      it('rejects a signed-in viewer with no profile row', async () => {
+        await expectIncomplete([]);
+      });
+    });
+
+    describe('two-way marital matching', () => {
+      function arrangeBrowse(viewer: unknown[] | null, rows: unknown[] = [], total = 0) {
+        const wheres = { page: [] as SQL[], count: [] as SQL[] };
+        if (viewer) db.select.mockReturnValueOnce(chain(viewer));
+        db.select.mockReturnValueOnce(recordingChain(rows, wheres.page));
+        db.select.mockReturnValueOnce(recordingChain([{ value: total }], wheres.count));
+        return wheres;
+      }
+
+      function expectContains(where: SQL[], fragment: SQL) {
+        expect(where).toHaveLength(1);
+        const whole = render(where[0]);
+        const part = render(fragment);
+        expect(whole.text).toContain(part.text);
+      }
+
+      it('filters page and count by mutualMatchSql of the signed-in viewer', async () => {
+        const viewer = viewerRow({
+          maritalStatus: 'DIVORCED',
+          hasChildren: true,
+          openToWidowed: true,
+          openToChildren: true,
+        });
+        const wheres = arrangeBrowse([viewer]);
+
+        await service.browseProfiles({}, 'viewer-uuid');
+
+        const side: MatchSide = {
+          maritalStatus: 'DIVORCED',
+          hasChildren: true,
+          openToDivorced: false,
+          openToWidowed: true,
+          openToChildren: true,
+        };
+        const fragment = mutualMatchSql(side);
+        // The viewer's answers shape the condition: divorced + children means
+        // the candidate must be open to both.
+        expect(render(fragment).text).toContain('"profiles"."open_to_divorced"');
+        expect(render(fragment).text).toContain('"profiles"."open_to_children"');
+        expectContains(wheres.page, fragment);
+        expectContains(wheres.count, fragment);
+      });
+
+      it('uses DEFAULT_SIDE for an anonymous viewer, on page and count', async () => {
+        const wheres = arrangeBrowse(null);
+
+        await service.browseProfiles({});
+
+        expect(db.select).toHaveBeenCalledTimes(2);
+        expectContains(wheres.page, mutualMatchSql(DEFAULT_SIDE));
+        expectContains(wheres.count, mutualMatchSql(DEFAULT_SIDE));
+      });
+
+      it('never returns the marital keys in browse items', async () => {
+        const row = {
+          profile: {
+            userId: 'user-1',
+            firstName: 'Fatima',
+            dob: '1998-05-15',
+            gender: Gender.FEMALE,
+            ethnicity: 'Arab',
+            city: 'Chicago',
+            state: 'IL',
+            publicFields: { bio: 'A bio' },
+            profileComplete: true,
+            maritalStatus: 'WIDOWED',
+            hasChildren: true,
+            childrenCount: 2,
+            openToDivorced: true,
+            openToWidowed: true,
+            openToChildren: true,
+          },
+          user: { publicId: 'usr_pub_1', image: 'https://attayyibun.com/avatars/female/female-1.jpg', rankBoost: 0, membershipTier: 'FREE', createdAt: '2026-01-01' },
+        };
+        arrangeBrowse([viewerRow({ openToWidowed: true, openToChildren: true })], [row], 1);
+
+        const result: any = await service.browseProfiles({}, 'viewer-uuid');
+
+        expect(result.data).toHaveLength(1);
+        for (const k of MARITAL_KEYS) expect(result.data[0]).not.toHaveProperty(k);
+        expect(JSON.stringify(result)).not.toContain('WIDOWED');
+      });
     });
   });
 
@@ -378,6 +565,119 @@ describe('ProfilesService', () => {
       const result: any = await service.getProfileByPublicId('usr_pub_1', true);
 
       expect(result.bio).toBe('Full bio, call me on 555-0100');
+    });
+
+    describe('two-way marital matching', () => {
+      const VIEWER_ID = 'viewer-uuid';
+      const divorcedTarget = {
+        ...baseUser,
+        profiles: {
+          ...baseProfile,
+          maritalStatus: 'DIVORCED',
+          hasChildren: true,
+          childrenCount: 2,
+          openToDivorced: false,
+          openToWidowed: false,
+          openToChildren: false,
+        },
+      };
+      const neverMarriedViewer = {
+        maritalStatus: 'NEVER_MARRIED',
+        hasChildren: false,
+        openToDivorced: false,
+        openToWidowed: false,
+        openToChildren: false,
+      };
+
+      /** findFirst -> target; select #1 block check; #2 viewer profile; #3 info request lookup. */
+      function arrange(target: unknown, viewer: unknown[], requestRows: unknown[] = []) {
+        const requestWheres: SQL[] = [];
+        db.query.users.findFirst.mockResolvedValueOnce(target);
+        db.select
+          .mockReturnValueOnce(chain([]))
+          .mockReturnValueOnce(chain(viewer))
+          .mockReturnValueOnce(recordingChain(requestRows, requestWheres));
+        return requestWheres;
+      }
+
+      it('404s a signed-in viewer who is not a mutual match and has no request with them', async () => {
+        arrange(divorcedTarget, [neverMarriedViewer]);
+        await expect(service.getProfileByPublicId('usr_pub_1', true, VIEWER_ID)).rejects.toBeInstanceOf(
+          NotFoundException,
+        );
+      });
+
+      it('uses the same 404 message as a block', async () => {
+        arrange(divorcedTarget, [neverMarriedViewer]);
+        await expect(service.getProfileByPublicId('usr_pub_1', true, VIEWER_ID)).rejects.toThrow('Profile not found');
+      });
+
+      it('404s a signed-in viewer without a profile row (treated as the default side)', async () => {
+        arrange(divorcedTarget, []);
+        await expect(service.getProfileByPublicId('usr_pub_1', true, VIEWER_ID)).rejects.toBeInstanceOf(
+          NotFoundException,
+        );
+      });
+
+      it('404s a signed-in viewer who has not passed the phone gate too', async () => {
+        arrange(divorcedTarget, [neverMarriedViewer]);
+        await expect(service.getProfileByPublicId('usr_pub_1', false, VIEWER_ID)).rejects.toBeInstanceOf(
+          NotFoundException,
+        );
+      });
+
+      it('shows the profile when an info request exists between them, checked in both directions', async () => {
+        const wheres = arrange(divorcedTarget, [neverMarriedViewer], [{ id: 'req-1' }]);
+
+        const result: any = await service.getProfileByPublicId('usr_pub_1', true, VIEWER_ID);
+
+        expect(result.publicId).toBe('usr_pub_1');
+        expect(wheres).toHaveLength(1);
+        const { text, params } = render(wheres[0]);
+        expect(text).toContain('"info_requests"."requester_id"');
+        expect(text).toContain('"info_requests"."target_id"');
+        expect(text).not.toContain('"info_requests"."status"');
+        expect(params.filter((p) => p === VIEWER_ID)).toHaveLength(2);
+        expect(params.filter((p) => p === 'target-uuid')).toHaveLength(2);
+      });
+
+      it('shows a mutual match without looking up requests', async () => {
+        db.query.users.findFirst.mockResolvedValueOnce(divorcedTarget);
+        db.select
+          .mockReturnValueOnce(chain([]))
+          .mockReturnValueOnce(chain([{ ...neverMarriedViewer, openToDivorced: true, openToChildren: true }]));
+
+        const result: any = await service.getProfileByPublicId('usr_pub_1', true, VIEWER_ID);
+
+        expect(result.publicId).toBe('usr_pub_1');
+        expect(db.select).toHaveBeenCalledTimes(2);
+      });
+
+      it('leaves anonymous visitors unchanged', async () => {
+        db.query.users.findFirst.mockResolvedValueOnce(divorcedTarget);
+        const result: any = await service.getProfileByPublicId('usr_pub_1', false);
+        expect(result.isFullView).toBe(false);
+        expect(db.select).not.toHaveBeenCalled();
+      });
+
+      it('lets the owner view their own profile', async () => {
+        db.query.users.findFirst.mockResolvedValueOnce(divorcedTarget);
+        const result: any = await service.getProfileByPublicId('usr_pub_1', true, 'target-uuid');
+        expect(result.publicId).toBe('usr_pub_1');
+      });
+
+      it('never returns the marital keys, signed in or anonymous', async () => {
+        arrange(divorcedTarget, [neverMarriedViewer], [{ id: 'req-1' }]);
+        const full: any = await service.getProfileByPublicId('usr_pub_1', true, VIEWER_ID);
+        db.query.users.findFirst.mockResolvedValueOnce(divorcedTarget);
+        const anon: any = await service.getProfileByPublicId('usr_pub_1', false);
+
+        for (const res of [full, anon]) {
+          for (const k of MARITAL_KEYS) expect(res).not.toHaveProperty(k);
+          for (const k of MARITAL_KEYS) expect(res.biodata ?? {}).not.toHaveProperty(k);
+          expect(JSON.stringify(res)).not.toContain('DIVORCED');
+        }
+      });
     });
   });
 });

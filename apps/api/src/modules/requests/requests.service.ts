@@ -14,6 +14,7 @@ import { EmailService } from '../../services/email.service';
 import { EncryptionService } from '../../services/encryption.service';
 import { RequestStatus } from '../../common/types/role';
 import { RespondRequestDto } from './dto';
+import { hasCompleteProfile, isMutualMatch, toMatchSide } from '../profiles/marital-match';
 
 @Injectable()
 export class RequestsService {
@@ -68,6 +69,16 @@ export class RequestsService {
       )
       .limit(1);
     if (blockRow) throw new NotFoundException('User not found');
+
+    // Browse already hides incompatible pairs; re-check here so a publicId
+    // found elsewhere cannot be used to reach someone who ruled the requester
+    // out. A non-match gets the same answer as a block.
+    if (!hasCompleteProfile(requester.profile)) {
+      throw new BadRequestException('Please complete your profile before sending a request.');
+    }
+    if (!isMutualMatch(toMatchSide(requester.profile), toMatchSide(target.profile))) {
+      throw new NotFoundException('User not found');
+    }
 
     const [existing] = await this.drizzle.db
       .select({ id: infoRequests.id })

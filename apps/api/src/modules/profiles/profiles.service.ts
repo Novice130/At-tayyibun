@@ -1,12 +1,19 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { and, asc, desc, eq, gte, lte, sql, SQL } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { DrizzleService } from '../../db/drizzle.service';
-import { profiles, users, blocks } from '../../db/schema';
+import { profiles, users, blocks, infoRequests } from '../../db/schema';
 import { EncryptionService } from '../../services/encryption.service';
 import { AvatarService } from '../../services/avatar.service';
 import { AuditService } from '../../services/audit.service';
-import { MaritalStatus } from './marital-match';
+import {
+  DEFAULT_SIDE,
+  hasCompleteProfile,
+  isMutualMatch,
+  MaritalStatus,
+  mutualMatchSql,
+  toMatchSide,
+} from './marital-match';
 import { Gender } from '../../common/types/role';
 
 export interface BrowseFilters {
@@ -51,8 +58,19 @@ const MARITAL_KEYS = [
   'openToChildren',
 ] as const;
 
+/** The columns the two-way matching rule reads. */
+const MATCH_COLUMNS = {
+  maritalStatus: profiles.maritalStatus,
+  hasChildren: profiles.hasChildren,
+  openToDivorced: profiles.openToDivorced,
+  openToWidowed: profiles.openToWidowed,
+  openToChildren: profiles.openToChildren,
+};
+
 @Injectable()
 export class ProfilesService {
+  private readonly logger = new Logger(ProfilesService.name);
+
   constructor(
     private readonly drizzle: DrizzleService,
     private readonly encryptionService: EncryptionService,
@@ -73,18 +91,32 @@ export class ProfilesService {
     } = filters;
 
     let targetGender: Gender | undefined = gender;
+    // Anonymous viewers count as never married, no children, open to nobody
+    // else: they only ever see profiles that everyone may see.
+    let viewerSide = DEFAULT_SIDE;
 
     // Strict Islamic Matrimony Gender Filtering:
     // If viewer is authenticated, look up their gender and strictly enforce opposite gender.
     // Brothers only ever see Sisters, and Sisters only ever see Brothers.
     if (viewerId && viewerId.trim()) {
       const [viewerProfile] = await this.drizzle.db
-        .select({ gender: profiles.gender })
+        .select({ gender: profiles.gender, profileComplete: profiles.profileComplete, ...MATCH_COLUMNS })
         .from(profiles)
         .where(eq(profiles.userId, viewerId))
         .limit(1);
 
-      if (viewerProfile?.gender) {
+      // Without their own answers the two-way rule cannot protect the members
+      // they would see, so an incomplete viewer does not browse at all.
+      if (!hasCompleteProfile(viewerProfile)) {
+        throw new ForbiddenException({
+          statusCode: 403,
+          code: 'PROFILE_INCOMPLETE',
+          message: 'Please complete your profile to browse.',
+        });
+      }
+
+      viewerSide = toMatchSide(viewerProfile);
+      if (viewerProfile.gender) {
         targetGender = viewerProfile.gender === 'MALE' ? Gender.FEMALE : Gender.MALE;
       }
     }
@@ -94,9 +126,12 @@ export class ProfilesService {
       targetGender = Gender.FEMALE;
     }
 
+    // mutualMatchSql references the unaliased `profiles` table, so both the
+    // page and the count query below must select from `profiles` directly.
     const conds: SQL[] = [
       eq(profiles.profileComplete, true),
       eq(profiles.gender, targetGender),
+      mutualMatchSql(viewerSide),
     ];
     if (ethnicity && ethnicity.trim() && ethnicity !== 'All Ethnicities' && ethnicity !== 'Any') {
       const eth = ethnicity.trim();
@@ -198,6 +233,27 @@ export class ProfilesService {
         )
         .limit(1);
       if (blockRow) throw new NotFoundException('Profile not found');
+
+      // Two-way matching: someone who ruled the viewer out (or whom the viewer
+      // ruled out) gets the same 404 as a block. An info request between them,
+      // in either direction and any status, keeps links from the requests
+      // page working after either side changes their answers.
+      const [viewerProfile] = await this.drizzle.db
+        .select(MATCH_COLUMNS)
+        .from(profiles)
+        .where(eq(profiles.userId, viewerId))
+        .limit(1);
+      if (!isMutualMatch(toMatchSide(viewerProfile), toMatchSide(profile))) {
+        const [requestRow] = await this.drizzle.db
+          .select({ id: infoRequests.id })
+          .from(infoRequests)
+          .where(
+            sql`(${infoRequests.requesterId} = ${viewerId} AND ${infoRequests.targetId} = ${user.id})
+                OR (${infoRequests.requesterId} = ${user.id} AND ${infoRequests.targetId} = ${viewerId})`,
+          )
+          .limit(1);
+        if (!requestRow) throw new NotFoundException('Profile not found');
+      }
     }
 
     // The full bio is members-only. Anonymous visitors get the 200-character
@@ -444,14 +500,22 @@ export class ProfilesService {
         });
       }
 
-      // Which answers changed, never their values: these are private.
+      // Which answers changed, never their values: these are private. The
+      // profile is already saved, so a failed audit write must not turn the
+      // response into an error; log that it failed, without the error text
+      // (a driver error can echo query params).
       if (maritalKeysSent.length > 0) {
-        await this.auditService.log({
-          userId,
-          action: 'profile.marital_prefs_updated',
-          resourceType: 'profile',
-          metadata: { fields: maritalKeysSent },
-        });
+        try {
+          await this.auditService.log({
+            userId,
+            action: 'profile.marital_prefs_updated',
+            resourceType: 'profile',
+            metadata: { fields: maritalKeysSent },
+          });
+        } catch (auditError) {
+          const kind = auditError instanceof Error ? auditError.name : 'unknown error';
+          this.logger.warn(`Audit entry profile.marital_prefs_updated was not written (${kind})`);
+        }
       }
 
       return await this.getMyProfile(userId);
