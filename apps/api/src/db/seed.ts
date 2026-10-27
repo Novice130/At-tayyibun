@@ -499,6 +499,14 @@ async function main() {
       bioEnc: encrypt(p.bio),
       biodataJsonEnc: encryptJson(p.biodata),
       publicFields: { bio: p.bio.substring(0, 200) },
+      // Private marital answers, spread deterministically by index so the
+      // seeded accounts pass the completeness gate and cover each branch.
+      maritalStatus: (['NEVER_MARRIED', 'DIVORCED', 'WIDOWED'] as const)[i % 3],
+      hasChildren: i % 3 !== 0 && i % 2 === 0,
+      childrenCount: i % 3 !== 0 && i % 2 === 0 ? (i % 4) + 1 : null,
+      openToDivorced: i % 2 === 0,
+      openToWidowed: i % 3 === 0,
+      openToChildren: i % 4 === 0,
       profileComplete: true,
       updatedAt: now,
     });

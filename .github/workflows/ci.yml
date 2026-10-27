@@ -41,6 +41,6 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      # turbo test -> jest in apps/api (web has no unit-test script).
+      # turbo test -> the unit tests of apps/api (jest) and apps/web.
       - name: Test
         run: pnpm test
