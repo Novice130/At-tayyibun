@@ -36,7 +36,8 @@ export default function TermsPage() {
               <p className="text-secondary">
                 You agree to provide truthful information about yourself, including your
                 age, marital history, and intentions. Misrepresentation may result in
-                account suspension.
+                account suspension. Attayyibun is for members who are not currently
+                married.
               </p>
             </div>
 

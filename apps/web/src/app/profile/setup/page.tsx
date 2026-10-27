@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { MARITAL_OPTIONS, formatMaritalLine } from '@/lib/marital';
 import { useRequireSession } from '@/lib/hooks';
 import { authClient } from '@/lib/auth-client';
 
@@ -30,6 +31,12 @@ interface FormData {
   education: string;
   profession: string;
   relocate: string;
+  maritalStatus: string;
+  hasChildren: '' | 'yes' | 'no';
+  childrenCount: string;
+  openToDivorced: boolean;
+  openToWidowed: boolean;
+  openToChildren: boolean;
   // Step 3 – Deen
   religiousPractice: string;
   prayerFrequency: string;
@@ -47,6 +54,8 @@ const EMPTY: FormData = {
   firstName: '', lastName: '', dob: '', ethnicity: '',
   city: '', state: '', hideLocation: false, hideName: false,
   legalStatus: '', education: '', profession: '', relocate: '',
+  maritalStatus: '', hasChildren: '', childrenCount: '',
+  openToDivorced: false, openToWidowed: false, openToChildren: false,
   religiousPractice: '', prayerFrequency: '', dietaryPreference: '', sect: '',
   about: '', partnerPreferences: '', dealBreakers: '',
   nikahIntent: false,
@@ -232,6 +241,9 @@ export default function ProfileSetupPage() {
           Object.fromEntries(Object.entries(bd).filter(([k]) => !OWNED.has(k))),
         );
         setGender(p.gender ?? null);
+        // profileComplete can be false for members who finished the wizard
+        // before marital status was required, so a saved bio also counts.
+        const wizardDoneBefore = p.profileComplete || !!p.bio;
         setForm(f => ({
           ...f,
           firstName: p.firstName || f.firstName,
@@ -240,8 +252,8 @@ export default function ProfileSetupPage() {
           state: p.state || f.state,
           // Pre-seed (signup) profiles carry placeholder dob/ethnicity — only
           // trust those once the wizard has been completed at least once.
-          ethnicity: p.profileComplete ? (p.ethnicity || f.ethnicity) : f.ethnicity,
-          dob: p.profileComplete ? (p.dob || f.dob) : f.dob,
+          ethnicity: wizardDoneBefore ? (p.ethnicity || f.ethnicity) : f.ethnicity,
+          dob: wizardDoneBefore ? (p.dob || f.dob) : f.dob,
           about: p.bio || f.about,
           hideLocation: false,
           hideName: bd.hideName ?? f.hideName,
@@ -249,6 +261,12 @@ export default function ProfileSetupPage() {
           education: bd.education || f.education,
           profession: bd.profession || f.profession,
           relocate: bd.relocate || f.relocate,
+          maritalStatus: p.maritalStatus || f.maritalStatus,
+          hasChildren: p.hasChildren === true ? 'yes' : p.hasChildren === false ? 'no' : f.hasChildren,
+          childrenCount: p.childrenCount != null ? String(p.childrenCount) : f.childrenCount,
+          openToDivorced: p.openToDivorced ?? f.openToDivorced,
+          openToWidowed: p.openToWidowed ?? f.openToWidowed,
+          openToChildren: p.openToChildren ?? f.openToChildren,
           religiousPractice: bd.religiousPractice || f.religiousPractice,
           prayerFrequency: bd.prayerFrequency || f.prayerFrequency,
           dietaryPreference: bd.dietaryPreference || f.dietaryPreference,
@@ -300,6 +318,12 @@ export default function ProfileSetupPage() {
       if (!form.education.trim()) return 'Education level is required.';
       if (!form.profession.trim()) return 'Profession is required.';
       if (!form.relocate) return 'Willingness to relocate is required.';
+      if (!form.maritalStatus) return 'Marital status is required.';
+      if (!form.hasChildren) return 'Please tell us whether you have children.';
+      if (form.hasChildren === 'yes' && form.childrenCount.trim() !== '') {
+        const n = Number(form.childrenCount);
+        if (!Number.isInteger(n) || n < 1 || n > 20) return 'Number of children must be between 1 and 20.';
+      }
     }
     if (step === 2) {
       if (!form.religiousPractice) return 'Religious practice is required.';
@@ -370,6 +394,15 @@ export default function ProfileSetupPage() {
         city: form.city.trim(),
         state: form.state,
         bio: form.about.trim(),
+        maritalStatus: form.maritalStatus,
+        hasChildren: form.hasChildren === 'yes',
+        childrenCount:
+          form.hasChildren === 'yes' && form.childrenCount.trim() !== ''
+            ? Number(form.childrenCount)
+            : null,
+        openToDivorced: form.openToDivorced,
+        openToWidowed: form.openToWidowed,
+        openToChildren: form.openToChildren,
         biodata: {
           // Preserve keys this wizard doesn't manage (guardian details from
           // signup) — the API replaces the whole encrypted blob on every write.
@@ -754,6 +787,66 @@ export default function ProfileSetupPage() {
                 ))}
               </div>
             </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Marital Status <span className="text-red-400">*</span></label>
+              <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                Attayyibun is for members who are not currently married.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {MARITAL_OPTIONS.map(o => (
+                  <button key={o.value} type="button"
+                    onClick={() => set('maritalStatus', o.value)}
+                    className={`p-3 rounded-lg border text-sm transition ${form.maritalStatus === o.value ? 'border-gold-500 bg-gold-500/10 text-gold-400' : ''}`}
+                    style={form.maritalStatus !== o.value ? { borderColor: 'var(--color-border)', color: 'var(--color-text)' } : {}}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Do you have children? <span className="text-red-400">*</span></label>
+              <div className="grid grid-cols-2 gap-3">
+                {([['yes', 'Yes'], ['no', 'No']] as const).map(([v, l]) => (
+                  <button key={v} type="button"
+                    onClick={() => setForm(f => ({ ...f, hasChildren: v, childrenCount: v === 'no' ? '' : f.childrenCount }))}
+                    className={`p-3 rounded-lg border text-sm transition ${form.hasChildren === v ? 'border-gold-500 bg-gold-500/10 text-gold-400' : ''}`}
+                    style={form.hasChildren !== v ? { borderColor: 'var(--color-border)', color: 'var(--color-text)' } : {}}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              {form.hasChildren === 'yes' && (
+                <div className="mt-3">
+                  <label className="block text-sm mb-1" htmlFor="childrenCount">How many? (optional)</label>
+                  <input id="childrenCount" className="input" type="number" min={1} max={20} step={1}
+                    inputMode="numeric" value={form.childrenCount}
+                    onChange={e => set('childrenCount', e.target.value)} />
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">I am open to meeting</label>
+              <div className="space-y-2">
+                {([
+                  ['openToDivorced', 'Someone who is divorced'],
+                  ['openToWidowed', 'Someone who is widowed'],
+                  ['openToChildren', 'Someone who has children'],
+                ] as const).map(([k, l]) => (
+                  <label key={k} className="flex items-center gap-3 cursor-pointer text-sm">
+                    <input type="checkbox" className="w-4 h-4 accent-amber-500 flex-shrink-0"
+                      checked={form[k]} onChange={e => set(k, e.target.checked)} />
+                    <span>{l}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              These answers are private. They are never shown on your profile or in browse, only to a member you send a request to.
+            </p>
           </div>
         )}
 
@@ -882,6 +975,8 @@ export default function ProfileSetupPage() {
               <SummaryRow label="Name" value={`${form.firstName} ${form.lastName}`} private />
               <SummaryRow label="Location" value={`${form.city}, ${form.state}`} />
               <SummaryRow label="Legal Status" value={form.legalStatus} />
+              <SummaryRow label="Marital status" value={formatMaritalLine(form.maritalStatus, form.hasChildren === '' ? null : form.hasChildren === 'yes', form.hasChildren === 'yes' && form.childrenCount.trim() !== '' ? Number(form.childrenCount) : null) ?? ''} private />
+              <SummaryRow label="Open to" value={[form.openToDivorced && 'Divorced', form.openToWidowed && 'Widowed', form.openToChildren && 'Has children'].filter(Boolean).join(', ') || 'Never married, no children only'} private />
               <SummaryRow label="Education" value={form.education} />
               <SummaryRow label="Profession" value={form.profession} />
               <SummaryRow label="Religious Practice" value={form.religiousPractice} />
