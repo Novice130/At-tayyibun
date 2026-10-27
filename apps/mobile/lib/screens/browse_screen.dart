@@ -96,6 +96,12 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
       });
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (e.statusCode == 403 && e.code == 'PROFILE_INCOMPLETE') {
+        // Browsing needs a complete profile; send the member to finish it.
+        context.push('/profile/edit');
+        _handleLoadFailure(e.message);
+        return;
+      }
       _handleLoadFailure(e.message);
     } catch (_) {
       // ApiClient._send only converts DioException. A TypeError out of

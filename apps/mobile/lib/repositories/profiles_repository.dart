@@ -74,8 +74,8 @@ class ProfilesRepository {
     return ProfileSummary.fromJson(data);
   }
 
-  /// Partial update. The server runs `forbidNonWhitelisted`, so only the nine
-  /// declared DTO fields may be sent — anything else is a 400.
+  /// Partial update. The server runs `forbidNonWhitelisted`, so only the declared
+  /// DTO fields may be sent — anything else is a 400.
   Future<MyProfile> update({
     String? firstName,
     String? lastName,
@@ -86,6 +86,12 @@ class ProfilesRepository {
     String? state,
     String? bio,
     Map<String, dynamic>? biodata,
+    String? maritalStatus,
+    bool? hasChildren,
+    int? childrenCount,
+    bool? openToDivorced,
+    bool? openToWidowed,
+    bool? openToChildren,
   }) async {
     final data = await _api.put<Map<String, dynamic>>(
       '/api/profiles/me',
@@ -99,6 +105,12 @@ class ProfilesRepository {
         'state': ?state,
         'bio': ?bio,
         'biodata': ?biodata,
+        'maritalStatus': ?maritalStatus,
+        'hasChildren': ?hasChildren,
+        'childrenCount': ?childrenCount,
+        'openToDivorced': ?openToDivorced,
+        'openToWidowed': ?openToWidowed,
+        'openToChildren': ?openToChildren,
       },
     );
     return MyProfile.fromJson(data);

@@ -130,7 +130,20 @@ class ProfileDetails {
     required this.bio,
     required this.biodata,
     required this.profileComplete,
+    this.maritalStatus,
+    this.hasChildren,
+    this.childrenCount,
+    this.openToDivorced = false,
+    this.openToWidowed = false,
+    this.openToChildren = false,
   });
+
+  final String? maritalStatus;
+  final bool? hasChildren;
+  final int? childrenCount;
+  final bool openToDivorced;
+  final bool openToWidowed;
+  final bool openToChildren;
 
   final String firstName;
   final String lastName;
@@ -161,5 +174,11 @@ class ProfileDetails {
         bio: json['bio'] as String?,
         biodata: (json['biodata'] as Map?)?.cast<String, dynamic>() ?? {},
         profileComplete: json['profileComplete'] as bool? ?? false,
+        maritalStatus: json['maritalStatus'] as String?,
+        hasChildren: json['hasChildren'] as bool?,
+        childrenCount: (json['childrenCount'] as num?)?.toInt(),
+        openToDivorced: json['openToDivorced'] as bool? ?? false,
+        openToWidowed: json['openToWidowed'] as bool? ?? false,
+        openToChildren: json['openToChildren'] as bool? ?? false,
       );
 }

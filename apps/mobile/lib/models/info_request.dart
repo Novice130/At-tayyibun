@@ -41,7 +41,14 @@ class RequestParty {
     required this.ethnicity,
     required this.city,
     required this.state,
+    this.maritalStatus,
+    this.hasChildren,
+    this.childrenCount,
   });
+
+  final String? maritalStatus;
+  final bool? hasChildren;
+  final int? childrenCount;
 
   final String publicId;
   final String? firstName;
@@ -62,6 +69,9 @@ class RequestParty {
       ethnicity: profile?['ethnicity'] as String?,
       city: profile?['city'] as String?,
       state: profile?['state'] as String?,
+      maritalStatus: profile?['maritalStatus'] as String?,
+      hasChildren: profile?['hasChildren'] as bool?,
+      childrenCount: (profile?['childrenCount'] as num?)?.toInt(),
     );
   }
 }

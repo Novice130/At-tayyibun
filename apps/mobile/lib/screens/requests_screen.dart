@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/api_exception.dart';
+import '../core/marital.dart';
 import '../models/info_request.dart';
 import '../providers.dart';
 import '../widgets/states.dart';
@@ -345,6 +346,7 @@ class _RequestCardShell extends StatelessWidget {
     required this.footer,
     this.onBlock,
     this.onReport,
+    this.showMarital = false,
   });
 
   final InfoRequest request;
@@ -352,11 +354,18 @@ class _RequestCardShell extends StatelessWidget {
   final VoidCallback? onBlock;
   final VoidCallback? onReport;
 
+  /// Shown on incoming cards only; the API sends these fields only to the receiver.
+  final bool showMarital;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final party = request.counterpart;
     final name = party?.displayName ?? 'Unknown';
+    final maritalLine = showMarital && party != null
+        ? formatMaritalLine(
+            party.maritalStatus, party.hasChildren, party.childrenCount)
+        : null;
 
     return Card(
       child: Padding(
@@ -410,6 +419,10 @@ class _RequestCardShell extends StatelessWidget {
                               style: theme.textTheme.bodySmall),
                         ],
                       ),
+                      if (maritalLine != null) ...[
+                        const SizedBox(height: 4),
+                        Text(maritalLine, style: theme.textTheme.bodySmall),
+                      ],
                     ],
                   ),
                 ),
@@ -478,6 +491,7 @@ class _IncomingTile extends StatelessWidget {
       request: request,
       onBlock: onBlock,
       onReport: onReport,
+      showMarital: true,
       footer: request.isPending
           ? Padding(
               padding: const EdgeInsets.only(top: 16),

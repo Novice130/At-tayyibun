@@ -1,9 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api_exception.dart';
 import '../core/constants.dart';
+import '../core/marital.dart';
 import '../providers.dart';
 import '../widgets/states.dart';
 
@@ -41,6 +43,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _about = TextEditingController();
   final _partnerPreferences = TextEditingController();
   final _dealBreakers = TextEditingController();
+  final _childrenCount = TextEditingController();
 
   String? _gender;
   String? _state;
@@ -52,6 +55,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   String? _dietaryPreference;
   bool _hideName = false;
   bool _nikahIntent = false;
+  String? _maritalStatus;
+  bool? _hasChildren;
+  bool _openToDivorced = false;
+  bool _openToWidowed = false;
+  bool _openToChildren = false;
 
   @override
   void initState() {
@@ -63,7 +71,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void dispose() {
     for (final c in [
       _firstName, _lastName, _city, _ethnicity, _education, _profession,
-      _sect, _about, _partnerPreferences, _dealBreakers,
+      _sect, _about, _partnerPreferences, _dealBreakers, _childrenCount,
     ]) {
       c.dispose();
     }
@@ -88,7 +96,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         _about.text = p.bio ?? '';
         _gender = p.gender;
         _state = kUsStates.contains(p.state) ? p.state : null;
-        if (p.profileComplete) {
+        // Members flipped to incomplete by the marital-status migration keep
+        // their saved bio, so a bio proves the wizard was done before.
+        final wizardDoneBefore = p.profileComplete || (p.bio?.isNotEmpty ?? false);
+        if (wizardDoneBefore) {
           // Pre-seed rows carry placeholder dob/ethnicity until the wizard has
           // been completed once.
           _ethnicity.text = p.ethnicity;
@@ -105,6 +116,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         _religiousPractice = _opt(bd['religiousPractice'], _practices);
         _prayerFrequency = _opt(bd['prayerFrequency'], _prayerOptions);
         _dietaryPreference = _opt(bd['dietaryPreference'], _dietOptions);
+        _maritalStatus = kMaritalOptions.any((o) => o.$1 == p.maritalStatus)
+            ? p.maritalStatus
+            : null;
+        _hasChildren = p.hasChildren;
+        _childrenCount.text = p.childrenCount?.toString() ?? '';
+        _openToDivorced = p.openToDivorced;
+        _openToWidowed = p.openToWidowed;
+        _openToChildren = p.openToChildren;
         _hideName = bd['hideName'] == true;
         _nikahIntent = bd['nikahIntent'] == true;
       }
@@ -165,6 +184,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         if (_education.text.trim().isEmpty) return 'Education is required.';
         if (_profession.text.trim().isEmpty) return 'Profession is required.';
         if (_relocate == null) return 'Willingness to relocate is required.';
+        if (_maritalStatus == null) return 'Marital status is required.';
+        if (_hasChildren == null) return 'Please tell us whether you have children.';
+        if (_hasChildren == true && _childrenCount.text.trim().isNotEmpty) {
+          final n = int.tryParse(_childrenCount.text.trim());
+          if (n == null || n < 1 || n > 20) {
+            return 'Number of children must be between 1 and 20.';
+          }
+        }
       case 2:
         if (_religiousPractice == null) return 'Religious practice is required.';
         if (_prayerFrequency == null) return 'Prayer frequency is required.';
@@ -211,6 +238,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         city: _city.text.trim(),
         state: _state,
         bio: _about.text.trim(),
+        maritalStatus: _maritalStatus,
+        hasChildren: _hasChildren,
+        childrenCount: _hasChildren == true
+            ? int.tryParse(_childrenCount.text.trim())
+            : null,
+        openToDivorced: _openToDivorced,
+        openToWidowed: _openToWidowed,
+        openToChildren: _openToChildren,
         biodata: {
           ..._extraBiodata,
           // Location is always visible to other members, so never persist a
@@ -537,6 +572,72 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           selected: _relocate,
           onSelected: (v) => setState(() => _relocate = v),
         ),
+        const SizedBox(height: 16),
+        _Label('Marital status'),
+        Text(kMaritalNotice, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final (value, label) in kMaritalOptions)
+              ChoiceChip(
+                label: Text(label),
+                selected: _maritalStatus == value,
+                onSelected: (_) => setState(() => _maritalStatus = value),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _Label('Do you have children?'),
+        Wrap(
+          spacing: 8,
+          children: [
+            ChoiceChip(
+              label: const Text('Yes'),
+              selected: _hasChildren == true,
+              onSelected: (_) => setState(() => _hasChildren = true),
+            ),
+            ChoiceChip(
+              label: const Text('No'),
+              selected: _hasChildren == false,
+              onSelected: (_) => setState(() => _hasChildren = false),
+            ),
+          ],
+        ),
+        if (_hasChildren == true) ...[
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _childrenCount,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: const InputDecoration(
+              labelText: 'Number of children (optional)',
+            ),
+          ),
+        ],
+        const SizedBox(height: 16),
+        _Label('I am open to a match who is'),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _openToDivorced,
+          onChanged: (v) => setState(() => _openToDivorced = v ?? false),
+          title: const Text('Someone who is divorced'),
+        ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _openToWidowed,
+          onChanged: (v) => setState(() => _openToWidowed = v ?? false),
+          title: const Text('Someone who is widowed'),
+        ),
+        CheckboxListTile(
+          contentPadding: EdgeInsets.zero,
+          value: _openToChildren,
+          onChanged: (v) => setState(() => _openToChildren = v ?? false),
+          title: const Text('Someone who has children'),
+        ),
+        const SizedBox(height: 8),
+        Text(kMaritalPrivacy, style: Theme.of(context).textTheme.bodySmall),
       ]);
 
   List<Widget> _deenFields() => _wrapInCard([
@@ -612,6 +713,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ('Profession', _profession.text),
       ('Legal status', _legalStatus ?? '—'),
       ('Relocate', _relocate ?? '—'),
+      ('Marital status',
+          formatMaritalLine(_maritalStatus, _hasChildren,
+                  _hasChildren == true ? int.tryParse(_childrenCount.text.trim()) : null) ??
+              '—'),
       ('Practice', _religiousPractice ?? '—'),
       ('Prayer', _prayerFrequency ?? '—'),
       ('Diet', _dietaryPreference ?? '—'),
