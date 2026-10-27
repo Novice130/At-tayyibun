@@ -126,4 +126,32 @@ void main() {
       expect(updated.order, 'desc');
     });
   });
+
+  group('ProfilesRepository update childrenCount', () {
+    Future<Map<String, dynamic>> capture(
+        {int? count, bool clear = false}) async {
+      Map<String, dynamic>? body;
+      final api = _createTestApiClient((options) async {
+        body = Map<String, dynamic>.from(options.data as Map);
+        return _jsonResponse({'id': 'u1', 'profile': null});
+      });
+      await ProfilesRepository(api).update(
+        hasChildren: true,
+        childrenCount: count,
+        clearChildrenCount: clear,
+      );
+      return body!;
+    }
+
+    test('sends explicit null when cleared', () async {
+      final body = await capture(clear: true);
+      expect(body.containsKey('childrenCount'), isTrue);
+      expect(body['childrenCount'], isNull);
+    });
+
+    test('sends the number, and omits the key by default', () async {
+      expect((await capture(count: 3, clear: true))['childrenCount'], 3);
+      expect((await capture()).containsKey('childrenCount'), isFalse);
+    });
+  });
 }

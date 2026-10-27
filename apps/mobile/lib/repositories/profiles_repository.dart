@@ -89,6 +89,7 @@ class ProfilesRepository {
     String? maritalStatus,
     bool? hasChildren,
     int? childrenCount,
+    bool clearChildrenCount = false,
     bool? openToDivorced,
     bool? openToWidowed,
     bool? openToChildren,
@@ -107,7 +108,9 @@ class ProfilesRepository {
         'biodata': ?biodata,
         'maritalStatus': ?maritalStatus,
         'hasChildren': ?hasChildren,
-        'childrenCount': ?childrenCount,
+        // childrenCount is nullable on the API; an explicit null clears it.
+        if (childrenCount != null || clearChildrenCount)
+          'childrenCount': childrenCount,
         'openToDivorced': ?openToDivorced,
         'openToWidowed': ?openToWidowed,
         'openToChildren': ?openToChildren,

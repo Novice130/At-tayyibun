@@ -240,6 +240,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         bio: _about.text.trim(),
         maritalStatus: _maritalStatus,
         hasChildren: _hasChildren,
+        clearChildrenCount: true,
         childrenCount: _hasChildren == true
             ? int.tryParse(_childrenCount.text.trim())
             : null,
@@ -703,6 +704,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ]);
 
   List<Widget> _confirmFields() {
+    final openTo = [
+      if (_openToDivorced) 'Divorced',
+      if (_openToWidowed) 'Widowed',
+      if (_openToChildren) 'Has children',
+    ].join(', ');
     final rows = <(String, String)>[
       ('Name', '${_firstName.text} ${_lastName.text}'.trim()),
       ('Gender', _gender ?? '—'),
@@ -717,6 +723,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           formatMaritalLine(_maritalStatus, _hasChildren,
                   _hasChildren == true ? int.tryParse(_childrenCount.text.trim()) : null) ??
               '—'),
+      ('Open to', openTo.isEmpty ? 'Never married, no children only' : openTo),
       ('Practice', _religiousPractice ?? '—'),
       ('Prayer', _prayerFrequency ?? '—'),
       ('Diet', _dietaryPreference ?? '—'),
