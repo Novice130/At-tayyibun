@@ -9,6 +9,25 @@ function describeSafely(exception: unknown): string {
   return typeof code === 'string' ? `${e.name} (code ${code})` : e.name;
 }
 
+/**
+ * A copy of the error for Sentry: same name and stack frames, but the header
+ * (which repeats the message, possibly multi-line with query params) is
+ * replaced by the safe description, and `cause` is not carried over.
+ */
+function sanitizedForSentry(exception: unknown): Error {
+  const safe = new Error(describeSafely(exception));
+  if (!(exception instanceof Error)) {
+    safe.name = 'NonErrorThrown';
+    return safe;
+  }
+  safe.name = exception.name;
+  const frames = exception.stack?.indexOf('\n    at ') ?? -1;
+  if (frames >= 0) {
+    safe.stack = `${exception.name}: ${describeSafely(exception)}${exception.stack!.slice(frames)}`;
+  }
+  return safe;
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -32,14 +51,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     // Only server faults go to Sentry; 4xx (auth, validation, throttling) is expected traffic.
-    // Non-HTTP errors are sent as a sanitized Error (name + code, no message,
-    // no cause) so bound params cannot reach Sentry either.
+    // Non-HTTP errors are sent as a sanitized copy (original name and stack
+    // frames, no message, no cause) so bound params cannot reach Sentry either.
     if (exception instanceof HttpException) {
       if (status >= 500) Sentry.captureException(exception);
     } else {
-      const safe = new Error(describeSafely(exception));
-      safe.name = exception instanceof Error ? exception.name : 'NonErrorThrown';
-      Sentry.captureException(safe);
+      Sentry.captureException(sanitizedForSentry(exception));
     }
 
     const message = exception instanceof HttpException
