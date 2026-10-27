@@ -15,6 +15,7 @@ import { EncryptionService } from '../../services/encryption.service';
 import { RequestStatus } from '../../common/types/role';
 import { RespondRequestDto } from './dto';
 import { hasCompleteProfile, isMutualMatch, toMatchSide } from '../profiles/marital-match';
+import type { MaritalStatus } from '../profiles/marital-match';
 
 @Injectable()
 export class RequestsService {
@@ -282,6 +283,11 @@ export class RequestsService {
                       ethnicity: requester.profile.ethnicity,
                       city: requester.profile.city,
                       state: requester.profile.state,
+                      // Incoming only: the receiver sees the requester's status.
+                      // openTo* preferences are never returned.
+                      maritalStatus: (requester.profile.maritalStatus ?? null) as MaritalStatus | null,
+                      hasChildren: requester.profile.hasChildren ?? null,
+                      childrenCount: requester.profile.childrenCount ?? null,
                     }
                   : null,
               }

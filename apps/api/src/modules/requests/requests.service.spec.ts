@@ -147,4 +147,52 @@ describe('RequestsService', () => {
       expect(db.insert).not.toHaveBeenCalled();
     });
   });
+
+  describe('request lists', () => {
+    const row = { id: 'req-1', requesterId: REQUESTER_ID, targetId: TARGET_ID, status: 'PENDING' };
+    const MARITAL_KEYS = ['maritalStatus', 'hasChildren', 'childrenCount', 'openToDivorced', 'openToWidowed', 'openToChildren'];
+
+    it('incoming items carry the requester marital status and children', async () => {
+      db.select.mockReturnValueOnce(chain([row]));
+      db.query.users.findFirst.mockResolvedValueOnce({
+        id: REQUESTER_ID,
+        publicId: 'usr_pub_r',
+        profiles: [profile({ maritalStatus: 'DIVORCED', hasChildren: true, childrenCount: 2 })],
+      });
+      const [item] = await service.getIncomingRequests(TARGET_ID);
+      expect(item.requester?.profile).toMatchObject({ maritalStatus: 'DIVORCED', hasChildren: true, childrenCount: 2 });
+      expect(item.requester?.profile).not.toHaveProperty('openToDivorced');
+      expect(item.requester?.profile).not.toHaveProperty('openToWidowed');
+      expect(item.requester?.profile).not.toHaveProperty('openToChildren');
+    });
+
+    it('incoming items return nulls for unanswered values', async () => {
+      db.select.mockReturnValueOnce(chain([row]));
+      db.query.users.findFirst.mockResolvedValueOnce({
+        id: REQUESTER_ID,
+        publicId: 'usr_pub_r',
+        profiles: [profile({ maritalStatus: null, hasChildren: null })],
+      });
+      const [item] = await service.getIncomingRequests(TARGET_ID);
+      expect(item.requester?.profile).toMatchObject({ maritalStatus: null, hasChildren: null, childrenCount: null });
+    });
+
+    it('incoming items with a requester that has no profile row yield profile null', async () => {
+      db.select.mockReturnValueOnce(chain([row]));
+      db.query.users.findFirst.mockResolvedValueOnce({ id: REQUESTER_ID, publicId: 'usr_pub_r', profiles: [] });
+      const [item] = await service.getIncomingRequests(TARGET_ID);
+      expect(item.requester).toEqual({ publicId: 'usr_pub_r', profile: null });
+    });
+
+    it('outgoing items carry none of the marital fields', async () => {
+      db.select.mockReturnValueOnce(chain([row]));
+      db.query.users.findFirst.mockResolvedValueOnce({
+        id: TARGET_ID,
+        publicId: 'usr_pub_t',
+        profiles: [profile({ maritalStatus: 'DIVORCED', hasChildren: true, childrenCount: 2 })],
+      });
+      const [item] = await service.getOutgoingRequests(REQUESTER_ID);
+      for (const k of MARITAL_KEYS) expect(item.target?.profile).not.toHaveProperty(k);
+    });
+  });
 });
