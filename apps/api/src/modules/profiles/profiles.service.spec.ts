@@ -3,6 +3,7 @@ import { ProfilesService } from './profiles.service';
 import { DrizzleService } from '../../db/drizzle.service';
 import { EncryptionService } from '../../services/encryption.service';
 import { AvatarService } from '../../services/avatar.service';
+import { AuditService } from '../../services/audit.service';
 import { Gender } from '../../common/types/role';
 import { chain, createDbMock } from '../../test/drizzle-mock';
 
@@ -19,9 +20,11 @@ function birthday(years: number, days = 0): Date {
 describe('ProfilesService', () => {
   let db: ReturnType<typeof createDbMock>;
   let service: ProfilesService;
+  let audit: { log: jest.Mock };
 
   beforeEach(() => {
     db = createDbMock();
+    audit = { log: jest.fn(async () => undefined) };
     service = new ProfilesService(
       { db } as unknown as DrizzleService,
       {
@@ -30,6 +33,7 @@ describe('ProfilesService', () => {
         decryptJson: (v: string) => JSON.parse(v.replace(/^enc:/, '')),
       } as unknown as EncryptionService,
       { getAvatarUrl: () => 'https://api.dicebear.com/x.svg' } as unknown as AvatarService,
+      audit as unknown as AuditService,
     );
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
   });
@@ -79,6 +83,127 @@ describe('ProfilesService', () => {
 
       // A truthiness guard would have dropped this key entirely.
       expect(set.mock.calls[0][0]).toHaveProperty('city', null);
+    });
+  });
+
+  describe('updateMyProfile marital status', () => {
+    const COMPLETE_ROW = {
+      userId: USER_ID,
+      firstName: 'Aisha',
+      lastNameEnc: 'enc:Khan',
+      dob: '1995-01-01',
+      gender: 'FEMALE',
+      ethnicity: 'Arab',
+      bioEnc: 'enc:bio',
+      maritalStatus: null,
+      hasChildren: null,
+    };
+
+    function arrange(row: any) {
+      db.select.mockReturnValueOnce(chain([row]));
+      jest.spyOn(service, 'getMyProfile').mockResolvedValue({ ok: true } as any);
+      const set = jest.fn((_v: any) => chain([]));
+      db.update.mockReturnValueOnce({ set } as any);
+      return set;
+    }
+
+    it('writes the status, children and open-to answers', async () => {
+      const set = arrange({ userId: USER_ID });
+      await service.updateMyProfile(USER_ID, {
+        maritalStatus: 'DIVORCED',
+        hasChildren: true,
+        childrenCount: 2,
+        openToChildren: true,
+      });
+      const payload = set.mock.calls[0][0];
+      expect(payload).toMatchObject({
+        maritalStatus: 'DIVORCED',
+        hasChildren: true,
+        childrenCount: 2,
+        openToChildren: true,
+      });
+      expect(payload).not.toHaveProperty('openToDivorced');
+      expect(payload).not.toHaveProperty('openToWidowed');
+    });
+
+    it('nulls childrenCount when hasChildren is false', async () => {
+      const set = arrange({ userId: USER_ID });
+      await service.updateMyProfile(USER_ID, { hasChildren: false, childrenCount: 3 });
+      expect(set.mock.calls[0][0]).toMatchObject({ hasChildren: false, childrenCount: null });
+    });
+
+    it('nulls childrenCount when the stored hasChildren is false', async () => {
+      const set = arrange({ userId: USER_ID, hasChildren: false });
+      await service.updateMyProfile(USER_ID, { childrenCount: 3 });
+      expect(set.mock.calls[0][0]).toMatchObject({ childrenCount: null });
+    });
+
+    it('leaves the six keys out of a partial update', async () => {
+      const set = arrange({ userId: USER_ID });
+      await service.updateMyProfile(USER_ID, { firstName: 'A', gender: Gender.FEMALE });
+      const payload = set.mock.calls[0][0];
+      for (const k of ['maritalStatus', 'hasChildren', 'childrenCount', 'openToDivorced', 'openToWidowed', 'openToChildren']) {
+        expect(payload).not.toHaveProperty(k);
+      }
+    });
+
+    it('is incomplete without a marital status', async () => {
+      const set = arrange(COMPLETE_ROW);
+      await service.updateMyProfile(USER_ID, { city: 'Chicago' });
+      expect(set.mock.calls[0][0]).toMatchObject({ profileComplete: false });
+    });
+
+    it('is incomplete when hasChildren is still null', async () => {
+      const set = arrange(COMPLETE_ROW);
+      await service.updateMyProfile(USER_ID, { maritalStatus: 'WIDOWED' });
+      expect(set.mock.calls[0][0]).toMatchObject({ profileComplete: false });
+    });
+
+    it('is complete once status and hasChildren are set, from this update', async () => {
+      const set = arrange(COMPLETE_ROW);
+      await service.updateMyProfile(USER_ID, { maritalStatus: 'NEVER_MARRIED', hasChildren: false });
+      expect(set.mock.calls[0][0]).toMatchObject({ profileComplete: true });
+    });
+
+    it('uses stored status and hasChildren when not sent (hasChildren false counts)', async () => {
+      const set = arrange({ ...COMPLETE_ROW, maritalStatus: 'DIVORCED', hasChildren: false });
+      await service.updateMyProfile(USER_ID, { city: 'Chicago' });
+      expect(set.mock.calls[0][0]).toMatchObject({ profileComplete: true });
+    });
+
+    it('audits which keys changed, never the values', async () => {
+      arrange({ userId: USER_ID });
+      await service.updateMyProfile(USER_ID, { maritalStatus: 'DIVORCED', hasChildren: true, childrenCount: 2 });
+      expect(audit.log).toHaveBeenCalledTimes(1);
+      const entry = audit.log.mock.calls[0][0];
+      expect(entry).toMatchObject({ userId: USER_ID, action: 'profile.marital_prefs_updated' });
+      expect(entry.metadata).toEqual({ fields: ['maritalStatus', 'hasChildren', 'childrenCount'] });
+      expect(JSON.stringify(entry)).not.toContain('DIVORCED');
+    });
+
+    it('does not audit an update without the marital keys', async () => {
+      arrange({ userId: USER_ID });
+      await service.updateMyProfile(USER_ID, { city: 'Chicago' });
+      expect(audit.log).not.toHaveBeenCalled();
+    });
+
+    it('getMyProfile returns the six keys from the row', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce({
+        id: USER_ID,
+        publicId: 'p',
+        profiles: [
+          {
+            firstName: 'A', dob: '1995-01-01', gender: 'FEMALE', ethnicity: 'Arab',
+            maritalStatus: 'WIDOWED', hasChildren: true, childrenCount: 2,
+            openToDivorced: true, openToWidowed: false, openToChildren: true,
+          },
+        ],
+      });
+      const res = await service.getMyProfile(USER_ID);
+      expect(res.profile).toMatchObject({
+        maritalStatus: 'WIDOWED', hasChildren: true, childrenCount: 2,
+        openToDivorced: true, openToWidowed: false, openToChildren: true,
+      });
     });
   });
 

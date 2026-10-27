@@ -5,6 +5,8 @@ import { DrizzleService } from '../../db/drizzle.service';
 import { profiles, users, blocks } from '../../db/schema';
 import { EncryptionService } from '../../services/encryption.service';
 import { AvatarService } from '../../services/avatar.service';
+import { AuditService } from '../../services/audit.service';
+import { MaritalStatus } from './marital-match';
 import { Gender } from '../../common/types/role';
 
 export interface BrowseFilters {
@@ -36,12 +38,26 @@ const PUBLIC_BIODATA_KEYS = [
   'dealBreakers',
 ] as const;
 
+/**
+ * Private marital-status answers. Owner view only: never add these to
+ * publicFields, PUBLIC_BIODATA_KEYS, browse or the public profile view.
+ */
+const MARITAL_KEYS = [
+  'maritalStatus',
+  'hasChildren',
+  'childrenCount',
+  'openToDivorced',
+  'openToWidowed',
+  'openToChildren',
+] as const;
+
 @Injectable()
 export class ProfilesService {
   constructor(
     private readonly drizzle: DrizzleService,
     private readonly encryptionService: EncryptionService,
     private readonly avatarService: AvatarService,
+    private readonly auditService: AuditService,
   ) {}
 
   async browseProfiles(filters: BrowseFilters, viewerId?: string) {
@@ -283,6 +299,12 @@ export class ProfilesService {
             bio,
             biodata,
             profileComplete: profile.profileComplete,
+            maritalStatus: profile.maritalStatus ?? null,
+            hasChildren: profile.hasChildren ?? null,
+            childrenCount: profile.childrenCount ?? null,
+            openToDivorced: profile.openToDivorced ?? false,
+            openToWidowed: profile.openToWidowed ?? false,
+            openToChildren: profile.openToChildren ?? false,
           }
         : null,
     };
@@ -300,6 +322,12 @@ export class ProfilesService {
       state?: string;
       bio?: string;
       biodata?: Record<string, unknown>;
+      maritalStatus?: MaritalStatus;
+      hasChildren?: boolean;
+      childrenCount?: number | null;
+      openToDivorced?: boolean;
+      openToWidowed?: boolean;
+      openToChildren?: boolean;
     },
   ) {
     try {
@@ -333,6 +361,22 @@ export class ProfilesService {
         updateData.biodataJsonEnc = this.encryptionService.encryptJson(data.biodata);
       }
 
+      // Marital answers. Columns are only written when sent, so a partial PUT
+      // (the signup seed) leaves stored answers alone. children_count is kept
+      // only while the resulting hasChildren is true.
+      if (data.maritalStatus !== undefined) updateData.maritalStatus = data.maritalStatus;
+      if (data.hasChildren !== undefined) updateData.hasChildren = data.hasChildren;
+      if (data.openToDivorced !== undefined) updateData.openToDivorced = data.openToDivorced;
+      if (data.openToWidowed !== undefined) updateData.openToWidowed = data.openToWidowed;
+      if (data.openToChildren !== undefined) updateData.openToChildren = data.openToChildren;
+      const effectiveHasChildren = data.hasChildren ?? existingProfile?.hasChildren ?? null;
+      if (effectiveHasChildren !== true) {
+        if (data.childrenCount !== undefined || data.hasChildren !== undefined) updateData.childrenCount = null;
+      } else if (data.childrenCount !== undefined) {
+        updateData.childrenCount = data.childrenCount;
+      }
+      const maritalKeysSent = MARITAL_KEYS.filter((k) => data[k] !== undefined);
+
       // Profile is complete when every required field is present after this update.
       const after = {
         firstName: data.firstName ?? existingProfile?.firstName,
@@ -341,8 +385,13 @@ export class ProfilesService {
         gender: data.gender ?? existingProfile?.gender,
         ethnicity: data.ethnicity ?? existingProfile?.ethnicity,
         bio: data.bio ?? existingProfile?.bioEnc,
+        maritalStatus: data.maritalStatus ?? existingProfile?.maritalStatus,
+        hasChildren: effectiveHasChildren,
       };
-      const isComplete = !!(after.firstName && after.lastName && after.dob && after.gender && after.ethnicity && after.bio);
+      const isComplete = !!(
+        after.firstName && after.lastName && after.dob && after.gender && after.ethnicity && after.bio &&
+        after.maritalStatus && after.hasChildren !== null && after.hasChildren !== undefined
+      );
       updateData.profileComplete = isComplete;
 
       // Merge into the stored publicFields rather than replacing it. A partial
@@ -384,8 +433,24 @@ export class ProfilesService {
           bioEnc: (updateData.bioEnc as string) ?? null,
           biodataJsonEnc: (updateData.biodataJsonEnc as string) ?? null,
           publicFields: updateData.publicFields as any,
+          maritalStatus: data.maritalStatus ?? null,
+          hasChildren: data.hasChildren ?? null,
+          childrenCount: (updateData.childrenCount as number | null | undefined) ?? null,
+          openToDivorced: data.openToDivorced ?? false,
+          openToWidowed: data.openToWidowed ?? false,
+          openToChildren: data.openToChildren ?? false,
           profileComplete: isComplete,
           updatedAt: new Date().toISOString(),
+        });
+      }
+
+      // Which answers changed, never their values: these are private.
+      if (maritalKeysSent.length > 0) {
+        await this.auditService.log({
+          userId,
+          action: 'profile.marital_prefs_updated',
+          resourceType: 'profile',
+          metadata: { fields: maritalKeysSent },
         });
       }
 
