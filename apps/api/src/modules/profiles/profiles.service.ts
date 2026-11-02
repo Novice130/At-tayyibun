@@ -15,6 +15,7 @@ import {
   toMatchSide,
 } from './marital-match';
 import { Gender } from '../../common/types/role';
+import { grantsFullView, isLiveRequest } from '../requests/request-state';
 
 export interface BrowseFilters {
   ethnicity?: string;
@@ -132,6 +133,7 @@ export class ProfilesService {
       eq(profiles.profileComplete, true),
       eq(profiles.gender, targetGender),
       mutualMatchSql(viewerSide),
+      sql`NOT EXISTS (SELECT 1 FROM users su WHERE su.id = ${profiles.userId} AND su.suspended_at IS NOT NULL)`,
     ];
     if (ethnicity && ethnicity.trim() && ethnicity !== 'All Ethnicities' && ethnicity !== 'Any') {
       const eth = ethnicity.trim();
@@ -202,7 +204,8 @@ export class ProfilesService {
         avatarUrl: user.image?.trim()
           ? user.image
           : this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
-        bio: 'bio' in pf ? pf['bio'] : null,
+        // The preview is for members. Logged-out visitors get no bio text.
+        bio: viewerId && 'bio' in pf ? pf['bio'] : null,
         membershipTier: user.membershipTier,
       };
     });
@@ -220,6 +223,10 @@ export class ProfilesService {
 
     const profile = Array.isArray((user as any).profiles) ? (user as any).profiles[0] : (user as any).profiles;
     if (!profile) throw new NotFoundException('Profile not found');
+    if (user.suspendedAt && viewerId !== user.id) throw new NotFoundException('Profile not found');
+
+    // A request between the viewer and this member decides what they may see.
+    let pairRequests: { status: string; expiresAt: string; requesterId: string; targetId: string }[] = [];
 
     // A blocked viewer gets a 404, not 403 — "you are blocked" leaks that the
     // user exists and is itself information. Hide, don't announce.
@@ -235,34 +242,45 @@ export class ProfilesService {
       if (blockRow) throw new NotFoundException('Profile not found');
 
       // Two-way matching: someone who ruled the viewer out (or whom the viewer
-      // ruled out) gets the same 404 as a block. An info request between them,
-      // in either direction and any status, keeps links from the requests
-      // page working after either side changes their answers.
+      // ruled out) gets the same 404 as a block. A live info request between
+      // them keeps links from the requests page working after either side
+      // changes their answers; a declined or expired one does not.
       const [viewerProfile] = await this.drizzle.db
         .select({ gender: profiles.gender, ...MATCH_COLUMNS })
         .from(profiles)
         .where(eq(profiles.userId, viewerId))
         .limit(1);
+      pairRequests = await this.drizzle.db
+        .select({
+          status: infoRequests.status,
+          expiresAt: infoRequests.expiresAt,
+          requesterId: infoRequests.requesterId,
+          targetId: infoRequests.targetId,
+        })
+        .from(infoRequests)
+        .where(
+          sql`(${infoRequests.requesterId} = ${viewerId} AND ${infoRequests.targetId} = ${user.id})
+              OR (${infoRequests.requesterId} = ${user.id} AND ${infoRequests.targetId} = ${viewerId})`,
+        );
+
       // The rule only applies across genders (browse is opposite-gender only);
       // same-gender views keep their pre-feature behaviour.
       const crossGender = !viewerProfile?.gender || viewerProfile.gender !== profile.gender;
       if (crossGender && !isMutualMatch(toMatchSide(viewerProfile), toMatchSide(profile))) {
-        const [requestRow] = await this.drizzle.db
-          .select({ id: infoRequests.id })
-          .from(infoRequests)
-          .where(
-            sql`(${infoRequests.requesterId} = ${viewerId} AND ${infoRequests.targetId} = ${user.id})
-                OR (${infoRequests.requesterId} = ${user.id} AND ${infoRequests.targetId} = ${viewerId})`,
-          )
-          .limit(1);
-        if (!requestRow) throw new NotFoundException('Profile not found');
+        if (!pairRequests.some((r) => isLiveRequest(r))) throw new NotFoundException('Profile not found');
       }
     }
 
-    // The full bio is members-only. Anonymous visitors get the 200-character
-    // preview stored in publicFields, same as browse.
+    // Full bio and biodata are decrypted only for the owner and for the people
+    // a request has opened them to. Other members get the stored preview;
+    // logged-out visitors get no bio text at all.
+    const isFullView =
+      isAuthenticated &&
+      !!viewerId &&
+      (viewerId === user.id || pairRequests.some((r) => grantsFullView(r, viewerId, user.id)));
+
     let fullBio: string | null = null;
-    if (isAuthenticated && profile.bioEnc) {
+    if (isFullView && profile.bioEnc) {
       try {
         fullBio = this.encryptionService.decrypt(profile.bioEnc);
       } catch {
@@ -271,7 +289,7 @@ export class ProfilesService {
     }
 
     let biodata: Record<string, unknown> = {};
-    if (profile.biodataJsonEnc) {
+    if (isFullView && profile.biodataJsonEnc) {
       try {
         biodata = this.encryptionService.decryptJson(profile.biodataJsonEnc);
       } catch {
@@ -297,7 +315,7 @@ export class ProfilesService {
       avatarUrl: user.image?.trim()
         ? user.image
         : this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
-      bio: fullBio || ('bio' in pf ? pf['bio'] : null),
+      bio: fullBio || (isAuthenticated && 'bio' in pf ? pf['bio'] : null),
       profileComplete: profile.profileComplete,
     };
 
@@ -306,7 +324,7 @@ export class ProfilesService {
       ...publicData,
       biodata: publicBiodata,
       membershipTier: user.membershipTier,
-      isFullView: true,
+      isFullView,
     };
   }
 
@@ -476,8 +494,10 @@ export class ProfilesService {
         maritalStatus: effectiveMaritalStatus,
         hasChildren: effectiveHasChildren,
       };
+      // Age, not just presence: the first save of a profile with no date of birth
+      // stores today's date below, which must never count as a real one.
       const isComplete = !!(
-        after.firstName && after.lastName && after.dob && after.gender && after.ethnicity && after.bio &&
+        after.firstName && after.lastName && after.dob && this.calculateAgeFromString(after.dob) >= 18 && after.gender && after.ethnicity && after.bio &&
         after.maritalStatus && after.hasChildren !== null && after.hasChildren !== undefined
       );
       updateData.profileComplete = isComplete;

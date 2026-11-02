@@ -27,6 +27,7 @@ interface UserRow {
   role: 'USER' | 'ADMIN' | 'SUPER_ADMIN';
   membershipTier: 'FREE' | 'SILVER' | 'GOLD';
   isVerified: boolean;
+  suspendedAt?: string | null;
   isPhoneVerified: boolean;
   emailVerified: boolean;
   createdAt: string;
@@ -155,6 +156,23 @@ export default function AdminUsersPage() {
       );
     } catch (e: any) {
       const msg = e.message || 'Failed to update tier';
+      setAction({ type: 'error', msg });
+      toast.error(msg);
+    }
+  };
+
+  const liftSuspension = async (userId: string) => {
+    setAction(null);
+    try {
+      await api.post(`/admin/users/${userId}/unsuspend`);
+      toast.success('Suspension lifted');
+      setList((prev) =>
+        prev
+          ? { ...prev, data: prev.data.map((u) => (u.id === userId ? { ...u, suspendedAt: null } : u)) }
+          : prev
+      );
+    } catch (e: any) {
+      const msg = e.message || 'Failed to lift suspension';
       setAction({ type: 'error', msg });
       toast.error(msg);
     }
@@ -466,6 +484,18 @@ export default function AdminUsersPage() {
                                 <span className="inline-flex items-center gap-0.5 text-[10px] bg-blue-500/15 text-blue-400 font-semibold px-1.5 py-0.2 rounded">
                                   <UserCheck className="w-3 h-3" /> Verified
                                 </span>
+                              )}
+                              {u.suspendedAt && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    liftSuspension(u.id);
+                                  }}
+                                  className="text-[10px] bg-red-500/15 text-red-400 font-semibold px-1.5 py-0.2 rounded hover:bg-red-500/25"
+                                >
+                                  Suspended: lift
+                                </button>
                               )}
                               {isIncomplete(u) && (
                                 <span className="text-[10px] bg-amber-500/15 text-amber-400 font-semibold px-1.5 py-0.2 rounded">

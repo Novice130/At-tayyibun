@@ -31,7 +31,7 @@ export function ProfileCard({
     GOLD: <span className="badge-gold">Gold</span>,
   };
 
-  const displayName = firstName ?? publicId;
+  const displayName = firstName ?? 'Member';
 
   const content = (
     <>
@@ -52,8 +52,8 @@ export function ProfileCard({
 
       <div className="space-y-1">
         <div className="flex items-center justify-between">
-          <h3 className={`font-semibold text-lg ${firstName ? '' : 'font-mono text-sm tracking-tight'}`} style={{ color: 'var(--color-text)' }}>
-            {displayName}{firstName ? `, ${age}` : ` · ${age}`}
+          <h3 className="font-semibold text-lg" style={{ color: 'var(--color-text)' }}>
+            {displayName}, {age}
           </h3>
         </div>
 

@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   keywords: ['Muslim matrimony', 'halal marriage', 'nikah', 'Islamic matchmaking', 'Muslim singles USA'],
   authors: [{ name: 'At-Tayyibun' }],
   openGraph: {
-    title: 'At-Tayyibun | Muslim Matrimony',
+    title: 'At-Tayyibun | Muslim Matrimony in the United States',
     description: 'Privacy-first matrimony for Muslims in the United States',
     type: 'website',
     locale: 'en_US',
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'At-Tayyibun | Muslim Matrimony',
+    title: 'At-Tayyibun | Muslim Matrimony in the United States',
     description: 'Privacy-first matrimony for Muslims in the United States',
   },
   robots: {

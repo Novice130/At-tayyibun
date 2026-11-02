@@ -4,8 +4,9 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  GoneException,
 } from '@nestjs/common';
-import { and, desc, eq, or } from 'drizzle-orm';
+import { and, desc, eq, gt, isNull, lt, or } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { DrizzleService } from '../../db/drizzle.service';
 import { infoRequests, users, blocks } from '../../db/schema';
@@ -16,6 +17,9 @@ import { RequestStatus } from '../../common/types/role';
 import { RespondRequestDto } from './dto';
 import { hasCompleteProfile, isMutualMatch, toMatchSide } from '../profiles/marital-match';
 import type { MaritalStatus } from '../profiles/marital-match';
+import { CONTACT_LINK_TTL_DAYS, contactStateOf, isLiveRequest, isStalePending } from './request-state';
+
+export type SharedContact = { name?: string; phone?: string; email?: string };
 
 @Injectable()
 export class RequestsService {
@@ -53,7 +57,7 @@ export class RequestsService {
     }
 
     const target = await this.getUserWithProfile(eq(users.publicId, targetPublicId));
-    if (!target) throw new NotFoundException('User not found');
+    if (!target || target.suspendedAt) throw new NotFoundException('User not found');
     if (target.id === requesterId) throw new BadRequestException('Cannot request your own information');
     if (!target.profile) {
       throw new BadRequestException('This member has not finished setting up their profile yet.');
@@ -80,6 +84,20 @@ export class RequestsService {
     if (!isMutualMatch(toMatchSide(requester.profile), toMatchSide(target.profile))) {
       throw new NotFoundException('User not found');
     }
+
+    // Expiry is lazy, so close any lapsed request first: it would otherwise hold
+    // the one pending slot and block the sender from sending again.
+    const nowIso = new Date().toISOString();
+    await this.drizzle.db
+      .update(infoRequests)
+      .set({ status: RequestStatus.EXPIRED as any })
+      .where(
+        and(
+          eq(infoRequests.requesterId, requesterId),
+          eq(infoRequests.status, RequestStatus.PENDING),
+          lt(infoRequests.expiresAt, nowIso),
+        ),
+      );
 
     const [existing] = await this.drizzle.db
       .select({ id: infoRequests.id })
@@ -131,14 +149,20 @@ export class RequestsService {
     const [pending] = await db
       .select()
       .from(infoRequests)
-      .where(and(eq(infoRequests.requesterId, userId), eq(infoRequests.status, RequestStatus.PENDING)))
+      .where(
+        and(
+          eq(infoRequests.requesterId, userId),
+          eq(infoRequests.status, RequestStatus.PENDING),
+          gt(infoRequests.expiresAt, new Date().toISOString()),
+        ),
+      )
       .limit(1);
 
     if (!pending) return null;
 
     const target = await this.getUserWithProfile(eq(users.id, pending.targetId));
     return {
-      ...pending,
+      ...this.publicRow(pending),
       target: target
         ? {
             publicId: target.publicId,
@@ -176,41 +200,45 @@ export class RequestsService {
     if (!requester || !target) throw new NotFoundException('Request parties not found');
 
     if (dto.approved) {
-      const oneTimeToken = this.encryptionService.generateToken(32);
       const allowedShares = dto.shareItems || ['phone', 'email'];
+      const shareSource = dto.shareSource ?? 'SELF';
+
+      // Refuse now rather than send a link that opens onto nothing.
+      if (!this.hasContact(this.readContact(target, shareSource, allowedShares))) {
+        throw new BadRequestException(
+          shareSource === 'GUARDIAN'
+            ? 'No guardian contact is saved on this profile.'
+            : 'There is no verified contact to share on this account.',
+        );
+      }
+
+      const contactExpiresAt = new Date();
+      contactExpiresAt.setDate(contactExpiresAt.getDate() + CONTACT_LINK_TTL_DAYS);
 
       await db
         .update(infoRequests)
         .set({
           status: RequestStatus.APPROVED as any,
           allowedShares,
+          shareSource,
+          contactExpiresAt: contactExpiresAt.toISOString(),
           respondedAt: new Date().toISOString(),
-          oneTimeToken,
         })
         .where(eq(infoRequests.id, requestId));
 
-      const sharedInfo: { phone?: string; email?: string } = {};
-
-      // A phone-first account holds a +<e164>@phone.attayyibun.invalid
-      // placeholder until it supplies a real address; handing that to the
-      // requester as "their email" would be worse than sharing nothing. Same
-      // for a phone number nobody has verified.
-      if (allowedShares.includes('phone')) {
-        sharedInfo.phone = target.isPhoneVerified ? target.phone || undefined : undefined;
-      }
-      if (allowedShares.includes('email')) {
-        sharedInfo.email = target.emailIsPlaceholder ? undefined : target.email;
-      }
-
       try {
-        await this.emailService.sendSharedInfoEmail(
+        // A phone-first requester has no real address. They use the Requests
+        // screen, which also covers a failed send.
+        if (requester.emailIsPlaceholder) throw new Error('placeholder email');
+        await this.emailService.sendContactLinkEmail(
           requester.email,
           requester.profile?.firstName || 'User',
-          target.profile?.firstName || 'A user',
-          sharedInfo,
+          this.maskFirstNameIfHidden(target.profile) || 'A member',
+          requestId,
+          CONTACT_LINK_TTL_DAYS,
         );
       } catch (error) {
-        console.error('Failed to send shared info email:', error);
+        console.error('Failed to send contact link email:', error);
       }
 
       await this.auditService.logInfoRequest(
@@ -268,11 +296,13 @@ export class RequestsService {
       .where(eq(infoRequests.targetId, userId))
       .orderBy(desc(infoRequests.createdAt));
 
-    return Promise.all(
-      rows.map(async (r) => {
+    // A declined, withdrawn or lapsed request is gone from the receiver's list.
+    const items = await Promise.all(
+      rows.filter((r) => isLiveRequest(r)).map(async (r) => {
         const requester = await this.getUserWithProfile(eq(users.id, r.requesterId));
+        if (requester?.suspendedAt) return null;
         return {
-          ...r,
+          ...this.publicRow(r),
           requester: requester
             ? {
                 publicId: requester.publicId,
@@ -295,6 +325,7 @@ export class RequestsService {
         };
       }),
     );
+    return items.filter((item): item is NonNullable<typeof item> => item !== null);
   }
 
   async getOutgoingRequests(userId: string) {
@@ -309,7 +340,9 @@ export class RequestsService {
       rows.map(async (r) => {
         const target = await this.getUserWithProfile(eq(users.id, r.targetId));
         return {
-          ...r,
+          ...this.publicRow(r),
+          status: isStalePending(r) ? RequestStatus.EXPIRED : r.status,
+          contactState: contactStateOf(r),
           target: target
             ? {
                 publicId: target.publicId,
@@ -329,31 +362,115 @@ export class RequestsService {
     );
   }
 
-  async getSharedInfo(token: string) {
+  /**
+   * Reveal the shared contact to the requester, once. POST behind a button so
+   * an email scanner following the link cannot use up the view.
+   */
+  async revealContact(userId: string, requestId: string): Promise<SharedContact> {
     const db = this.drizzle.db;
-    const [request] = await db.select().from(infoRequests).where(eq(infoRequests.oneTimeToken, token)).limit(1);
-    if (!request) throw new NotFoundException('Invalid or expired link');
-    if (request.status !== RequestStatus.APPROVED) throw new BadRequestException('This request was not approved');
-    if (request.tokenUsedAt) throw new BadRequestException('This link has already been used');
+    const [request] = await db.select().from(infoRequests).where(eq(infoRequests.id, requestId)).limit(1);
+    // Same answer for "no such request" and "not yours": ids are not to be probed.
+    if (!request || request.requesterId !== userId || request.status !== RequestStatus.APPROVED) {
+      throw new NotFoundException('Request not found');
+    }
 
-    await db
-      .update(infoRequests)
-      .set({ tokenUsedAt: new Date().toISOString() })
-      .where(eq(infoRequests.id, request.id));
+    const state = contactStateOf(request);
+    if (state === 'VIEWED') throw new GoneException('These contact details have already been viewed.');
+    if (state === 'EXPIRED') throw new GoneException('This link has expired. You can send a new request.');
+    if (state !== 'AVAILABLE') throw new GoneException('These contact details were sent to you by email.');
 
+    // Read before claiming, so a view is not used up on something unavailable.
+    const unavailable = 'These contact details are no longer available.';
     const target = await this.getUserWithProfile(eq(users.id, request.targetId));
-    if (!target) throw new NotFoundException('Target not found');
+    if (!target || target.suspendedAt) throw new GoneException(unavailable);
 
-    const result: { phone?: string; email?: string } = {};
-    const allowedShares = request.allowedShares ?? [];
+    const [blockRow] = await db
+      .select({ id: blocks.id })
+      .from(blocks)
+      .where(
+        or(
+          and(eq(blocks.blockerId, userId), eq(blocks.blockedId, target.id)),
+          and(eq(blocks.blockerId, target.id), eq(blocks.blockedId, userId)),
+        ),
+      )
+      .limit(1);
+    if (blockRow) throw new GoneException(unavailable);
 
-    if (allowedShares.includes('phone')) {
-      result.phone = target.isPhoneVerified ? target.phone || undefined : undefined;
+    const contact = this.readContact(
+      target,
+      request.shareSource === 'GUARDIAN' ? 'GUARDIAN' : 'SELF',
+      request.allowedShares ?? [],
+    );
+    if (!this.hasContact(contact)) throw new GoneException(unavailable);
+
+    // The WHERE is the single-use guarantee: of two racing calls only one
+    // updates a row, whatever the check above saw.
+    const now = new Date().toISOString();
+    const [claimed] = await db
+      .update(infoRequests)
+      .set({ tokenUsedAt: now })
+      .where(
+        and(
+          eq(infoRequests.id, requestId),
+          eq(infoRequests.requesterId, userId),
+          eq(infoRequests.status, RequestStatus.APPROVED),
+          isNull(infoRequests.tokenUsedAt),
+          gt(infoRequests.contactExpiresAt, now),
+        ),
+      )
+      .returning({ id: infoRequests.id });
+    if (!claimed) throw new GoneException('These contact details have already been viewed.');
+
+    await this.auditService.logInfoRequest(userId, 'CONTACT_VIEWED', target.id, requestId);
+    return contact;
+  }
+
+  private hasContact(contact: SharedContact): boolean {
+    return !!(contact.phone || contact.email);
+  }
+
+  /** The approver's chosen contact, limited to the items they allowed. */
+  private readContact(
+    target: { isPhoneVerified?: boolean; phone?: string | null; email: string; emailIsPlaceholder?: boolean; profile?: any },
+    source: 'GUARDIAN' | 'SELF',
+    allowedShares: string[],
+  ): SharedContact {
+    const contact: SharedContact = {};
+
+    if (source === 'GUARDIAN') {
+      let biodata: Record<string, unknown> = {};
+      if (target.profile?.biodataJsonEnc) {
+        try {
+          biodata = this.encryptionService.decryptJson(target.profile.biodataJsonEnc);
+        } catch {
+          /* treated as no guardian saved */
+        }
+      }
+      const text = (key: string) => {
+        const value = biodata[key];
+        return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+      };
+      // The signup form pre-fills the phone field with a bare country code.
+      const phone = text('guardianPhone');
+      if (allowedShares.includes('phone') && phone && /\d{7,}/.test(phone.replace(/\D/g, ''))) {
+        contact.phone = phone;
+      }
+      if (allowedShares.includes('email')) contact.email = text('guardianEmail');
+      if (this.hasContact(contact)) contact.name = text('guardianName');
+      return contact;
     }
-    if (allowedShares.includes('email')) {
-      result.email = target.emailIsPlaceholder ? undefined : target.email;
-    }
 
-    return result;
+    // A phone-first account holds a +<e164>@phone.attayyibun.invalid placeholder
+    // until it supplies a real address; handing that over as "their email" would
+    // be worse than sharing nothing. Same for a phone nobody has verified.
+    if (allowedShares.includes('phone') && target.isPhoneVerified && target.phone) contact.phone = target.phone;
+    if (allowedShares.includes('email') && !target.emailIsPlaceholder) contact.email = target.email;
+    return contact;
+  }
+
+  /** A request row as members may see it: the legacy token column stays server-side. */
+  private publicRow<T extends { oneTimeToken?: unknown }>(row: T): Omit<T, 'oneTimeToken'> {
+    const { oneTimeToken: _omit, ...rest } = row;
+    return rest;
   }
 }

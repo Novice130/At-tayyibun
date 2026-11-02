@@ -3,7 +3,7 @@ import { and, desc, eq, or, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { DrizzleService } from '../../db/drizzle.service';
-import { blocks, reports, infoRequests, users, skipReasons, messages, emailCampaigns, campaignRecipients, auditLogs } from '../../db/schema';
+import { blocks, reports, infoRequests, session, users, skipReasons, messages, emailCampaigns, campaignRecipients, auditLogs } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
 import { escapeHtml } from '../../common/utils/html';
@@ -224,7 +224,7 @@ export class ModerationService {
 
     if (action !== 'DISMISS' && report.reportedUserId) {
       if (action === 'SUSPEND_USER') {
-        await db.update(users).set({ isVerified: false }).where(eq(users.id, report.reportedUserId));
+        await this.suspendUser(report.reportedUserId);
       } else {
         await this.hardDeleteUser(report.reportedUserId, adminId);
       }
@@ -246,6 +246,30 @@ export class ModerationService {
     });
 
     return { success: true };
+  }
+
+  /**
+   * Suspend an account: refused by the auth guard, hidden from other members,
+   * signed out everywhere. Pending requests in either direction are removed so
+   * nobody waits on them; approved ones stay for when a suspension is lifted.
+   */
+  async suspendUser(userId: string) {
+    const db = this.drizzle.db;
+    const [target] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+    if (target?.role === 'SUPER_ADMIN') throw new ForbiddenException('Cannot suspend a SUPER_ADMIN');
+
+    await db.transaction(async (tx) => {
+      await tx.update(users).set({ suspendedAt: new Date().toISOString() }).where(eq(users.id, userId));
+      await tx.delete(session).where(eq(session.userId, userId));
+      await tx
+        .delete(infoRequests)
+        .where(
+          and(
+            eq(infoRequests.status, RequestStatus.PENDING),
+            or(eq(infoRequests.requesterId, userId), eq(infoRequests.targetId, userId)),
+          ),
+        );
+    });
   }
 
   /**

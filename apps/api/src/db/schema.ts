@@ -47,7 +47,12 @@ export const infoRequests = pgTable("info_requests", {
 	expiresAt: timestamp("expires_at", { precision: 3, mode: 'string' }).notNull(),
 	respondedAt: timestamp("responded_at", { precision: 3, mode: 'string' }),
 	oneTimeToken: text("one_time_token"),
+	// When the requester revealed the contact details. Set once, atomically.
 	tokenUsedAt: timestamp("token_used_at", { precision: 3, mode: 'string' }),
+	// Whose contact the approver chose to share: GUARDIAN or SELF. Null on
+	// requests approved before the contact link existed.
+	shareSource: text("share_source"),
+	contactExpiresAt: timestamp("contact_expires_at", { precision: 3, mode: 'string' }),
 }, (table) => [
 	index("info_requests_expires_at_idx").using("btree", table.expiresAt.asc().nullsLast().op("timestamp_ops")),
 	uniqueIndex("info_requests_one_time_token_key").using("btree", table.oneTimeToken.asc().nullsLast().op("text_ops")),
@@ -177,6 +182,9 @@ export const users = pgTable("users", {
 	// Accounts that predate phone verification skip the phone gate. Separate
 	// from isPhoneVerified on purpose — see drizzle/0003_phone_identity.sql.
 	phoneGateExempt: boolean("phone_gate_exempt").default(false).notNull(),
+	// Set while an admin has suspended the account: API access is refused and
+	// the profile is hidden. Null means not suspended.
+	suspendedAt: timestamp("suspended_at", { precision: 3, mode: 'string' }),
 	termsAcceptedAt: timestamp("terms_accepted_at", { precision: 3, mode: 'string' }),
 	membershipExpiresAt: timestamp("membership_expires_at", { precision: 3, mode: 'string' }),
 	rankBoost: integer("rank_boost").default(0).notNull(),

@@ -224,7 +224,7 @@ export default function ProfilePage() {
               <h2 className="font-heading text-xl font-bold mb-4">Legal</h2>
               <div className="flex flex-wrap gap-4">
                 <Link href="/privacy" className="btn-secondary">Privacy Policy</Link>
-                <Link href="/terms" className="btn-secondary">Terms of Service</Link>
+                <Link href="/terms" className="btn-secondary">Terms of Use</Link>
                 <Link href="/contact" className="btn-secondary">Contact Us</Link>
               </div>
             </div>

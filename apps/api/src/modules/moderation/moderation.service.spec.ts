@@ -202,4 +202,23 @@ describe('ModerationService', () => {
       expect(db.insert).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('suspendUser', () => {
+    it('suspends, signs out, and removes pending requests without touching verification', async () => {
+      db.select.mockReturnValueOnce(chain([{ role: 'USER' }]));
+      const set = jest.fn(() => chain([]));
+      db.update.mockReturnValueOnce({ set });
+
+      await service.suspendUser(TARGET.id);
+
+      expect(set).toHaveBeenCalledWith({ suspendedAt: expect.any(String) });
+      expect(db.delete).toHaveBeenCalledTimes(2);
+    });
+
+    it('refuses to suspend a SUPER_ADMIN', async () => {
+      db.select.mockReturnValueOnce(chain([{ role: 'SUPER_ADMIN' }]));
+      await expect(service.suspendUser(TARGET.id)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(db.update).not.toHaveBeenCalled();
+    });
+  });
 });

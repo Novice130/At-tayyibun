@@ -143,7 +143,7 @@ export class EmailService {
       <p>You started signing up for <strong>At-Tayyibun</strong> but your account is not active yet. One step is left: verify your phone number.</p>
       <div style="background: #f8f4ed; padding: 20px; border-radius: 8px; margin: 24px 0; border-left: 4px solid #D4AF37;">
         <p style="margin: 0 0 10px; color: #8B7500;"><strong>Why verify?</strong></p>
-        <p style="margin: 0; color: #555;">Phone verification keeps At-Tayyibun a trusted space — one account per person, no fake profiles. Once verified, your profile appears in search and you can send and receive contact requests.</p>
+        <p style="margin: 0; color: #555;">Phone verification keeps At-Tayyibun a trusted space — helping keep it to one account per person. Once verified, your profile appears in search and you can send and receive contact requests.</p>
       </div>
       <p style="text-align: center; margin: 32px 0;">
         <a href="${loginUrl}" style="display: inline-block; background: linear-gradient(135deg, #D4AF37, #8B7500); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold;">Verify My Phone</a>
@@ -194,37 +194,33 @@ export class EmailService {
   }
 
   /**
-   * Send shared info email when request is approved
+   * Tell a requester their request was approved. Carries a link only, never the
+   * contact details: the link needs the requester's login, so a forwarded or
+   * stored email exposes nothing.
    */
-  async sendSharedInfoEmail(
+  async sendContactLinkEmail(
     recipientEmail: string,
     recipientName: string,
     sharedBy: string,
-    shares: { phone?: string; email?: string },
+    requestId: string,
+    linkDays: number,
   ): Promise<void> {
     const safeRecipientName = escapeHtml(recipientName);
     const safeSharedBy = escapeHtml(sharedBy);
-    const sharedItems: string[] = [];
-    if (shares.phone) {
-      sharedItems.push(`<p><strong>Phone:</strong> ${escapeHtml(shares.phone)}</p>`);
-    }
-    if (shares.email) {
-      sharedItems.push(`<p><strong>Email:</strong> ${escapeHtml(shares.email)}</p>`);
-    }
+    const link = `${this.webUrl}/requests/${encodeURIComponent(requestId)}/contact`;
 
     const html = this.wrapInLayout(`
-      <h2 style="color: #1a1a2e; margin-bottom: 16px;">Contact Information Shared</h2>
+      <h2 style="color: #1a1a2e; margin-bottom: 16px;">Your Request Was Accepted</h2>
       <p>Assalamu Alaikum ${safeRecipientName},</p>
-      <p><strong>${safeSharedBy}</strong> has approved your request and shared the following information with you:</p>
-      <div style="background: #f8f4ed; padding: 20px; border-radius: 8px; margin: 24px 0; border-left: 4px solid #D4AF37;">
-        ${sharedItems.join('')}
-      </div>
+      <p><strong>${safeSharedBy}</strong> has accepted your request and chosen a contact to share with you.</p>
+      <p style="margin: 24px 0;"><a href="${escapeHtml(link)}" style="background: #D4AF37; color: #1a1a2e; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">View contact details</a></p>
+      <p>You will need to sign in. The details can be viewed once, within ${linkDays} days, so please save them when you open them.</p>
       <p>May Allah bless your journey towards finding a righteous spouse.</p>
     `);
 
     await this.sendEmail({
       to: recipientEmail,
-      subject: `At-Tayyibun: ${safeSharedBy} has shared their information with you`,
+      subject: `At-Tayyibun: ${sharedBy} accepted your request`,
       html,
     });
   }

@@ -285,7 +285,7 @@ class _Body extends ConsumerWidget {
               TextButton(
                 onPressed: () => launchUrl(Uri.parse('$kBaseUrl/terms'),
                     mode: LaunchMode.externalApplication),
-                child: const Text('Terms of Service'),
+                child: const Text('Terms of Use'),
               ),
               TextButton(
                 onPressed: () => launchUrl(Uri.parse('$kBaseUrl/contact'),

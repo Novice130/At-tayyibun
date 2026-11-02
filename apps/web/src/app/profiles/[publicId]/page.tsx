@@ -154,8 +154,7 @@ export default function ProfileDetailPage() {
     );
   }
 
-  const displayName = profile.firstName ?? profile.publicId;
-  const isAnon = !profile.firstName;
+  const displayName = profile.firstName ?? 'Member';
 
   // Same rows, same order as the owner's own Details card on /profile.
   const details = [
@@ -192,8 +191,8 @@ export default function ProfileDetailPage() {
                 />
               </div>
               <div className="flex-1 text-center md:text-left">
-                <h1 className={`font-heading mb-2 font-bold ${isAnon ? 'text-xl font-mono tracking-tight' : 'text-3xl'}`}>
-                  {displayName}{isAnon ? ` · ${profile.age}` : `, ${profile.age}`}
+                <h1 className="font-heading mb-2 font-bold text-3xl">
+                  {displayName}, {profile.age}
                 </h1>
                 <div className="flex flex-wrap justify-center md:justify-start gap-4" style={{ color: 'var(--color-text-secondary)' }}>
                   <span className="flex items-center gap-1">
@@ -225,6 +224,12 @@ export default function ProfileDetailPage() {
               <h2 className="font-heading text-xl font-bold mb-4">About</h2>
               <p className="leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>{profile.bio}</p>
             </div>
+          )}
+
+          {!profile.isFullView && (
+            <p className="text-sm text-center" style={{ color: 'var(--color-text-muted)' }}>
+              Full profile unlocks after a request is accepted.
+            </p>
           )}
 
           {/* Profile Details */}
@@ -314,7 +319,7 @@ export default function ProfileDetailPage() {
               <div className="text-center py-6">
                 <p className="mb-6 max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
                   Contact details are private. Send a request and {displayName} will decide
-                  whether to share their phone number and email with you.
+                  whether to accept. If they do, they choose whose contact to share with you.
                 </p>
                 <button
                   onClick={handleRequestContact}

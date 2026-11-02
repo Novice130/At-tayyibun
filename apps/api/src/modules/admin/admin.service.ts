@@ -9,6 +9,7 @@ import { DrizzleService } from '../../db/drizzle.service';
 import { infoRequests, profiles, systemConfig, users } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
+import { ModerationService } from '../moderation/moderation.service';
 
 @Injectable()
 export class AdminService {
@@ -16,6 +17,7 @@ export class AdminService {
     private readonly drizzle: DrizzleService,
     private readonly auditService: AuditService,
     private readonly emailService: EmailService,
+    private readonly moderationService: ModerationService,
   ) {}
 
   async getAnalytics() {
@@ -78,6 +80,7 @@ export class AdminService {
           role: true,
           membershipTier: true,
           isVerified: true,
+          suspendedAt: true,
           isPhoneVerified: true,
           emailVerified: true,
           createdAt: true,
@@ -242,14 +245,19 @@ export class AdminService {
     if (!target) throw new NotFoundException('User not found');
     if (target.role === 'SUPER_ADMIN') throw new ForbiddenException('Cannot delete a SUPER_ADMIN');
 
-    // info_requests has FK ... ON DELETE RESTRICT for both requester and target,
-    // so clear those rows first. Everything else (photos, profiles, session,
-    // account, twoFactor, campaign_recipients, unsubscribes) is ON DELETE
-    // CASCADE; audit_logs is ON DELETE SET NULL — both fine.
-    await db.delete(infoRequests).where(or(eq(infoRequests.requesterId, userId), eq(infoRequests.targetId, userId)));
-    await db.delete(users).where(eq(users.id, userId));
+    await this.moderationService.hardDeleteUser(userId, adminId);
 
     await this.auditService.logAdminAction(adminId, 'DELETE_USER', 'user', userId, { email: target.email });
+    return { success: true };
+  }
+
+  async unsuspendUser(adminId: string, userId: string) {
+    const db = this.drizzle.db;
+    const [target] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId));
+    if (!target) throw new NotFoundException('User not found');
+
+    await db.update(users).set({ suspendedAt: null }).where(eq(users.id, userId));
+    await this.auditService.logAdminAction(adminId, 'UNSUSPEND_USER', 'user', userId, {});
     return { success: true };
   }
 

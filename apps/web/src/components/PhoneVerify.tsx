@@ -41,7 +41,7 @@ export default function PhoneVerify({
   onVerified,
   onPhoneTaken,
   title = 'Verify your phone',
-  subtitle = 'We use your number to keep one account per person. It is never shown on your profile.',
+  subtitle = 'We use your number to help keep it to one account per person. It is never shown on your profile.',
 }: PhoneVerifyProps) {
   const [stage, setStage] = useState<Stage>('enter');
   const [phone, setPhone] = useState(formatPhoneInput(initialPhone || '+1 '));

@@ -32,6 +32,7 @@ interface InfoRequest {
   createdAt: string;
   expiresAt: string;
   respondedAt?: string;
+  contactState?: 'AVAILABLE' | 'VIEWED' | 'EXPIRED' | 'EMAILED' | null;
   requester?: RequestProfile;
   target?: RequestProfile;
 }
@@ -51,6 +52,13 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+/** Mirrors the API: the signup form pre-fills the phone with a bare country code. */
+function hasGuardianContact(biodata?: Record<string, unknown> | null) {
+  const phone = typeof biodata?.guardianPhone === 'string' ? biodata.guardianPhone : '';
+  const email = typeof biodata?.guardianEmail === 'string' ? biodata.guardianEmail.trim() : '';
+  return phone.replace(/\D/g, '').length >= 7 || !!email;
+}
+
 function timeAgo(dateStr: string) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const minutes = Math.floor(diff / 60000);
@@ -68,12 +76,18 @@ export default function RequestsPage() {
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState<string | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
+  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [guardianSaved, setGuardianSaved] = useState(false);
 
   const { session, loading: sessionLoading } = useRequireSession();
 
   useEffect(() => {
     if (session) {
       fetchRequests();
+      api
+        .get('/profiles/me')
+        .then((me: any) => setGuardianSaved(hasGuardianContact(me?.profile?.biodata ?? me?.biodata)))
+        .catch(() => setGuardianSaved(false));
     }
   }, [session]);
 
@@ -93,13 +107,29 @@ export default function RequestsPage() {
     }
   };
 
-  const handleRespond = async (requestId: string, approved: boolean) => {
+  const handleResend = async (publicId: string, requestId: string) => {
+    setResponding(requestId);
+    try {
+      await api.post('/requests', { targetPublicId: publicId });
+      await fetchRequests();
+      notifyRequestsChanged();
+      toast.success('Request sent again.');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send request');
+    } finally {
+      setResponding(null);
+    }
+  };
+
+  const handleRespond = async (requestId: string, approved: boolean, shareSource?: 'GUARDIAN' | 'SELF') => {
     setResponding(requestId);
     try {
       await api.put(`/requests/${requestId}/respond`, {
         approved,
         shareItems: approved ? ['phone', 'email'] : undefined,
+        shareSource: approved ? shareSource : undefined,
       });
+      setAcceptingId(null);
       await fetchRequests();
       // The navbar badge counts pending incoming requests and otherwise only
       // refetches on navigation, so it kept showing the old number on the one
@@ -107,7 +137,7 @@ export default function RequestsPage() {
       notifyRequestsChanged();
       toast.success(
         approved
-          ? 'Request accepted. Your contact details have been emailed to them.'
+          ? 'Request accepted. They can now view the contact you chose, once.'
           : 'Request declined.',
       );
     } catch (err: any) {
@@ -245,7 +275,7 @@ export default function RequestsPage() {
                       {req.status === 'PENDING' && (
                         <div className="flex items-center gap-2 w-full sm:w-auto sm:flex-shrink-0">
                           <button
-                            onClick={() => handleRespond(req.id, true)}
+                            onClick={() => setAcceptingId(acceptingId === req.id ? null : req.id)}
                             disabled={responding === req.id}
                             className="bg-green-600 hover:bg-green-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition flex items-center justify-center gap-1 flex-1 sm:flex-none disabled:opacity-50"
                           >
@@ -267,6 +297,38 @@ export default function RequestsPage() {
                         </div>
                       )}
                     </div>
+
+                    {req.status === 'PENDING' && acceptingId === req.id && (
+                      <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--color-border)' }}>
+                        <p className="text-sm mb-1 font-medium" style={{ color: 'var(--color-text)' }}>
+                          Whose contact should they receive?
+                        </p>
+                        <p className="text-xs mb-3" style={{ color: 'var(--color-text-secondary)' }}>
+                          They can view it once. After that, it cannot be taken back.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <button
+                            onClick={() => handleRespond(req.id, true, 'GUARDIAN')}
+                            disabled={!guardianSaved || responding === req.id}
+                            className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            My guardian&apos;s contact
+                          </button>
+                          <button
+                            onClick={() => handleRespond(req.id, true, 'SELF')}
+                            disabled={responding === req.id}
+                            className="btn-secondary text-sm disabled:opacity-50"
+                          >
+                            My own contact
+                          </button>
+                        </div>
+                        {!guardianSaved && (
+                          <p className="text-xs mt-2" style={{ color: 'var(--color-text-muted)' }}>
+                            No guardian contact is saved on your profile.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -360,10 +422,34 @@ export default function RequestsPage() {
                             )}
                           </div>
                         )}
-                        {req.status === 'APPROVED' && (
+                        {req.status === 'APPROVED' && req.contactState === 'AVAILABLE' && (
+                          <Link href={`/requests/${req.id}/contact`} className="btn-primary text-xs inline-block mt-2 px-3 py-2">
+                            View contact details
+                          </Link>
+                        )}
+                        {req.status === 'APPROVED' && req.contactState === 'VIEWED' && (
+                          <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                            You have viewed these contact details.
+                          </p>
+                        )}
+                        {req.status === 'APPROVED' && req.contactState === 'EXPIRED' && (
+                          <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                            The contact link expired. You can send a new request from their profile.
+                          </p>
+                        )}
+                        {req.status === 'APPROVED' && req.contactState === 'EMAILED' && (
                           <p className="text-xs text-green-400 mt-1">
                             Contact info has been sent to your email.
                           </p>
+                        )}
+                        {req.status === 'EXPIRED' && person?.publicId && (
+                          <button
+                            onClick={() => handleResend(person.publicId, req.id)}
+                            disabled={responding === req.id}
+                            className="btn-secondary text-xs mt-2 px-3 py-2 disabled:opacity-50"
+                          >
+                            Send again
+                          </button>
                         )}
                         {req.status === 'DENIED' && (
                           <p className="text-xs text-gray-500 mt-1">

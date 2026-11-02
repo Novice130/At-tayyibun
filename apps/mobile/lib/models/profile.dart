@@ -16,6 +16,7 @@ class ProfileSummary {
     required this.bio,
     required this.membershipTier,
     required this.biodata,
+    this.isFullView = false,
   });
 
   final String publicId;
@@ -33,8 +34,11 @@ class ProfileSummary {
   /// cards; populated on the profile detail response.
   final Map<String, dynamic> biodata;
 
+  /// True when the viewer may see the full bio and biodata.
+  final bool isFullView;
+
   /// Anonymised profiles fall back to the public id.
-  String get displayName => firstName ?? publicId;
+  String get displayName => firstName ?? 'Member';
   bool get isAnonymous => firstName == null;
 
   String get location =>
@@ -52,6 +56,7 @@ class ProfileSummary {
         bio: json['bio'] as String?,
         membershipTier: json['membershipTier'] as String? ?? 'FREE',
         biodata: (json['biodata'] as Map?)?.cast<String, dynamic>() ?? {},
+        isFullView: json['isFullView'] as bool? ?? false,
       );
 }
 

@@ -177,7 +177,7 @@ export function Navbar() {
                     Login
                   </Link>
                   <Link href="/signup" className="btn-primary text-xs px-4 py-2">
-                    Get Started
+                    Create Account
                   </Link>
                 </div>
               )}
@@ -318,7 +318,7 @@ export function Navbar() {
                       onClick={() => setMobileMenuOpen(false)}
                       className="btn-primary w-full justify-center mt-2"
                     >
-                      Get Started
+                      Create Account
                     </Link>
                   </>
                 )}

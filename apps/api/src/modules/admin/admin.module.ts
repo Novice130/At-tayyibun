@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
+import { ModerationModule } from '../moderation/moderation.module';
 import { AdminAdsController } from './controllers/admin-ads.controller';
 import { AdminAdsService } from './services/admin-ads.service';
 import { AdminCouponsController } from './controllers/admin-coupons.controller';
@@ -13,6 +14,7 @@ import { AdminSchemasService } from './services/admin-schemas.service';
 
 @Module({
   imports: [
+    ModerationModule,
     BullModule.registerQueue({ name: 'email-campaign-queue' }),
   ],
   controllers: [

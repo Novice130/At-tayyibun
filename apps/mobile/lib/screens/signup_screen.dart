@@ -63,7 +63,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     if (!_formKey.currentState!.validate() || _loading) return;
     if (!_termsAccepted) {
       setState(() => _error =
-          'Please accept the Terms of Service and Privacy Policy to continue.');
+          'Please accept the Terms of Use and Privacy Policy to continue.');
       return;
     }
     if (toE164(_phone.text) == null) {
@@ -235,7 +235,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                 children: [
                                   const TextSpan(
                                       text:
-                                          'I agree to the '),
+                                          'Members must be 18 or older. I confirm the person this profile is for is 18 or older, and I agree to the '),
                                   WidgetSpan(
                                     alignment: PlaceholderAlignment.baseline,
                                     baseline: TextBaseline.alphabetic,
@@ -244,7 +244,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                           Uri.parse('$kBaseUrl/terms'),
                                           mode: LaunchMode.externalApplication),
                                       child: Text(
-                                        'Terms of Service',
+                                        'Terms of Use',
                                         style: TextStyle(
                                           color: theme.colorScheme.primary,
                                           decoration: TextDecoration.underline,
