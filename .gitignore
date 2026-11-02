@@ -70,3 +70,6 @@ docs/*.local.md
 # Load test: account pool holds live staging session cookies
 loadtest/accounts.jsonl
 loadtest/results/
+
+# Video recording plan and whiteboard (local only; repo is public)
+video/
