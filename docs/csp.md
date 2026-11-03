@@ -33,7 +33,10 @@ Permissions-Policy).
 Trade-off: the root layout reads `headers()`, so every page is rendered per
 request. Pages such as `/about`, `/privacy` and `/terms` used to be prerendered
 at build time. A nonce needs this: prerendered HTML cannot carry a
-per-request nonce.
+per-request nonce. The cost is paid in report-only mode too, kept on purpose so
+the reports show what enforcement would block. If the load test shows the
+public pages are a bottleneck, the fallback is to read the nonce only on
+member routes and keep the marketing pages static with a hash-based policy.
 
 ## The switch: `CSP_ENFORCE`
 
