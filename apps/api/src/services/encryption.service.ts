@@ -8,6 +8,7 @@ import * as crypto from 'crypto';
  */
 @Injectable()
 export class EncryptionService {
+  private static readonly AUTH_TAG_LENGTH = 16;
   private readonly algorithm = 'aes-256-gcm';
   private readonly keyBuffer: Buffer;
 
@@ -55,8 +56,15 @@ export class EncryptionService {
     const [ivBase64, authTagBase64, ciphertext] = parts;
     const iv = Buffer.from(ivBase64, 'base64');
     const authTag = Buffer.from(authTagBase64, 'base64');
+    // GCM accepts tags as short as 4 bytes unless the length is pinned, which
+    // makes forging a ciphertext far easier. encrypt() always writes 16.
+    if (authTag.length !== EncryptionService.AUTH_TAG_LENGTH) {
+      throw new Error('Invalid auth tag length');
+    }
 
-    const decipher = crypto.createDecipheriv(this.algorithm, this.keyBuffer, iv);
+    const decipher = crypto.createDecipheriv(this.algorithm, this.keyBuffer, iv, {
+      authTagLength: EncryptionService.AUTH_TAG_LENGTH,
+    });
     decipher.setAuthTag(authTag);
 
     let decrypted = decipher.update(ciphertext, 'base64', 'utf8');
