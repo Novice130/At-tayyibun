@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { Loader, Mail, Phone, ShieldCheck, User } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useRequireSession } from '@/lib/hooks';
+import { revealFailure, type RevealFailure } from '@/lib/contact-reveal';
 import { Navbar } from '@/components/Navbar';
 
 interface SharedContact {
@@ -18,18 +19,18 @@ export default function RequestContactPage() {
   const { id } = useParams<{ id: string }>();
   const { session, loading: sessionLoading } = useRequireSession();
   const [contact, setContact] = useState<SharedContact | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<RevealFailure | null>(null);
   const [revealing, setRevealing] = useState(false);
 
   // A button, not a page load: email scanners follow links, and a view is
   // single-use.
   const reveal = async () => {
     setRevealing(true);
-    setError('');
+    setError(null);
     try {
       setContact(await api.post(`/requests/${encodeURIComponent(id)}/contact`));
-    } catch (err: any) {
-      setError(err.message || 'These contact details could not be shown.');
+    } catch (err) {
+      setError(revealFailure(err));
     } finally {
       setRevealing(false);
     }
@@ -85,10 +86,14 @@ export default function RequestContactPage() {
                 These details can be viewed once. Have somewhere ready to save them before you
                 continue.
               </p>
-              {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
-              {!error && (
+              {error && (
+                <p role="alert" className="text-red-400 text-sm mb-4">{error.message}</p>
+              )}
+              {/* Gone (already viewed, expired) or not found is final; anything
+                  else, like a dropped connection, may be retried. */}
+              {(!error || error.retryable) && (
                 <button type="button" onClick={reveal} disabled={revealing} className="btn-primary disabled:opacity-50">
-                  {revealing ? 'Loading...' : 'Show contact details'}
+                  {revealing ? 'Loading...' : error ? 'Try again' : 'Show contact details'}
                 </button>
               )}
             </>

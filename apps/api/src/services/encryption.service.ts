@@ -11,6 +11,8 @@ export class EncryptionService {
   private static readonly AUTH_TAG_LENGTH = 16;
   private readonly algorithm = 'aes-256-gcm';
   private readonly keyBuffer: Buffer;
+  /** HKDF output per signFor purpose; the key never changes after boot. */
+  private readonly signingKeys = new Map<string, Buffer>();
 
   constructor(private readonly configService: ConfigService) {
     const key = this.configService.get<string>('ENCRYPTION_KEY');
@@ -34,7 +36,11 @@ export class EncryptionService {
    * Rotating ENCRYPTION_KEY invalidates signatures already handed out.
    */
   signFor(purpose: string, value: string): string {
-    const key = Buffer.from(crypto.hkdfSync('sha256', this.keyBuffer, Buffer.alloc(0), `at-tayyibun/${purpose}`, 32));
+    let key = this.signingKeys.get(purpose);
+    if (!key) {
+      key = Buffer.from(crypto.hkdfSync('sha256', this.keyBuffer, Buffer.alloc(0), `at-tayyibun/${purpose}`, 32));
+      this.signingKeys.set(purpose, key);
+    }
     return crypto.createHmac('sha256', key).update(value).digest('base64url');
   }
 

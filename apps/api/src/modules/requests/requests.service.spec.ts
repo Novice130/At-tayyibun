@@ -1,4 +1,4 @@
-import { BadRequestException, GoneException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, GoneException, Logger, NotFoundException } from '@nestjs/common';
 import { RequestsService } from './requests.service';
 import { DrizzleService } from '../../db/drizzle.service';
 import { AuditService } from '../../services/audit.service';
@@ -234,23 +234,9 @@ describe('RequestsService', () => {
       ...extra,
     });
 
-    it.each([
-      ['declined', { status: 'DENIED' }],
-      ['lapsed', { status: 'PENDING', expiresAt: PAST }],
-      ['expired', { status: 'EXPIRED' }],
-    ])('hides a %s request from the receiver', async (_name, over) => {
-      db.select.mockReturnValueOnce(chain([joinedRow(over)]));
-      await expect(service.getIncomingRequests(TARGET_ID)).resolves.toEqual([]);
-    });
-
     it('keeps an approved request in the receiver list', async () => {
       db.select.mockReturnValueOnce(chain([joinedRow({ status: 'APPROVED' })]));
       await expect(service.getIncomingRequests(TARGET_ID)).resolves.toHaveLength(1);
-    });
-
-    it('hides a request from a suspended requester', async () => {
-      db.select.mockReturnValueOnce(chain([joinedRow({}, { otherSuspendedAt: PAST })]));
-      await expect(service.getIncomingRequests(TARGET_ID)).resolves.toEqual([]);
     });
 
     it('filters dead and suspended rows in SQL, so LIMIT only counts visible rows', async () => {
@@ -259,7 +245,22 @@ describe('RequestsService', () => {
       await service.getIncomingRequests(TARGET_ID);
       const where = renderSql(calls.where[0][0]);
       expect(where.sql).toContain('"users"."suspended_at" is null');
-      expect(where.params).toEqual(expect.arrayContaining(['APPROVED', 'PENDING']));
+      // A pending row counts only while its expiry is still ahead: the same
+      // boundary as isLiveRequest, so there is no second filter in JS.
+      expect(where.sql).toContain('"info_requests"."expires_at" > $');
+      expect(where.params).toEqual(expect.arrayContaining([TARGET_ID, 'APPROVED', 'PENDING']));
+      expect(where.params).not.toEqual(expect.arrayContaining(['DENIED']));
+      expect(where.params).not.toEqual(expect.arrayContaining(['EXPIRED']));
+    });
+
+    it('hides requests to a suspended target from the sender, in SQL', async () => {
+      const calls: Record<string, unknown[][]> = {};
+      db.select.mockReturnValueOnce(recordingChain([], calls));
+      await service.getOutgoingRequests(REQUESTER_ID);
+      const where = renderSql(calls.where[0][0]);
+      expect(where.sql).toContain('"info_requests"."requester_id" = $');
+      expect(where.sql).toContain('"users"."suspended_at" is null');
+      expect(where.params).toEqual([REQUESTER_ID]);
     });
 
     it('reports a lapsed request to its sender as expired', async () => {
@@ -419,6 +420,19 @@ describe('RequestsService', () => {
       expect(audit.logInfoRequest).not.toHaveBeenCalled();
     });
 
+    it('declines without mailing a phone-first requester placeholder', async () => {
+      arrange(target(), { ...requester, email: '+13125550100@phone.attayyibun.invalid', emailIsPlaceholder: true });
+      await expect(service.respondToRequest(TARGET_ID, 'req-1', { approved: false })).resolves.toEqual({ success: true });
+      expect(email.sendRequestDeniedEmail).not.toHaveBeenCalled();
+      expect(audit.logInfoRequest).toHaveBeenCalledWith(TARGET_ID, 'REQUEST_DENIED', REQUESTER_ID, 'req-1');
+    });
+
+    it('still mails the denial to a real address', async () => {
+      arrange(target());
+      await service.respondToRequest(TARGET_ID, 'req-1', { approved: false });
+      expect(email.sendRequestDeniedEmail).toHaveBeenCalledWith('r@example.com', 'Omar');
+    });
+
     it('a racing deny that loses the UPDATE gets a 400 and sends no denial', async () => {
       arrange(target());
       db.update.mockReturnValue(chain([]));
@@ -501,6 +515,18 @@ describe('RequestsService', () => {
         email: 't@example.com',
       });
       expect(audit.logInfoRequest).toHaveBeenCalledWith(REQUESTER_ID, 'CONTACT_VIEWED', TARGET_ID, 'req-1');
+    });
+
+    it('still returns the contact once claimed, when the audit write fails', async () => {
+      arrange(approved);
+      audit.logInfoRequest.mockRejectedValueOnce(new Error('connection reset'));
+      const logged = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      await expect(service.revealContact(REQUESTER_ID, 'req-1')).resolves.toEqual({
+        phone: '+13125550199',
+        email: 't@example.com',
+      });
+      expect(logged).toHaveBeenCalledTimes(1);
+      expect(String(logged.mock.calls[0][0])).not.toContain('connection reset');
     });
 
     it('withholds an email address nobody has proved they own', async () => {

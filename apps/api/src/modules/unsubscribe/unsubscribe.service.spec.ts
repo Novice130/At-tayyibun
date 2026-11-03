@@ -29,6 +29,10 @@ describe('UnsubscribeService', () => {
     expect(service.oneClickUrl('pub1')).toMatch(/^https:\/\/example\.test\/api\/unsubscribe\?token=pub1\./);
   });
 
+  it('linksFor gives both URLs from one token', () => {
+    expect(service.linksFor('pub1')).toEqual({ pageUrl: service.pageUrl('pub1'), oneClickUrl: service.oneClickUrl('pub1') });
+  });
+
   it('records the opt-out and audits it once', async () => {
     db.select.mockReturnValueOnce(chain([{ id: 'user-1' }]));
     db.insert.mockReturnValueOnce(chain([{ id: 'unsub-1' }]));

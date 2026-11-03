@@ -11,6 +11,7 @@ import {
 import { useSession, signOut } from '@/lib/auth-client';
 import { useIncomingRequestCount } from '@/lib/hooks';
 import { ThemeToggle } from './ThemeToggle';
+import { PendingEmailBanner } from './PendingEmailBanner';
 
 export function Navbar() {
   const router = useRouter();
@@ -202,6 +203,8 @@ export function Navbar() {
           </div>
         </div>
       </div>
+      {/* Inside the fixed bar so it shows on every page with the nav. */}
+      <PendingEmailBanner />
       </nav>
 
       {/* Mobile menu.

@@ -1,10 +1,11 @@
 import { ExecutionContext } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { ThrottlerException, ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerException, ThrottlerModule } from '@nestjs/throttler';
 import { BLOCK_CREATE_LIMIT, ModerationController } from './moderation.controller';
+import { AppThrottlerGuard } from '../../common/guards/app-throttler.guard';
 
 describe('POST /blocks throttle', () => {
-  let guard: ThrottlerGuard;
+  let guard: AppThrottlerGuard;
 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -17,9 +18,10 @@ describe('POST /blocks throttle', () => {
           { name: 'long', ttl: 60000, limit: 100000 },
         ]),
       ],
-      providers: [ThrottlerGuard],
+      // The app-wide guard, which keys signed-in members by user ID.
+      providers: [AppThrottlerGuard],
     }).compile();
-    guard = moduleRef.get(ThrottlerGuard);
+    guard = moduleRef.get(AppThrottlerGuard);
     await guard.onModuleInit();
   });
 
@@ -33,6 +35,13 @@ describe('POST /blocks throttle', () => {
       getType: () => 'http',
     } as unknown as ExecutionContext);
   };
+
+  it('sets only the limit and window, leaving keying to the global guard', () => {
+    const handler = ModerationController.prototype.block;
+    expect(Reflect.getMetadata('THROTTLER:LIMITlong', handler)).toBe(30);
+    expect(Reflect.getMetadata('THROTTLER:TTLlong', handler)).toBe(3600000);
+    expect(Reflect.getMetadata('THROTTLER:TRACKERlong', handler)).toBeUndefined();
+  });
 
   it('caps each user, however many addresses they use', async () => {
     for (let i = 0; i < BLOCK_CREATE_LIMIT; i++) {

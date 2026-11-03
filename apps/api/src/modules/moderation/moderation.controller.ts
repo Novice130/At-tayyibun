@@ -5,12 +5,9 @@ import { ModerationService } from './moderation.service';
 import { BlockDto, ReportDto } from './dto';
 import { CurrentUser } from '../../common/decorators';
 
+// Counted per signed-in user by the app-wide AppThrottlerGuard, so the limit
+// survives a change of network and does not charge members who share one.
 export const BLOCK_CREATE_LIMIT = 30;
-
-// Keyed on the signed-in user rather than the address, so a limit survives a
-// change of network and does not charge members who share one. BetterAuthGuard
-// runs first and sets request.user on this route.
-const blockTracker = (req: Record<string, any>) => req.user?.id ?? req.ip;
 
 @ApiTags('Moderation')
 @ApiBearerAuth()
@@ -19,7 +16,7 @@ export class ModerationController {
   constructor(private readonly moderationService: ModerationService) {}
 
   @Post('blocks')
-  @Throttle({ long: { limit: BLOCK_CREATE_LIMIT, ttl: 3600000, getTracker: blockTracker } })
+  @Throttle({ long: { limit: BLOCK_CREATE_LIMIT, ttl: 3600000 } })
   @ApiOperation({ summary: 'Block a user by public ID (idempotent, 30/hour/user limit)' })
   @ApiResponse({ status: 201, description: 'Block recorded' })
   @ApiResponse({ status: 404, description: 'User not found' })

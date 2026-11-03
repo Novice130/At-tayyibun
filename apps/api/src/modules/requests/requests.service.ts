@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   BadRequestException,
   NotFoundException,
   ForbiddenException,
@@ -17,7 +18,7 @@ import { RequestStatus } from '../../common/types/role';
 import { RespondRequestDto } from './dto';
 import { hasCompleteProfile, isMutualMatch, toMatchSide } from '../profiles/marital-match';
 import type { MaritalStatus } from '../profiles/marital-match';
-import { CONTACT_LINK_TTL_DAYS, contactStateOf, isLiveRequest, isStalePending } from './request-state';
+import { CONTACT_LINK_TTL_DAYS, contactStateOf, isStalePending } from './request-state';
 
 export type SharedContact = { name?: string; phone?: string; email?: string };
 
@@ -51,6 +52,8 @@ const INBOX_PROFILE_COLUMNS = {
 
 @Injectable()
 export class RequestsService {
+  private readonly logger = new Logger(RequestsService.name);
+
   constructor(
     private readonly drizzle: DrizzleService,
     private readonly auditService: AuditService,
@@ -292,6 +295,8 @@ export class RequestsService {
       await claim({ status: RequestStatus.DENIED as any, respondedAt: new Date().toISOString() });
 
       try {
+        // Same as the approve branch: never mail the .invalid placeholder.
+        if (requester.emailIsPlaceholder) throw new Error('placeholder email');
         await this.emailService.sendRequestDeniedEmail(requester.email, requester.profile?.firstName || 'User');
       } catch (error) {
         console.error('Failed to send denial email:', error);
@@ -340,7 +345,6 @@ export class RequestsService {
       .select({
         request: infoRequests,
         otherPublicId: users.publicId,
-        otherSuspendedAt: users.suspendedAt,
         otherProfile: INBOX_PROFILE_COLUMNS,
       })
       .from(infoRequests)
@@ -349,8 +353,9 @@ export class RequestsService {
       .where(
         and(
           eq(infoRequests.targetId, userId),
-          // In SQL, not only below, so LIMIT counts rows the receiver can see:
-          // a declined, withdrawn or lapsed request is gone from their list.
+          // In SQL, so LIMIT counts rows the receiver can see: a declined,
+          // withdrawn or lapsed request is gone from their list. This is the
+          // only filter; isLiveRequest() is the same rule for a single row.
           or(
             eq(infoRequests.status, RequestStatus.APPROVED),
             and(eq(infoRequests.status, RequestStatus.PENDING), gt(infoRequests.expiresAt, new Date().toISOString())),
@@ -362,9 +367,7 @@ export class RequestsService {
       .limit(limit)
       .offset(offset);
 
-    return rows
-      .filter(({ request, otherSuspendedAt }) => isLiveRequest(request) && !otherSuspendedAt)
-      .map(({ request, otherPublicId, otherProfile }) => ({
+    return rows.map(({ request, otherPublicId, otherProfile }) => ({
         ...this.publicRow(request),
         requester: otherPublicId
           ? {
@@ -399,7 +402,10 @@ export class RequestsService {
       .from(infoRequests)
       .leftJoin(users, eq(infoRequests.targetId, users.id))
       .leftJoin(profiles, eq(profiles.userId, infoRequests.targetId))
-      .where(eq(infoRequests.requesterId, userId))
+      // A suspended target is hidden, as a suspended requester is from the
+      // incoming list. Suspension already deleted any PENDING row between them,
+      // so this hides only answered requests and frees no slot.
+      .where(and(eq(infoRequests.requesterId, userId), isNull(users.suspendedAt)))
       .orderBy(desc(infoRequests.createdAt), desc(infoRequests.id))
       .limit(limit)
       .offset(offset);
@@ -484,7 +490,16 @@ export class RequestsService {
       .returning({ id: infoRequests.id });
     if (!claimed) throw new GoneException('These contact details have already been viewed.');
 
-    await this.auditService.logInfoRequest(userId, 'CONTACT_VIEWED', target.id, requestId);
+    // The view is spent, so the contact must go back whatever happens next: a
+    // failed audit write turning this into a 500 would lose it for good, since
+    // a retry gets 410. Log the failure by kind only (a driver error can echo
+    // bound params).
+    try {
+      await this.auditService.logInfoRequest(userId, 'CONTACT_VIEWED', target.id, requestId);
+    } catch (auditError) {
+      const kind = auditError instanceof Error ? auditError.name : 'unknown error';
+      this.logger.error(`Audit entry CONTACT_VIEWED for request ${requestId} was not written (${kind})`);
+    }
     return contact;
   }
 

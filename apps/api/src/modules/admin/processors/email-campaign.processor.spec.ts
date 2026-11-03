@@ -21,15 +21,13 @@ describe('EmailCampaignProcessor', () => {
   let db: ReturnType<typeof createDbMock>;
   let email: { postalAddress: string | null; sendCampaignEmail: jest.Mock };
   let processor: EmailCampaignProcessor;
+  let links: jest.Mock;
 
   beforeEach(() => {
     db = createDbMock();
     email = { postalAddress: '1 Main St', sendCampaignEmail: jest.fn(async () => undefined) };
-    processor = new EmailCampaignProcessor(
-      email as any,
-      { db } as any,
-      { pageUrl: (p: string) => `page:${p}`, oneClickUrl: (p: string) => `click:${p}` } as any,
-    );
+    links = jest.fn((p: string) => ({ pageUrl: `page:${p}`, oneClickUrl: `click:${p}` }));
+    processor = new EmailCampaignProcessor(email as any, { db } as any, { linksFor: links } as any);
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
@@ -107,6 +105,41 @@ describe('EmailCampaignProcessor', () => {
     expect(db.update).toHaveBeenCalledTimes(2);
   });
 
+  it('signs each recipient token once, not once per link', async () => {
+    arrangeSend([MEMBER, { ...MEMBER, id: 'u2', publicId: 'pub2' }], 2);
+    db.insert
+      .mockReturnValueOnce(chain([{ id: 'claim-1' }]))
+      .mockReturnValueOnce(chain([{ id: 'claim-2' }]));
+    await processor.process(job(current));
+    expect(links.mock.calls).toEqual([['pub1'], ['pub2']]);
+  });
+
+  it.each([
+    ['reading recipients', () => {
+      db.select.mockReturnValueOnce(chain([CAMPAIGN])).mockImplementationOnce(() => { throw new Error('db down'); });
+    }],
+    ['claiming a recipient', () => {
+      db.select.mockReturnValueOnce(chain([CAMPAIGN])).mockReturnValueOnce(chain([MEMBER]));
+      db.insert.mockImplementationOnce(() => { throw new Error('db down'); });
+    }],
+  ])('a failure while %s returns the campaign to DRAFT and rethrows', async (_name, arrange) => {
+    arrange();
+    const calls: Record<string, unknown[][]> = {};
+    db.update.mockReturnValueOnce(recordingChain([], calls));
+    await expect(processor.process(job(current))).rejects.toThrow('db down');
+    expect(calls.set[0][0]).toEqual({ status: 'DRAFT' });
+    expect(renderSql(calls.where[0][0]).params).toEqual(['c1', 'SENDING']);
+  });
+
+  it('a re-dispatch after a failure skips everyone already claimed', async () => {
+    // Members claimed on the first run conflict on (campaign, user) and get nothing.
+    arrangeSend([MEMBER, { ...MEMBER, id: 'u2', publicId: 'pub2', email: 'n@example.com' }], 2);
+    db.insert.mockReturnValueOnce(chain([])).mockReturnValueOnce(chain([{ id: 'claim-2' }]));
+    await processor.process(job(current));
+    expect(email.sendCampaignEmail).toHaveBeenCalledTimes(1);
+    expect(email.sendCampaignEmail.mock.calls[0][0].to).toBe('n@example.com');
+  });
+
   describe('recipient query', () => {
     const toSql = (audience: any) => campaignRecipientsQuery(drizzle.mock(), audience).toSQL();
 
@@ -115,6 +148,10 @@ describe('EmailCampaignProcessor', () => {
       expect(sql).toContain('left join "unsubscribes" on "unsubscribes"."user_id" = "users"."id"');
       expect(sql).toContain('"unsubscribes"."id" is null');
       expect(sql).toContain('"users"."email_is_placeholder" = $');
+    });
+
+    it('excludes suspended members', () => {
+      expect(toSql({}).sql).toContain('"users"."suspended_at" is null');
     });
 
     it('applies the audience filters', () => {

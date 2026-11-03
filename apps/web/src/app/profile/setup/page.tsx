@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 import { MARITAL_OPTIONS, formatMaritalLine } from '@/lib/marital';
 import { useRequireSession } from '@/lib/hooks';
 import { authClient } from '@/lib/auth-client';
+import { readPendingEmail, writePendingEmail } from '@/lib/email-gate';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -152,6 +153,7 @@ export default function ProfileSetupPage() {
   const needsEmail = Boolean(
     (session?.user as { emailIsPlaceholder?: boolean } | undefined)?.emailIsPlaceholder,
   );
+  const userId = (session?.user as { id?: string } | undefined)?.id;
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>(EMPTY);
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | null>(null);
@@ -189,6 +191,17 @@ export default function ProfileSetupPage() {
       }
       if (cancelled) return;
       const p = data?.profile ?? null;
+
+      // A link already sent from this browser: show that address rather than
+      // an empty field, and do not mail it again just for pressing Next.
+      if (needsEmail) {
+        const pending = readPendingEmail(userId);
+        if (pending?.email) {
+          setEmail(pending.email);
+          setEmailLinkSentTo(pending.email);
+        }
+        if (p?.profileComplete) writePendingEmail(userId, { profileComplete: true });
+      }
 
       // A social sign-in lands here with ?new=1 to route profile-less accounts
       // into the wizard. Anyone who already finished it belongs in /browse —
@@ -357,8 +370,11 @@ export default function ProfileSetupPage() {
       const res = await authClient.changeEmail({ newEmail, callbackURL: '/profile/setup' });
       if (res.error) return res.error.message || 'Could not save that email address.';
       setEmailLinkSentTo(newEmail);
+      // Lets the email gate through once the profile is complete too (see
+      // lib/email-gate.ts); the Navbar banner then keeps asking to confirm.
+      writePendingEmail(userId, { email: newEmail });
       toast.success(
-        `Check ${newEmail} for a confirmation link. Your email is saved once you open it. If nothing arrives, the address may already be in use.`,
+        `Check ${newEmail} for a confirmation link. Your email is saved once you open it. If nothing arrives, the address may already be in use on another account, so try a different one.`,
         { duration: 10000 },
       );
       return '';
@@ -388,7 +404,7 @@ export default function ProfileSetupPage() {
       if (avatar) {
         await authClient.updateUser({ image: toAbsoluteAvatar(avatar) }).catch(() => {});
       }
-      await api.put('/profiles/me', {
+      const saved = await api.put('/profiles/me', {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         dob: form.dob,
@@ -429,6 +445,9 @@ export default function ProfileSetupPage() {
           nikahIntent: form.nikahIntent,
         },
       });
+      if (needsEmail && saved?.profile?.profileComplete) {
+        writePendingEmail(userId, { profileComplete: true });
+      }
       toast.success('Profile saved.');
       router.push('/profile');
     } catch (err: any) {

@@ -33,12 +33,21 @@ export class UnsubscribeService {
 
   /** The confirmation page linked from the email footer. */
   pageUrl(publicId: string): string {
-    return `${this.webUrl}/unsubscribe?token=${encodeURIComponent(this.tokenFor(publicId))}`;
+    return this.linksFor(publicId).pageUrl;
   }
 
   /** The RFC 8058 target mail clients POST to from their own unsubscribe button. */
   oneClickUrl(publicId: string): string {
-    return `${this.webUrl}/api/unsubscribe?token=${encodeURIComponent(this.tokenFor(publicId))}`;
+    return this.linksFor(publicId).oneClickUrl;
+  }
+
+  /** Both links from one signed token, so a campaign signs once per recipient. */
+  linksFor(publicId: string): { pageUrl: string; oneClickUrl: string } {
+    const token = encodeURIComponent(this.tokenFor(publicId));
+    return {
+      pageUrl: `${this.webUrl}/unsubscribe?token=${token}`,
+      oneClickUrl: `${this.webUrl}/api/unsubscribe?token=${token}`,
+    };
   }
 
   private publicIdFrom(token: unknown): string | null {
