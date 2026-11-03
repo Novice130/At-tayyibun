@@ -27,6 +27,21 @@ export const maskPhone = (value?: string | null) =>
   value && value.length > 4 ? `***${value.slice(-4)}` : "***";
 
 /**
+ * For logs: what kind of failure, never the message. Drizzle puts the query
+ * params (here the token hash and Firebase uid) in its error message.
+ */
+function describeDbError(err: unknown): string {
+  const parts: string[] = [];
+  for (let e: unknown = err, depth = 0; e && depth < 3; depth++) {
+    const name = e instanceof Error ? e.name : typeof e;
+    const code = (e as { code?: unknown }).code;
+    parts.push(typeof code === "string" ? `${name} ${code}` : name);
+    e = (e as { cause?: unknown }).cause;
+  }
+  return parts.join(" <- ") || "unknown";
+}
+
+/**
  * Release unverified claims on this number held by *other* accounts.
  *
  * The old signup form wrote whatever number the user typed straight into
@@ -104,23 +119,31 @@ export async function firebaseVerifyOTP(
     // through the verification table better-auth already owns. Without this, a
     // captured token can be replayed against updatePhoneNumber:true on an
     // *attacker's* session to move the phone claim onto their account.
+    //
+    // Fails closed: if the guard cannot run, the token cannot be shown to be
+    // fresh, so the verification is refused and the user simply retries.
     const identifier = `firebase-idt:${hashToken(code)}`;
     const adapter = ctx?.context?.internalAdapter;
-    if (adapter) {
-      try {
-        const seen = await adapter.findVerificationValue(identifier);
-        if (seen) {
-          console.warn("[phone-verify] Replay detected for token");
-          return false;
-        }
-        await adapter.createVerificationValue({
-          identifier,
-          value: decoded.uid,
-          expiresAt: new Date(Number(decoded.exp) * 1000),
-        });
-      } catch (err) {
-        console.error("[phone-verify] Failed to record verification replay guard:", err);
+    if (!adapter) {
+      console.error("[phone-verify] REFUSED: no adapter available to run the replay guard");
+      return false;
+    }
+    try {
+      const seen = await adapter.findVerificationValue(identifier);
+      if (seen) {
+        console.warn("[phone-verify] Replay detected for token");
+        return false;
       }
+      await adapter.createVerificationValue({
+        identifier,
+        value: decoded.uid,
+        expiresAt: new Date(Number(decoded.exp) * 1000),
+      });
+    } catch (err) {
+      console.error(
+        `[phone-verify] REFUSED: replay guard could not reach the database (${describeDbError(err)})`,
+      );
+      return false;
     }
   } else {
     // Without Firebase there is nothing to check the code against, and this
