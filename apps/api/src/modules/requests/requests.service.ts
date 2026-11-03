@@ -314,13 +314,22 @@ export class RequestsService {
       throw new BadRequestException('Only pending requests can be cancelled');
     }
 
-    // Audit before the delete so the row still exists for the log's context.
-    await this.auditService.logInfoRequest(userId, 'REQUEST_CANCELLED', request.targetId, requestId);
-
     // Hard-delete rather than adding a CANCELLED status: the target never acted,
     // so there is nothing to preserve on the row, and it keeps the partial
     // unique index on (requester_id) WHERE status = 'PENDING' free immediately.
-    await db.delete(infoRequests).where(eq(infoRequests.id, requestId));
+    // The status guard stops a cancel that races an approve from deleting the
+    // now-approved request (and the contact link the requester was just sent).
+    const deleted = await db
+      .delete(infoRequests)
+      .where(and(eq(infoRequests.id, requestId), eq(infoRequests.status, RequestStatus.PENDING)))
+      .returning({ id: infoRequests.id });
+    if (deleted.length === 0) {
+      throw new BadRequestException('This request has already been processed');
+    }
+
+    // audit_logs has no foreign key to info_requests, so logging after the
+    // delete is safe and records only cancels that actually happened.
+    await this.auditService.logInfoRequest(userId, 'REQUEST_CANCELLED', request.targetId, requestId);
 
     return { success: true };
   }

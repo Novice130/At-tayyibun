@@ -327,6 +327,29 @@ describe('RequestsService', () => {
     });
   });
 
+  describe('cancelRequest', () => {
+    const pending = { id: 'req-1', requesterId: REQUESTER_ID, targetId: TARGET_ID, status: 'PENDING', expiresAt: FUTURE };
+
+    it('deletes only while still PENDING, then audits', async () => {
+      db.select.mockReturnValueOnce(chain([pending]));
+      const calls: Record<string, unknown[][]> = {};
+      db.delete.mockReturnValueOnce(recordingChain([{ id: 'req-1' }], calls));
+      await expect(service.cancelRequest(REQUESTER_ID, 'req-1')).resolves.toEqual({ success: true });
+      const where = renderSql(calls.where[0][0]);
+      expect(where.sql).toContain('"info_requests"."status" = $');
+      expect(where.params).toEqual(expect.arrayContaining(['req-1', 'PENDING']));
+      expect(audit.logInfoRequest).toHaveBeenCalledWith(REQUESTER_ID, 'REQUEST_CANCELLED', TARGET_ID, 'req-1');
+    });
+
+    it('a cancel that loses to an approve gets a 400 and audits nothing', async () => {
+      db.select.mockReturnValueOnce(chain([pending]));
+      db.delete.mockReturnValueOnce(chain([]));
+      const err = await service.cancelRequest(REQUESTER_ID, 'req-1').catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(audit.logInfoRequest).not.toHaveBeenCalled();
+    });
+  });
+
   describe('respondToRequest', () => {
     const pending = { id: 'req-1', requesterId: REQUESTER_ID, targetId: TARGET_ID, status: 'PENDING', expiresAt: FUTURE };
     const requester = { id: REQUESTER_ID, email: 'r@example.com', profiles: [profile({ firstName: 'Omar' })] };
