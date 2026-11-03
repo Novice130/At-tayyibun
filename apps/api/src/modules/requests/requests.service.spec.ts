@@ -319,6 +319,13 @@ describe('RequestsService', () => {
       arrange(target({ isPhoneVerified: false, emailIsPlaceholder: true }));
       await expect(service.respondToRequest(TARGET_ID, 'req-1', { approved: true })).rejects.toBeInstanceOf(BadRequestException);
     });
+
+    it('refuses sharing only an email address nobody has proved they own', async () => {
+      arrange(target({ emailVerified: false }));
+      await expect(
+        service.respondToRequest(TARGET_ID, 'req-1', { approved: true, shareItems: ['email'] }),
+      ).rejects.toThrow('There is no verified contact to share on this account.');
+    });
   });
 
   describe('revealContact', () => {
@@ -335,6 +342,7 @@ describe('RequestsService', () => {
     const target = {
       id: TARGET_ID,
       email: 't@example.com',
+      emailVerified: true,
       phone: '+13125550199',
       isPhoneVerified: true,
       profiles: [profile({ biodataJsonEnc: GUARDIAN })],
@@ -356,6 +364,11 @@ describe('RequestsService', () => {
         email: 't@example.com',
       });
       expect(audit.logInfoRequest).toHaveBeenCalledWith(REQUESTER_ID, 'CONTACT_VIEWED', TARGET_ID, 'req-1');
+    });
+
+    it('withholds an email address nobody has proved they own', async () => {
+      arrange(approved, { targetRow: { ...target, emailVerified: false } });
+      await expect(service.revealContact(REQUESTER_ID, 'req-1')).resolves.toEqual({ phone: '+13125550199' });
     });
 
     it('returns the guardian contact, not the member', async () => {

@@ -31,20 +31,23 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   // /auth/get-session returns null until verifyOtp completes. Allow it through
   // without requiring a full session.
   const isChallengePage = pathname === '/admin/security/challenge';
-  // Once session loads (non-null), 2FA is already verified — better-auth keeps
-  // partial 2FA sessions hidden from /auth/get-session until verifyOtp succeeds.
-  const mfaGateActive = !isMfaPage && role === 'SUPER_ADMIN' && !twoFactorEnabled;
+  // The API refuses every admin route unless the account is enrolled and this
+  // session passed a second factor. A phone or Google session has not, even for
+  // an enrolled admin. /admin/security stays open so enrolment is always possible.
+  const sessionVerified = (session?.session as any)?.twoFactorVerified === true;
+  const mfaSatisfied = twoFactorEnabled && sessionVerified;
+  const mfaGateActive = !isMfaPage && isAdmin && !mfaSatisfied;
 
   useEffect(() => {
     if (isPending) return;
     if (isChallengePage) return;
     if (!session) { router.replace('/login'); return; }
     if (!isAdmin) { router.replace('/browse'); return; }
-    if (role === 'SUPER_ADMIN' && !twoFactorEnabled && !isMfaPage) {
+    if (!mfaSatisfied && !isMfaPage) {
       router.replace('/admin/security/setup');
       return;
     }
-  }, [session, isPending, isAdmin, role, twoFactorEnabled, isMfaPage, isChallengePage, pathname, router]);
+  }, [session, isPending, isAdmin, mfaSatisfied, isMfaPage, isChallengePage, pathname, router]);
 
   if (isChallengePage) return <>{children}</>;
   if (isPending || !session || !isAdmin || mfaGateActive) {

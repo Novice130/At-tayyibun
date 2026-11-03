@@ -22,6 +22,10 @@ const MAX_AUTH_AGE_SECONDS = 600;
 const hashToken = (token: string) =>
   createHash("sha256").update(token).digest("hex");
 
+/** For logs: enough to tell two numbers apart, not enough to contact anyone. */
+export const maskPhone = (value?: string | null) =>
+  value && value.length > 4 ? `***${value.slice(-4)}` : "***";
+
 /**
  * Release unverified claims on this number held by *other* accounts.
  *
@@ -82,7 +86,7 @@ export async function firebaseVerifyOTP(
     // before it ever asks Firebase for a code.
     if (!decoded.phone_number || decoded.phone_number !== phoneNumber) {
       console.warn(
-        `[phone-verify] Phone number mismatch: token=${decoded.phone_number}, claimed=${phoneNumber}`,
+        `[phone-verify] Phone number mismatch: token=${maskPhone(decoded.phone_number)}, claimed=${maskPhone(phoneNumber)}`,
       );
       return false;
     }
@@ -119,12 +123,16 @@ export async function firebaseVerifyOTP(
       }
     }
   } else {
-    console.warn(
-      "[phone-verify] Firebase Admin is NOT configured on this server! " +
-        "FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY must be set.",
+    // Without Firebase there is nothing to check the code against, and this
+    // endpoint signs a session-less caller in as the owner of the number. That
+    // would hand out any account to anyone, so fail closed in every environment:
+    // staging holds a copy of real members too.
+    console.error(
+      "[phone-verify] REFUSED: Firebase Admin is not configured " +
+        "(FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY). " +
+        "Phone verification and phone sign-in are disabled until it is.",
     );
-    // If Firebase Admin credentials are not set on server, verify code format
-    if (code.length < 10) return false;
+    return false;
   }
 
   // Must happen before the plugin's own lookup/duplicate check, which runs

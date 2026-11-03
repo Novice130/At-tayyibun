@@ -148,6 +148,7 @@ const toAbsoluteAvatar = (path: string) =>
 export default function ProfileSetupPage() {
   const router = useRouter();
   const { session, loading: sessionLoading } = useRequireSession();
+  const [emailLinkSentTo, setEmailLinkSentTo] = useState('');
   const needsEmail = Boolean(
     (session?.user as { emailIsPlaceholder?: boolean } | undefined)?.emailIsPlaceholder,
   );
@@ -341,23 +342,25 @@ export default function ProfileSetupPage() {
   };
 
   /**
-   * Swap the placeholder address for the real one.
+   * Ask to replace the placeholder address with a real one.
    *
-   * better-auth answers /change-email with `{ status: true }` even when the
-   * address already belongs to someone else — deliberately, so the endpoint
-   * cannot be used to enumerate accounts. That means success is not proof the
-   * change happened: re-read the session and check.
+   * The address changes only when the link mailed to it is opened, so the wizard
+   * carries on meanwhile. better-auth answers `{ status: true }` and sends nothing
+   * when the address belongs to someone else, deliberately, so that this endpoint
+   * cannot be used to enumerate accounts. The wording has to allow for that.
    */
   const saveEmail = async (): Promise<string> => {
+    const newEmail = email.trim().toLowerCase();
+    if (newEmail === emailLinkSentTo) return '';
     setSavingEmail(true);
     try {
-      const res = await authClient.changeEmail({ newEmail: email.trim().toLowerCase() });
+      const res = await authClient.changeEmail({ newEmail, callbackURL: '/profile/setup' });
       if (res.error) return res.error.message || 'Could not save that email address.';
-      const fresh = await authClient.getSession();
-      const user = fresh?.data?.user as { emailIsPlaceholder?: boolean } | undefined;
-      if (user?.emailIsPlaceholder) {
-        return 'That email address is already registered to another account.';
-      }
+      setEmailLinkSentTo(newEmail);
+      toast.success(
+        `Check ${newEmail} for a confirmation link. Your email is saved once you open it. If nothing arrives, the address may already be in use.`,
+        { duration: 10000 },
+      );
       return '';
     } catch {
       return 'Could not save that email address. Please try again.';

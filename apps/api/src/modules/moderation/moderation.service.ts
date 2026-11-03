@@ -3,7 +3,7 @@ import { and, desc, eq, or, sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { DrizzleService } from '../../db/drizzle.service';
-import { blocks, reports, infoRequests, session, users, skipReasons, messages, emailCampaigns, campaignRecipients, auditLogs } from '../../db/schema';
+import { blocks, reports, infoRequests, session, users, profiles, skipReasons, messages, emailCampaigns, campaignRecipients, auditLogs } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
 import { escapeHtml } from '../../common/utils/html';
@@ -37,7 +37,7 @@ export class ModerationService {
 
   private async resolveUserByPublicId(publicId: string) {
     const [user] = await this.drizzle.db
-      .select({ id: users.id, publicId: users.publicId, email: users.email, name: users.name })
+      .select({ id: users.id, publicId: users.publicId })
       .from(users)
       .where(eq(users.publicId, publicId))
       .limit(1);
@@ -98,24 +98,30 @@ export class ModerationService {
   }
 
   async listBlocks(blockerId: string) {
+    // Blocking only needs a public id, so nothing here may go beyond what the
+    // member's public profile shows. No email (a phone-first address embeds the
+    // phone number) and no users.name (it can be a full name and ignores hideName).
     const rows = await this.drizzle.db
       .select({
         createdAt: blocks.createdAt,
         publicId: users.publicId,
-        name: users.name,
-        email: users.email,
+        firstName: profiles.firstName,
+        publicFields: profiles.publicFields,
       })
       .from(blocks)
       .innerJoin(users, eq(blocks.blockedId, users.id))
+      .leftJoin(profiles, eq(profiles.userId, users.id))
       .where(eq(blocks.blockerId, blockerId))
       .orderBy(desc(blocks.createdAt));
 
-    return rows.map((r) => ({
-      targetPublicId: r.publicId,
-      name: r.name,
-      email: r.email,
-      createdAt: r.createdAt,
-    }));
+    return rows.map((r) => {
+      const publicFields = (r.publicFields ?? {}) as Record<string, unknown>;
+      return {
+        targetPublicId: r.publicId,
+        name: publicFields['hideName'] ? null : r.firstName ?? null,
+        createdAt: r.createdAt,
+      };
+    });
   }
 
   async report(reporterId: string, targetPublicId: string, reason: string, details?: string) {

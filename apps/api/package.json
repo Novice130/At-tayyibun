@@ -35,7 +35,7 @@
     "@sendgrid/mail": "^8.1.4",
     "@sentry/nestjs": "^11.9.0",
     "argon2": "^0.45.1",
-    "better-auth": "^1.6.27",
+    "better-auth": "^1.7.15",
     "bullmq": "^5.74.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",

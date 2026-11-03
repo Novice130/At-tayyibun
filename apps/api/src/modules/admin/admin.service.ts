@@ -117,24 +117,38 @@ export class AdminService {
 
   async getUser(identifier: string) {
     const db = this.drizzle.db;
+    // Explicit allowlist: exactly what the admin inspector reads. Never return
+    // the whole row — users carries the legacy password_hash and token columns,
+    // and profiles carries encrypted fields (lastNameEnc, bioEnc, biodataJsonEnc).
     const user = await db.query.users.findFirst({
       where: or(eq(users.id, identifier), eq(users.publicId, identifier)),
+      columns: {
+        id: true,
+        publicId: true,
+        name: true,
+        email: true,
+        emailIsPlaceholder: true,
+        phone: true,
+        isPhoneVerified: true,
+        role: true,
+        membershipTier: true,
+        isVerified: true,
+        suspendedAt: true,
+        rankBoost: true,
+        createdAt: true,
+      },
       with: {
-        profiles: true,
-        infoRequests_requesterId: { limit: 10, orderBy: (t, { desc }) => [desc(t.createdAt)] },
-        infoRequests_targetId: { limit: 10, orderBy: (t, { desc }) => [desc(t.createdAt)] },
+        profiles: { columns: { firstName: true } },
       },
     });
 
     if (!user) throw new NotFoundException('User not found');
 
-    // Normalize introspected relation names to the shape the frontend consumed before.
-    const { profiles: profileRows, infoRequests_requesterId, infoRequests_targetId, ...rest } = user as any;
+    // Normalize the introspected relation name to the shape the frontend consumes.
+    const { profiles: profileRows, ...rest } = user as any;
     return {
       ...rest,
       profile: Array.isArray(profileRows) ? profileRows[0] ?? null : profileRows ?? null,
-      sentRequests: infoRequests_requesterId ?? [],
-      receivedRequests: infoRequests_targetId ?? [],
     };
   }
 

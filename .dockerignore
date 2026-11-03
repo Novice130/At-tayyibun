@@ -24,16 +24,28 @@ coverage
 *.swp
 
 # Env / secrets (never ship to image)
+# A bare pattern matches the build-context root only, hence the **/ forms.
 .env
 .env.*
+**/.env*
 !.env.example
 *.p8
+**/*.p8
 *.pem
+**/*.pem
 *.key
+**/*.key
 *.jks
+**/*.jks
 key.properties
+**/key.properties
 service-account.json
+**/service-account.json
 *firebase-adminsdk*.json
+**/*firebase-adminsdk*.json
+**/*firebase*admin*.json
+opencode-mcp-export.json
+**/opencode-mcp-export.json
 
 # Logs / temp
 *.log

@@ -19,13 +19,38 @@ export class RolesGuard implements CanActivate {
     const { user } = request;
     if (!user) throw new ForbiddenException('Access denied');
 
-    // Better-auth only issues a session_token cookie after OTP verify.
-    // If we have a session here at all, 2FA was satisfied — no need to
-    // re-check session.twoFactorVerified (better-auth never writes it).
-    if (user.role === Role.SUPER_ADMIN) return true;
+    if (user.role !== Role.SUPER_ADMIN && !requiredRoles.includes(user.role)) {
+      throw new ForbiddenException('Insufficient permissions');
+    }
 
-    const hasRole = requiredRoles.includes(user.role);
-    if (!hasRole) throw new ForbiddenException('Insufficient permissions');
+    if (user.role === Role.ADMIN || user.role === Role.SUPER_ADMIN) {
+      this.assertSecondFactor(user, request.session);
+    }
     return true;
+  }
+
+  /**
+   * The server-side half of admin 2FA. Better Auth runs its challenge only on
+   * /sign-in/email, /sign-in/username and /sign-in/phone-number, so a session
+   * from /phone-number/verify, a Google or Apple callback, or an email link
+   * exists without a second factor having been asked for. auth.ts stamps
+   * session.twoFactorVerified on the sessions that did pass one.
+   *
+   * Enrolment cannot be locked out by this: the /auth/two-factor/* endpoints are
+   * served by Better Auth in the web app and never reach this guard.
+   */
+  private assertSecondFactor(user: { twoFactorEnabled?: boolean }, session?: { twoFactorVerified?: boolean | null }) {
+    if (user.twoFactorEnabled !== true) {
+      throw new ForbiddenException({
+        message: 'Set up two-factor authentication to use the admin panel.',
+        code: 'ADMIN_2FA_NOT_ENROLLED',
+      });
+    }
+    if (session?.twoFactorVerified !== true) {
+      throw new ForbiddenException({
+        message: 'Sign in with your email, password and verification code to use the admin panel.',
+        code: 'ADMIN_2FA_SESSION_REQUIRED',
+      });
+    }
   }
 }

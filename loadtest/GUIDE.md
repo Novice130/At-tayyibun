@@ -50,11 +50,10 @@ means in plain words, and keep notes.
    - Reading real profiles through browse is allowed. Do not print or save
      response bodies from them.
    - Do not sign in as, or modify, any account that was copied from production.
-5. **No SMS.** Phone verification on staging works only because the Firebase
-   admin variables are unset there (see "Phone gate" below). If
-   `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY`
-   are set on staging, stop: the journey cannot be automated and must not be
-   forced.
+5. **No SMS.** Use only Firebase test phone numbers, which return a fixed code
+   and send nothing (see "Phone gate" below). Never automate a real number. If
+   no test numbers are set up for the staging Firebase project, stop: the
+   journey cannot be automated and must not be forced.
 6. **Start small.** One user first. Raise load only after the journey passes
    cleanly at the level below.
 7. **Stop if something outside staging reacts**: a real email arrives, a
@@ -112,18 +111,19 @@ API and better-auth's own origin check. Confirm by hand in step 2.
 `GET /api/session/me`, `POST /api/session/logout` and `DELETE /api/users/me`.
 A fake user who only signs up can do nothing else.
 
-In production the "code" sent to `POST /auth/phone-number/verify` is a Firebase
-ID token obtained after an SMS. When the Firebase admin variables are unset,
-`apps/web/src/lib/phone-verify.ts` accepts any code of 10 or more characters.
-Staging is designed with those variables unset, and that is the only way a
-Locust user gets through the gate. Two consequences:
+The "code" sent to `POST /auth/phone-number/verify` is a Firebase ID token
+obtained after an SMS. When the Firebase admin variables are unset,
+`apps/web/src/lib/phone-verify.ts` refuses every code, in every environment, so
+staging does not accept any code. For a Locust user to pass the gate, set the
+Firebase admin variables on staging and add test phone numbers in the Firebase
+console (Authentication, Sign-in method, Phone). Each test number has a fixed code
+and sends no SMS; use numbers from the fictional range above. A token is valid
+for 10 minutes and works once. Firebase caps how many test numbers a project can
+have, so check that cap against the size of the user pool first.
 
-- Always call verify while signed in, with `updatePhoneNumber: true`. Without a
-  session the same endpoint signs you in as whoever owns that number, which on
-  a copied database could be a real member.
-- This is a fail-open path. If production ever starts without the Firebase
-  variables, anyone can claim any number. It is a finding for the owner, not
-  something to rely on outside staging.
+Always call verify while signed in, with `updatePhoneNumber: true`. Without a
+session the same endpoint signs you in as whoever owns that number, which on a
+copied database could be a real member.
 
 **Email.** With `RESEND_API_KEY` unset, the emails sent on "request sent",
 "approved" and "denied" fail inside a try/catch and the request still succeeds

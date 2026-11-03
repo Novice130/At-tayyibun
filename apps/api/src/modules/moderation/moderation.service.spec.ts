@@ -75,13 +75,40 @@ describe('ModerationService', () => {
   });
 
   describe('listBlocks', () => {
-    it('maps joined rows onto the public shape', async () => {
+    const row = (over = {}) => ({
+      createdAt: '2026-08-20T00:00:00.000Z',
+      publicId: 'pub_a',
+      firstName: 'Aisha',
+      publicFields: {},
+      ...over,
+    });
+
+    it('returns the first name and never the email', async () => {
+      db.select.mockReturnValueOnce(chain([row()]));
+      const [blocked] = await service.listBlocks(VIEWER);
+      expect(blocked).toEqual({ targetPublicId: 'pub_a', name: 'Aisha', createdAt: '2026-08-20T00:00:00.000Z' });
+      expect(blocked).not.toHaveProperty('email');
+    });
+
+    it('copies nothing else across, even if the row carries it', async () => {
       db.select.mockReturnValueOnce(
-        chain([{ createdAt: '2026-08-20T00:00:00.000Z', publicId: 'pub_a', name: 'A', email: 'a@x.com' }]),
+        chain([row({ email: '+15555550100@phone.attayyibun.invalid', name: 'Aisha Khan' })]),
       );
-      await expect(service.listBlocks(VIEWER)).resolves.toEqual([
-        { targetPublicId: 'pub_a', name: 'A', email: 'a@x.com', createdAt: '2026-08-20T00:00:00.000Z' },
-      ]);
+      const [blocked] = await service.listBlocks(VIEWER);
+      expect(JSON.stringify(blocked)).not.toContain('invalid');
+      expect(blocked.name).toBe('Aisha');
+    });
+
+    it('hides the name when the member chose hideName', async () => {
+      db.select.mockReturnValueOnce(chain([row({ publicFields: { hideName: true } })]));
+      const [blocked] = await service.listBlocks(VIEWER);
+      expect(blocked.name).toBeNull();
+    });
+
+    it('returns no name for an account without a profile', async () => {
+      db.select.mockReturnValueOnce(chain([row({ firstName: null, publicFields: null })]));
+      const [blocked] = await service.listBlocks(VIEWER);
+      expect(blocked.name).toBeNull();
     });
   });
 

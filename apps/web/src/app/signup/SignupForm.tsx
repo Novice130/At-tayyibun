@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, Users, Loader, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
-import { signUp, useSession } from '@/lib/auth-client';
+import { signIn, signUp, useSession } from '@/lib/auth-client';
 import { toE164, formatPhoneInput } from '@/lib/phone';
 
 
@@ -163,9 +163,20 @@ export default function SignupForm() {
         throw new Error(authError.message);
       }
 
-      // requireEmailVerification: true — signUp does NOT auto-create a session.
-      // Stash the pre-seed; /profile/setup will drain it after the user clicks
-      // the verification link and autoSignInAfterVerification creates the cookie.
+      // Sign-up answers the same whether or not the address is already registered
+      // and creates no session, so sign in as a separate step. Failure here is the
+      // one case where someone already holds the address with another password.
+      const { error: signInError } = await signIn.email({
+        email: formData.email,
+        password: formData.password,
+      });
+      if (signInError) {
+        throw new Error(
+          "We couldn't finish creating your account. If you already have one, please sign in or reset your password.",
+        );
+      }
+
+      // Stash the pre-seed for /profile/setup to drain.
       //
       // localStorage, not sessionStorage: the verification link is opened from
       // an email client, which almost always means a NEW tab — and sometimes a

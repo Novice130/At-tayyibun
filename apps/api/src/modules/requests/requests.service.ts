@@ -431,7 +431,7 @@ export class RequestsService {
 
   /** The approver's chosen contact, limited to the items they allowed. */
   private readContact(
-    target: { isPhoneVerified?: boolean; phone?: string | null; email: string; emailIsPlaceholder?: boolean; profile?: any },
+    target: { isPhoneVerified?: boolean; phone?: string | null; email: string; emailVerified?: boolean; emailIsPlaceholder?: boolean; profile?: any },
     source: 'GUARDIAN' | 'SELF',
     allowedShares: string[],
   ): SharedContact {
@@ -462,9 +462,11 @@ export class RequestsService {
 
     // A phone-first account holds a +<e164>@phone.attayyibun.invalid placeholder
     // until it supplies a real address; handing that over as "their email" would
-    // be worse than sharing nothing. Same for a phone nobody has verified.
+    // be worse than sharing nothing. Same for a phone nobody has verified, and for
+    // an email address whose owner never confirmed it: sign-up does not check it,
+    // so it could belong to someone else entirely.
     if (allowedShares.includes('phone') && target.isPhoneVerified && target.phone) contact.phone = target.phone;
-    if (allowedShares.includes('email') && !target.emailIsPlaceholder) contact.email = target.email;
+    if (allowedShares.includes('email') && target.emailVerified && !target.emailIsPlaceholder) contact.email = target.email;
     return contact;
   }
 

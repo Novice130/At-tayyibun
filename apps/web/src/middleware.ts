@@ -28,11 +28,15 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith('/admin')) {
-    if (ADMIN_EXEMPT.some((p) => pathname.startsWith(p))) {
+    // Only this middleware may set x-admin-exempt. Anything a client sent is
+    // dropped first, or the header would switch off the admin layout's gate.
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.delete('x-admin-exempt');
+
+    if (ADMIN_EXEMPT.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
       // Tell the server admin layout to skip the authoritative session gate:
       // the 2FA challenge page renders during a partial session where
       // get-session returns null until verifyOtp completes.
-      const requestHeaders = new Headers(request.headers);
       requestHeaders.set('x-admin-exempt', '1');
       return NextResponse.next({
         request: {
@@ -45,7 +49,7 @@ export function middleware(request: NextRequest) {
     if (!hasSessionCookie(request)) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   if (PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
