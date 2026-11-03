@@ -121,11 +121,41 @@ describe('ResendSender', () => {
     await expect(sender.run(unkeyed, { kind: 'transactional', idempotent: false })).rejects.toThrow();
     expect(unkeyed).toHaveBeenCalledTimes(1);
 
-    const keyed = jest.fn().mockRejectedValueOnce(new Error('ECONNRESET')).mockResolvedValueOnce(ok);
+    // The SDK returns a network failure as application_error with no status.
+    const keyed = jest.fn().mockResolvedValueOnce(boom).mockResolvedValueOnce(ok);
     const p = sender.run(keyed, { kind: 'campaign', idempotent: true });
     await jest.advanceTimersByTimeAsync(1000);
     await expect(p).resolves.toEqual(ok);
     expect(keyed).toHaveBeenCalledTimes(2);
+  });
+
+  it('rethrows an exception from send unchanged and never retries it', async () => {
+    const sender = new ResendSender({ rps: 100, baseDelayMs: 10 });
+    const send = jest.fn(async () => {
+      throw new Error('RESEND_API_KEY not configured; email sending disabled');
+    });
+    await expect(sender.run(send, { kind: 'campaign', idempotent: true })).rejects.toThrow('RESEND_API_KEY not configured');
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails fast, without sending, when the next slot starts after the deadline', async () => {
+    const sender = new ResendSender({ rps: 2 });
+    const send = jest.fn(async () => ok);
+    // Hold the next 3 slots (0, 500, 1000 ms).
+    const queued = Promise.all([1, 2, 3].map(() => sender.run(send, { kind: 'transactional', idempotent: false })));
+    const late = sender.run(send, { kind: 'transactional', idempotent: false, deadline: Date.now() + 1200 });
+    await expect(late).rejects.toMatchObject({ code: 'wait_budget_exceeded' });
+    await jest.advanceTimersByTimeAsync(2000);
+    await queued;
+    expect(send).toHaveBeenCalledTimes(3);
+  });
+
+  it('gives up instead of waiting out a Retry-After past the deadline', async () => {
+    const sender = new ResendSender({ rps: 100 });
+    const send = jest.fn(async () => limited({ 'retry-after': '20' }));
+    const p = sender.run(send, { kind: 'transactional', idempotent: false, deadline: Date.now() + 5000 });
+    await expect(p).rejects.toMatchObject({ code: 'wait_budget_exceeded' });
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -18,6 +18,12 @@ export interface TemplatedEmailOptions {
   variables: Record<string, string>;
 }
 
+/**
+ * Longest a transactional send may wait for a slot or a 429 backoff. These
+ * sends run inside a member's or admin's HTTP request.
+ */
+export const TRANSACTIONAL_WAIT_BUDGET_MS = 5000;
+
 export const POSTAL_ADDRESS_MISSING =
   'Campaign email needs a postal address: set EMAIL_POSTAL_ADDRESS on the API. Nothing was sent.';
 
@@ -70,17 +76,19 @@ export class EmailService {
    */
   async sendEmail(options: EmailOptions): Promise<void> {
     try {
+      // Resolved outside the limiter so a missing key fails at once, by name.
+      const resend = this.resend;
       // No idempotency key: only 429s (rejected before processing) are retried.
       await this.sender.run(
         () =>
-          this.resend.emails.send({
+          resend.emails.send({
             from: this.from,
             to: options.to,
             subject: options.subject,
             html: options.html,
             text: options.text || this.stripHtml(options.html),
           }),
-        { kind: 'transactional', idempotent: false },
+        { kind: 'transactional', idempotent: false, deadline: Date.now() + TRANSACTIONAL_WAIT_BUDGET_MS },
       );
     } catch (error) {
       console.error('Email send error:', error);
@@ -127,8 +135,9 @@ export class EmailService {
     // Throws ResendSendError (message "Resend refused the email: <code>") on a
     // refusal or when retries run out; the caller then leaves the member unsent.
     const key = options.idempotencyKey;
+    const resend = this.resend; // throws now, unretried, if RESEND_API_KEY is unset
     await this.sender.run(
-      () => this.resend.emails.send(payload, key ? { idempotencyKey: key } : undefined),
+      () => resend.emails.send(payload, key ? { idempotencyKey: key } : undefined),
       { kind: 'campaign', idempotent: !!key },
     );
   }

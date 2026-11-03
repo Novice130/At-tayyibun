@@ -4,16 +4,25 @@
  * Design: one in-process scheduler per API instance (Resend allows 2 requests
  * per second per team by default). Every call reserves a start slot; slots are
  * at least `intervalMs` apart. Campaign sends additionally keep a wider gap
- * from each other (they use CAMPAIGN_SHARE of the rate), so a transactional
- * email, such as a password reset, always finds a free slot within one
- * interval and a campaign cannot starve it. This is only correct while a
- * single API instance sends; with more instances, divide the rate between them
- * through RESEND_RATE_LIMIT_RPS.
+ * from each other (they use CAMPAIGN_SHARE of the rate), so this process's
+ * transactional emails find a free slot within one interval and a campaign
+ * cannot starve them. The limiter only sees this process: the web app sends
+ * its auth emails (password reset, verification, admin OTP) to Resend
+ * directly, inside the 1 - CAMPAIGN_SHARE headroom, and retries its own 429s.
+ * With more than one API instance, divide the rate between them through
+ * RESEND_RATE_LIMIT_RPS.
  *
  * Retry: HTTP 429 (not quota errors) is always retried, since Resend rejected
  * the request before processing it. 5xx and network errors are ambiguous (the
  * email may have gone out), so they are retried only when an idempotency key
  * is set, which makes Resend return the first result instead of sending twice.
+ * An exception thrown by `send` is not a Resend response (the SDK returns
+ * network failures as values): it is a configuration or programming error, so
+ * it is rethrown unchanged and never retried.
+ *
+ * A caller waiting inside an HTTP request passes `deadline`: when the next
+ * slot or backoff would end after it, the send fails with wait_budget_exceeded
+ * instead of holding the request open.
  */
 
 export type SendKind = 'campaign' | 'transactional';
@@ -106,14 +115,20 @@ export class ResendSender {
     return 1000 / this.opts.rps;
   }
 
-  /** Reserve the next start slot synchronously (no await between read and write), then wait for it. */
-  private async acquire(kind: SendKind): Promise<void> {
+  /**
+   * Reserve the next start slot synchronously (no await between read and
+   * write), then wait for it. Returns false, reserving nothing, when the slot
+   * starts after `deadline`.
+   */
+  private async acquire(kind: SendKind, deadline?: number): Promise<boolean> {
     const now = Date.now();
     let start = Math.max(now, this.nextSlot);
     if (kind === 'campaign') start = Math.max(start, this.lastCampaignSlot + this.intervalMs / CAMPAIGN_SHARE);
+    if (deadline !== undefined && start > deadline) return false;
     this.nextSlot = start + this.intervalMs;
     if (kind === 'campaign') this.lastCampaignSlot = start;
     if (start > now) await sleep(start - now);
+    return true;
   }
 
   /** Everyone waits out a server-announced rate limit. */
@@ -134,18 +149,15 @@ export class ResendSender {
    */
   async run(
     send: () => Promise<ResendResult>,
-    opts: { kind: SendKind; idempotent: boolean },
+    opts: { kind: SendKind; idempotent: boolean; deadline?: number },
   ): Promise<ResendResult> {
+    const outOfTime = (attempt: number) =>
+      new ResendSendError('Resend rate limit: no send slot within the wait budget', attempt, 'wait_budget_exceeded');
     for (let attempt = 1; ; attempt++) {
-      await this.acquire(opts.kind);
+      if (!(await this.acquire(opts.kind, opts.deadline))) throw outOfTime(attempt);
 
-      let result: ResendResult;
-      try {
-        result = await send();
-      } catch (err) {
-        // Thrown before or during the request: ambiguous, like a network error.
-        result = { error: { name: 'application_error', statusCode: null, message: String(err) } };
-      }
+      // A throw propagates unchanged: see the header comment.
+      const result = await send();
       if (!result.error) return result;
 
       const failure = classify(result.error);
@@ -155,6 +167,7 @@ export class ResendSender {
         throw new ResendSendError(`Resend refused the email: ${code}`, attempt, code);
       }
       const wait = this.backoff(attempt, retryAfterMs(result.headers));
+      if (opts.deadline !== undefined && Date.now() + wait > opts.deadline) throw outOfTime(attempt);
       if (failure === 'rate-limit') this.pauseUntil(Date.now() + wait);
       else await sleep(wait);
     }
