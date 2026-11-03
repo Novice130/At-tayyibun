@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/deep_links.dart';
 import 'providers.dart';
 import 'screens/avatar_picker_screen.dart';
 import 'screens/browse_screen.dart';
@@ -37,8 +38,17 @@ final routerProvider = Provider<GoRouter>((ref) {
           path == '/forgot-password';
 
       // Hold on the splash until the session probe resolves, so a returning
-      // user is never briefly bounced to the login screen.
-      if (auth.status == AuthStatus.unknown) return '/splash';
+      // user is never briefly bounced to the login screen. An App Link or
+      // Universal Link that launched the app rides along in `from`, so it
+      // still opens once the session is confirmed.
+      if (auth.status == AuthStatus.unknown) {
+        if (path == '/splash') return null;
+        final target = deepLinkLocation(state.uri);
+        return target == null
+            ? '/splash'
+            : Uri(path: '/splash', queryParameters: {'from': target})
+                .toString();
+      }
 
       if (auth.status == AuthStatus.offline) {
         return path == '/offline' ? null : '/offline';
@@ -63,8 +73,13 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (path == '/verify-phone') return '/browse';
 
+      if (path == '/splash') {
+        final from = state.uri.queryParameters['from'];
+        final target = from == null ? null : deepLinkLocation(Uri.parse(from));
+        return target ?? '/browse';
+      }
+
       if (isAuthRoute ||
-          path == '/splash' ||
           path == '/offline' ||
           path == '/suspended') {
         return '/browse';

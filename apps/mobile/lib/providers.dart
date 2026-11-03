@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/api_client.dart';
 import 'core/api_exception.dart';
+import 'core/push_notifications.dart';
 import 'models/user.dart';
 import 'repositories/auth_repository.dart';
+import 'repositories/devices_repository.dart';
 import 'repositories/moderation_repository.dart';
 import 'repositories/profiles_repository.dart';
 import 'repositories/requests_repository.dart';
@@ -25,6 +27,13 @@ final requestsRepositoryProvider =
 
 final moderationRepositoryProvider =
     Provider((ref) => ModerationRepository(ref.watch(apiClientProvider)));
+
+final devicesRepositoryProvider =
+    Provider((ref) => DevicesRepository(ref.watch(apiClientProvider)));
+
+/// Push registration and notification taps. Null, meaning push is off, unless
+/// main() overrides it once Firebase is up; tests leave it off.
+final pushNotificationsProvider = Provider<PushNotifications?>((ref) => null);
 
 enum AuthStatus {
   unknown,
@@ -56,10 +65,14 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._repo)
+  AuthController(this._repo, {this._beforeSignOut})
       : super(const AuthState(status: AuthStatus.unknown));
 
   final AuthRepository _repo;
+
+  /// Runs while the session still exists, so this device's push token can be
+  /// removed from the server. Must not throw.
+  final Future<void> Function()? _beforeSignOut;
   int _generation = 0;
 
   /// Called at startup and on retry. The persisted cookie means a returning
@@ -197,6 +210,7 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> signOut() async {
     _generation++;
+    await _beforeSignOut?.call();
     await _repo.signOut();
     state = const AuthState(status: AuthStatus.signedOut);
   }
@@ -204,7 +218,10 @@ class AuthController extends StateNotifier<AuthState> {
 
 final authControllerProvider =
     StateNotifierProvider<AuthController, AuthState>((ref) {
-  final controller = AuthController(ref.watch(authRepositoryProvider));
+  final controller = AuthController(
+    ref.watch(authRepositoryProvider),
+    beforeSignOut: () async => ref.read(pushNotificationsProvider)?.stop(),
+  );
   ref.watch(apiClientProvider).onAccountSuspended = controller.markSuspended;
   return controller;
 });

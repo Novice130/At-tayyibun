@@ -8,6 +8,9 @@
          manifests, so release builds ship without it and every network call
          fails. This app is useless offline — it must be declared here. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Android 13+ shows no notifications without this runtime permission;
+         firebase_messaging's requestPermission() asks for it after sign-in. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
     <application
         android:label="At-Tayyibun"
@@ -36,6 +39,18 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- App Links. Verified against
+                 https://attayyibun.com/.well-known/assetlinks.json (served by
+                 apps/web). Only these paths open the app; keep them in step
+                 with lib/core/deep_links.dart. Other site links, such as the
+                 emailed /requests/<id>/contact, stay in the browser. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="attayyibun.com" android:path="/requests"/>
+                <data android:scheme="https" android:host="attayyibun.com" android:pathPrefix="/profiles/"/>
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

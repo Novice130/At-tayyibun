@@ -2,7 +2,10 @@ import 'package:at_tayyibun/core/api_client.dart';
 import 'package:at_tayyibun/core/constants.dart';
 import 'package:at_tayyibun/main.dart';
 import 'package:at_tayyibun/providers.dart';
+import 'package:at_tayyibun/screens/browse_screen.dart';
 import 'package:at_tayyibun/screens/offline_screen.dart';
+import 'package:at_tayyibun/screens/profile_detail_screen.dart';
+import 'package:at_tayyibun/screens/requests_screen.dart';
 import 'package:at_tayyibun/screens/suspended_screen.dart';
 import 'package:at_tayyibun/screens/welcome_screen.dart';
 import 'package:cookie_jar/cookie_jar.dart';
@@ -86,5 +89,52 @@ void main() {
     await _boot(tester, api);
 
     expect(find.byType(WelcomeScreen), findsOneWidget);
+  });
+
+  group('an App Link that launches the app', () {
+    void launchWith(WidgetTester tester, String link) {
+      tester.platformDispatcher.defaultRouteNameTestValue = link;
+      addTearDown(tester.platformDispatcher.clearDefaultRouteNameTestValue);
+    }
+
+    Future<ApiClient> signedIn() => _clientWithSavedCookie((options) async {
+          if (options.path == '/auth/get-session') return jsonBody(_member);
+          return jsonBody(null);
+        });
+
+    testWidgets('opens the requests tab once the session is confirmed',
+        (tester) async {
+      launchWith(tester, 'https://attayyibun.com/requests');
+      await _boot(tester, await signedIn());
+
+      expect(find.byType(RequestsScreen), findsOneWidget);
+    });
+
+    testWidgets('opens a profile once the session is confirmed',
+        (tester) async {
+      launchWith(tester, '/profiles/abc123');
+      await _boot(tester, await signedIn());
+
+      final screen = tester.widget<ProfileDetailScreen>(
+        find.byType(ProfileDetailScreen),
+      );
+      expect(screen.publicId, 'abc123');
+    });
+
+    testWidgets('a link the app does not handle lands on browse',
+        (tester) async {
+      launchWith(tester, 'https://attayyibun.com/requests/r1/contact');
+      await _boot(tester, await signedIn());
+
+      expect(find.byType(BrowseScreen), findsOneWidget);
+    });
+
+    testWidgets('signed out, goes to the welcome screen', (tester) async {
+      launchWith(tester, '/requests');
+      await _boot(tester, await _clientWithSavedCookie((_) async => jsonBody(null)));
+
+      expect(find.byType(WelcomeScreen), findsOneWidget);
+      expect(find.byType(RequestsScreen), findsNothing);
+    });
   });
 }
