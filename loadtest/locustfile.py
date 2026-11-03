@@ -34,6 +34,8 @@ from common import (
 )
 
 REPORTS_ENABLED = os.environ.get("LOADTEST_REPORTS") == "1"
+HERO_IMAGES = ["/hero-couple-sunset.png", "/hero-couple-sunset-light.png"]
+HERO_WIDTHS = [640, 828, 1080, 1920]  # next/image default device sizes
 
 
 class Visitor(StagingUser):
@@ -66,6 +68,18 @@ class Visitor(StagingUser):
     def signup_page(self):
         self._page("/signup")
 
+    @task(3)
+    def hero_image(self):
+        # What the home page's <Image> asks for. Cloudflare may answer repeats from
+        # its cache, so look at CF-Cache-Status before reading much into this line.
+        src = random.choice(HERO_IMAGES)
+        width = random.choice(HERO_WIDTHS)
+        with self.client.get("/_next/image", name="hero image", catch_response=True,
+                             params={"url": src, "w": width, "q": 75},
+                             headers={"Accept": "image/avif,image/webp,*/*"}) as r:
+            if check(r, 200, "hero image") and not r.headers.get("Content-Type", "").startswith("image/"):
+                r.failure("hero image: not an image")
+
     @task(2)
     def health(self):
         with self.client.get("/api/session/health", name="health", catch_response=True) as r:
@@ -86,6 +100,8 @@ class Visitor(StagingUser):
                     r.failure("visitor did not get the preview (isFullView should be false)")
                 elif "biodata" in body or has_private_keys(body):
                     r.failure("visitor preview leaks biodata or a private field")
+                elif body.get("bio") is not None:
+                    r.failure("visitor preview leaks bio text")
 
 
 class SignUp(StagingUser):
@@ -147,7 +163,9 @@ class SignUp(StagingUser):
                 return
 
         with self.client.put("/api/profiles/me", name="save profile", catch_response=True, json={
-            **{k: p[k] for k in ("firstName", "lastName", "dob", "gender", "ethnicity", "city", "state", "bio")},
+            **{k: p[k] for k in ("firstName", "lastName", "dob", "gender", "ethnicity", "city", "state", "bio",
+                                 "maritalStatus", "hasChildren", "childrenCount",
+                                 "openToDivorced", "openToWidowed", "openToChildren")},
             "biodata": {"education": "Bachelor's Degree", "profession": fake.job()[:100]},
         }) as r:
             if not check(r, 200, "save profile"):
@@ -168,6 +186,7 @@ class SignUp(StagingUser):
             "publicId": public_id,
             "phone": phone,
             "cookie": cookie,
+            **{k: p[k] for k in ("maritalStatus", "hasChildren", "openToDivorced", "openToWidowed", "openToChildren")},
         })
 
 
@@ -177,13 +196,11 @@ class PoolUser(StagingUser):
     abstract = True
 
     def on_start(self):
-        self.me = POOL.acquire()
+        self.me = POOL.acquire_with_targets()
         if self.me is None:
-            abort_run(self, "no free pool account: run SignUp first, or lower the user count "
-                            "(each Member/Moderation user needs its own account)")
+            abort_run(self, "no free pool account with a matching target: seed or run SignUp first, or lower "
+                            "the user count (each Member/Moderation user needs its own account)")
         self.targets = POOL.others(self.me)  # pool only, never browse results
-        if not self.targets:
-            abort_run(self, "pool has no account of the other gender")
         set_session_cookie(self.client, self.me["cookie"])
 
     def on_stop(self):
@@ -247,10 +264,12 @@ class Member(PoolUser):
                 r.request_meta["name"] += " [blocked 404]"
             if check(r, {200, 404}, "view profile") and r.status_code == 200:
                 body = json_body(r)
-                if not isinstance(body, dict) or body.get("isFullView") is not True:
-                    r.failure("member did not get the full view")
-                elif "biodata" not in body:
-                    r.failure("full view has no biodata")
+                # The full view opens only through a live request. Send-then-cancel leaves
+                # none behind, so a member sees the preview: biodata stays empty.
+                if not isinstance(body, dict) or "isFullView" not in body:
+                    r.failure("profile view: no isFullView")
+                elif body.get("isFullView") is False and body.get("biodata"):
+                    r.failure("preview view leaks biodata")
                 elif has_private_keys(body):
                     r.failure("profile view leaks lastName, email or phone")
 
@@ -263,7 +282,7 @@ class Member(PoolUser):
 
     @task(1)
     def send_then_cancel(self):
-        # 10 an hour per address as shipped. Cancelling frees this member's single pending slot.
+        # 10 an hour per user as shipped. Cancelling frees this member's single pending slot.
         target = random.choice(self.targets)
         with self.client.post("/api/requests", name="send request", catch_response=True,
                               json={"targetPublicId": target["publicId"]}) as r:

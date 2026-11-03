@@ -8,6 +8,7 @@ import * as schema from "./db-schema";
 import { firebaseVerifyOTP } from "./phone-verify";
 import { assertImageWritable, imageForNewUser } from "./avatar-url";
 import { secondFactorSessionHook } from "./second-factor-session";
+import { withLoadtestBypass } from "./loadtest-bypass";
 
 const escapeHtml = (value: unknown): string =>
   String(value ?? '')
@@ -352,7 +353,8 @@ const options = {
     window: 10,
     max: 100,
     storage: "memory",
-    customRules: {
+    // Off unless allowed; never in production. See ./loadtest-bypass.ts.
+    customRules: withLoadtestBypass({
       "/sign-in/email": { window: 60, max: 10 },
       "/sign-up/email": { window: 60, max: 10 },
       "/sign-in/social": { window: 60, max: 20 },
@@ -373,7 +375,7 @@ const options = {
       "/phone-number/request-password-reset": { window: 60, max: 1 },
       "/phone-number/reset-password": { window: 60, max: 1 },
       "/change-email": { window: 60, max: 5 },
-    },
+    }),
   },
   advanced: {
     database: {

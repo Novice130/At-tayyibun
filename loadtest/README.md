@@ -1,7 +1,9 @@
 # Load tests for At-Tayyibun (Locust + Faker)
 
-Staging only. The rules are in `GUIDE.md`; read it first. Nothing here has been run
-against a real site yet: the code was written before staging existed.
+Staging only. The rules are in `GUIDE.md`; read it first. **The step-by-step for a
+session is `RUNBOOK.md`** (owner prerequisites, seed, scenarios, what to watch). Nothing
+here has been run against a real site yet; the scripts have been smoke-run against a local
+API only.
 
 ## Files
 
@@ -9,6 +11,9 @@ against a real site yet: the code was written before staging existed.
 |---|---|
 | `locustfile.py` | The user classes: `Visitor`, `SignUp`, `Member`, `Moderation` |
 | `races.py` | Separate locustfile with the race cases (`RaceUser`) |
+| `shapes.py` | Stepped stress and spike shapes (`LOADTEST_SCENARIO`) |
+| `test_loadtest.py` | Offline unit checks; sends no traffic |
+| `../apps/api/src/db/seed-loadtest.ts` | Seeds 5,000-10,000 profiles and writes the pool |
 | `common.py` | Shared code: staging guard, headers, fake people, account pool, response checker |
 | `requirements.txt` | Pinned `locust` and `faker` (need Python 3.11 or newer) |
 | `accounts.jsonl` | The account pool. Built by `SignUp`. Gitignored. Holds live session cookies |
@@ -68,7 +73,7 @@ At the end of each run a summary prints the 429 counts (and race outcomes).
 | `SignUp` | B | Sign up, `session/me`, check the 403 phone gate, verify a fake phone, save the profile, add the account to the pool. One account per 10 seconds at most |
 | `Member` | C, D | Browse (three calls together), view a pool profile, inbox, send a request to a pool account then cancel it |
 | `Moderation` | E | Block a pool account, see it listed, see its profile answer 404, unblock; optional report |
-| `RaceUser` (in `races.py`) | D races | Double post, approve against cancel, approve against deny, each fired as a pair |
+| `RaceUser` (in `races.py`) | D races | Double post, approve against cancel, approve against deny, double contact reveal, each fired as a pair |
 
 ## Commands
 
@@ -122,10 +127,9 @@ Races (needs a free pool pair per user; paced by a request budget):
   --host https://staging.attayyibun.com --headless -u 1 -r 1 -t 2h --csv results/races
 ```
 
-`POST /api/requests` is 10 an hour per address as shipped. `LOADTEST_REQUEST_BUDGET`
+`POST /api/requests` is 10 an hour per user as shipped. `LOADTEST_REQUEST_BUDGET`
 (default 8) makes the race user wait rather than collect 429s. If the limit is raised on
-staging, raise the budget too. The `shared/<token>` race only runs when
-`LOADTEST_TOKEN_FILE` points at a file with one token per line.
+staging, raise the budget too.
 
 Web UI instead of `--headless`: leave those flags off, open `http://vm-loadtest:8089`
 over Tailscale. Set `--host` on the command line; an empty host is refused.
@@ -138,6 +142,10 @@ status or a wrong body is a failure. The `invariant: ...` lines in `races.py` ar
 that mean a rule from the guide was broken.
 
 ## Code against guide: differences found on 2026-10-13
+
+> Partly stale since 9b52f90: the one-time token is no longer returned (the shared link is
+> now `POST /api/requests/:id/contact`, claimed atomically), limits are per user when signed
+> in, and a member sees the full profile only through a live request. Kept for history.
 
 The code was re-read; where it disagrees with `GUIDE.md`, the code was followed.
 

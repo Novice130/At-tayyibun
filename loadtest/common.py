@@ -36,6 +36,8 @@ POOL_FILE = Path(os.environ.get("LOADTEST_POOL_FILE") or Path(__file__).with_nam
 EMAIL_DOMAIN = "@loadtest.invalid"
 ETHNICITIES = ["South Asian", "Arab", "African", "Turkish", "Persian"]
 REPORT_REASONS = ["FAKE_PROFILE", "INAPPROPRIATE_CONTENT", "HARASSMENT", "SPAM_OR_SCAM", "UNDERAGE", "OTHER"]
+MARITAL_STATUSES = ["NEVER_MARRIED", "DIVORCED", "WIDOWED"]  # apps/api marital-match.ts
+BYPASS_HEADER = "X-Loadtest-Bypass"
 
 # Keys that must never appear in anything shown to another member.
 PRIVATE_KEYS = {"lastName", "email", "phone"}
@@ -56,10 +58,18 @@ RUN_ID = _run_id()
 # --------------------------------------------------------------------------
 
 
+# A server on this machine, for a smoke run only. Must be asked for explicitly.
+LOCAL = os.environ.get("LOADTEST_LOCAL") == "1"
+_LOCAL_HOST = re.compile(r"http://(localhost|127\.0\.0\.1):\d{2,5}/?")
+
+
 def assert_staging(host):
-    """Refuse anything that is not exactly https://staging.attayyibun.com."""
-    if host not in (STAGING_URL, STAGING_URL + "/"):
-        raise SystemExit(f"guard: refusing to run against {host!r}; only {STAGING_URL} is allowed")
+    """Refuse anything but exactly https://staging.attayyibun.com, or localhost with LOADTEST_LOCAL=1."""
+    if host in (STAGING_URL, STAGING_URL + "/"):
+        return
+    if LOCAL and isinstance(host, str) and _LOCAL_HOST.fullmatch(host):
+        return
+    raise SystemExit(f"guard: refusing to run against {host!r}; only {STAGING_URL} is allowed")
 
 
 def _check_argv_host():
@@ -96,20 +106,26 @@ def _guard_on_start(environment, **_):
 
 
 def request_headers():
-    client_id = os.environ.get("CF_ACCESS_CLIENT_ID")
-    client_secret = os.environ.get("CF_ACCESS_CLIENT_SECRET")
-    if not client_id or not client_secret:
-        raise SystemExit("set CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET in the environment")
-    return {
-        "CF-Access-Client-Id": client_id,
-        "CF-Access-Client-Secret": client_secret,
+    headers = {
         "User-Agent": "locust-staging-loadtest",
         # The API refuses cookie-authenticated writes without one of these two.
-        "Origin": STAGING_URL,
         "X-Requested-With": "locust",
         # Lets server logs be matched to one run.
         "X-Loadtest-Run": RUN_ID,
     }
+    if not LOCAL:
+        client_id = os.environ.get("CF_ACCESS_CLIENT_ID")
+        client_secret = os.environ.get("CF_ACCESS_CLIENT_SECRET")
+        if not client_id or not client_secret:
+            raise SystemExit("set CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET in the environment")
+        headers["CF-Access-Client-Id"] = client_id
+        headers["CF-Access-Client-Secret"] = client_secret
+        headers["Origin"] = STAGING_URL
+    # Skips the rate limits, on staging only; the server ignores it elsewhere. Never printed.
+    bypass = os.environ.get("LOADTEST_BYPASS_SECRET")
+    if bypass:
+        headers[BYPASS_HEADER] = bypass
+    return headers
 
 
 HEADERS = request_headers()
@@ -137,18 +153,61 @@ class Tally:
 TALLY = Tally()
 
 
+def status_class(status):
+    """The bucket a status is counted in at the end of a run, or None if uninteresting."""
+    if status == 401:
+        return "401 unauthorized"
+    if status == 429:
+        return "429 rate limited"
+    if 500 <= status <= 599:
+        return "5xx server error"
+    return None
+
+
+def count_response(response, *_args, **_kwargs):
+    """requests response hook: counts every response, including ones no check() saw."""
+    bucket = status_class(response.status_code)
+    if bucket:
+        TALLY.add("all responses by status", bucket)
+    TALLY.add("all responses by status", "total")
+
+
+def thresholds_broken(stats, env=os.environ):
+    """Which of LOADTEST_MAX_P95_MS, _P99_MS and _FAIL_PCT this run exceeded."""
+    broken = []
+    limits = (
+        ("LOADTEST_MAX_P95_MS", stats.get_response_time_percentile(0.95)),
+        ("LOADTEST_MAX_P99_MS", stats.get_response_time_percentile(0.99)),
+        ("LOADTEST_MAX_FAIL_PCT", stats.fail_ratio * 100),
+    )
+    for name, value in limits:
+        limit = env.get(name)
+        if limit and value is not None and float(value) > float(limit):
+            broken.append(f"{name}={limit}: measured {float(value):.1f}")
+    return broken
+
+
+@events.quitting.add_listener
+def _exit_code_from_thresholds(environment, **_):
+    broken = thresholds_broken(environment.stats.total)
+    for line in broken:
+        print(f"THRESHOLD BROKEN {line}", file=sys.stderr)
+    if broken:
+        environment.process_exit_code = 1
+
+
 @events.test_stop.add_listener
 def _print_tally(environment, **_):
     counts = TALLY.snapshot()
     print(f"\n=== loadtest summary (run id {RUN_ID}) ===")
     if not counts:
-        print("no 429s and no race outcomes recorded")
+        print("no responses counted")
     for group in sorted({g for g, _ in counts}):
         print(f"[{group}]")
         for (g, key), n in sorted(counts.items()):
             if g == group:
                 print(f"  {n:6d}  {key}")
-    print("429 means the rate limiter answered; it is not counted as a failure.\n")
+    print("429 means the rate limiter answered; it is not counted as a failure. 401 and 5xx are.\n")
 
 
 # --------------------------------------------------------------------------
@@ -163,6 +222,7 @@ class StagingUser(HttpUser):
         assert_staging(environment.host)  # before any client exists
         super().__init__(environment)
         self.client.headers.update(HEADERS)
+        self.client.hooks["response"].append(count_response)
         # A redirect could lead to another host (for example production). Do not follow any.
         self.client.max_redirects = 0
 
@@ -192,9 +252,11 @@ def check(r, ok, what):
 
     `ok` is a status code or a collection of them. A 429 is reported under the
     request name with " [429]" added and counted in the end-of-test summary; it
-    is not marked as a failure. On a pass the response is marked successful, and
-    the caller may still call r.failure() after checking the body. Only the
-    status (and an error code word, if present) is ever put in a message.
+    is not marked as a failure. A 401 and a 5xx are failures, reported the same
+    way so they stand apart in the stats. On a pass the response is marked
+    successful, and the caller may still call r.failure() after checking the
+    body. Only the status (and an error code word, if present) is ever put in a
+    message.
     """
     allowed = {ok} if isinstance(ok, int) else set(ok)
     status = r.status_code
@@ -215,6 +277,11 @@ def check(r, ok, what):
     body = json_body(r)
     if isinstance(body, dict) and isinstance(body.get("code"), str):
         code = " " + body["code"][:40]
+    bucket = status_class(status)
+    if bucket:
+        name = r.request_meta["name"]
+        TALLY.add(bucket, name)
+        r.request_meta["name"] = f"{name} [{status if status == 401 else '5xx'}]"
     hint = " (session expired? rebuild the pool)" if status == 401 else ""
     r.failure(f"{what}: got {status}{code}, expected {sorted(allowed)}{hint}")
     return False
@@ -262,6 +329,10 @@ def _name(maker):
 def new_person():
     gender = random.choice(["MALE", "FEMALE"])
     first = _name(fake.first_name_male if gender == "MALE" else fake.first_name_female)
+    # Same spread as apps/api/src/db/seed-loadtest.lib.ts. maritalStatus and
+    # hasChildren are required: without them browse answers 403 PROFILE_INCOMPLETE.
+    marital = random.choices(MARITAL_STATUSES, weights=[70, 22, 8])[0]
+    has_children = marital != "NEVER_MARRIED" and random.random() < 0.5
     return {
         "firstName": first,
         "lastName": _name(fake.last_name),
@@ -273,7 +344,34 @@ def new_person():
         "city": fake.city()[:100],
         "state": fake.state_abbr(),
         "bio": fake.paragraph(nb_sentences=4)[:2000],
+        "maritalStatus": marital,
+        "hasChildren": has_children,
+        "childrenCount": random.randint(1, 4) if has_children else None,
+        "openToDivorced": random.random() < 0.5,
+        "openToWidowed": random.random() < 0.45,
+        "openToChildren": random.random() < 0.35,
     }
+
+
+# --------------------------------------------------------------------------
+# Two-way matching: apps/api/src/modules/profiles/marital-match.ts, written again.
+# A pair that does not match gets 404 on profile views and on requests.
+# --------------------------------------------------------------------------
+
+
+def _acceptable(open_to, person):
+    status = person.get("maritalStatus") or "NEVER_MARRIED"
+    status_ok = (
+        status == "NEVER_MARRIED"
+        or (status == "DIVORCED" and bool(open_to.get("openToDivorced")))
+        or (status == "WIDOWED" and bool(open_to.get("openToWidowed")))
+    )
+    children_ok = not person.get("hasChildren") or bool(open_to.get("openToChildren"))
+    return status_ok and children_ok
+
+
+def is_mutual_match(a, b):
+    return _acceptable(a, b) and _acceptable(b, a)
 
 
 # --------------------------------------------------------------------------
@@ -289,13 +387,17 @@ def get_session_cookie(client):
 
 
 def set_session_cookie(client, value):
-    client.cookies.set(COOKIE, value, domain=STAGING_HOST, path="/", secure=True)
+    if LOCAL:
+        client.cookies.set(COOKIE, value)
+    else:
+        client.cookies.set(COOKIE, value, domain=STAGING_HOST, path="/", secure=True)
 
 
 # --------------------------------------------------------------------------
 # Account pool: loadtest/accounts.jsonl, one JSON object per line.
-# Each line: email, gender, publicId, cookie (and phone). Holds live staging
-# session cookies, so the file is gitignored and should be mode 600.
+# Each line: email, gender, publicId, cookie, phone and the marital answers.
+# Written by SignUp and by the seed script. Holds live staging session cookies,
+# so the file is gitignored and should be mode 600.
 # --------------------------------------------------------------------------
 
 
@@ -327,23 +429,28 @@ class Pool:
                 self._accounts = self._load()
             return list(self._accounts)
 
-    def acquire(self, gender=None):
-        """Hand out an account no other user holds, or None."""
-        pool = self.accounts
+    def acquire(self, accept=None):
+        """Hand out an account no other user holds, passing `accept` if given, or None."""
+        # `accept` runs outside the lock: it may call others(), which takes it too.
+        pool = [a for a in self.accounts if accept is None or accept(a)]
         random.shuffle(pool)
         with self._lock:
             for a in pool:
-                if a["email"] not in self._busy and (gender is None or a["gender"] == gender):
+                if a["email"] not in self._busy:
                     self._busy.add(a["email"])
                     return a
         return None
 
+    def acquire_with_targets(self):
+        """An account that has at least one possible target."""
+        return self.acquire(lambda a: bool(self.others(a)))
+
     def acquire_pair(self):
-        """(requester, target) of opposite genders, both exclusive, or None."""
-        first = self.acquire()
+        """(requester, target) who match each other, both exclusive, or None."""
+        first = self.acquire_with_targets()
         if first is None:
             return None
-        second = self.acquire("FEMALE" if first["gender"] == "MALE" else "MALE")
+        second = self.acquire(lambda a: a["gender"] != first["gender"] and is_mutual_match(first, a))
         if second is None:
             self.release(first)
             return None
@@ -354,8 +461,8 @@ class Pool:
             self._busy.discard(account["email"])
 
     def others(self, me):
-        """Accounts of the other gender. Targets always come from here, never from browse."""
-        return [a for a in self.accounts if a["gender"] != me["gender"]]
+        """Accounts of the other gender who match. Targets always come from here, never from browse."""
+        return [a for a in self.accounts if a["gender"] != me["gender"] and is_mutual_match(me, a)]
 
 
 POOL = Pool(POOL_FILE)
@@ -372,7 +479,7 @@ def append_to_pool(entry):
 
 # --------------------------------------------------------------------------
 # Pacing for sign-up (<= 1 account per 10 s across all users) and for
-# POST /api/requests (10 an hour per address as shipped)
+# POST /api/requests (10 an hour per user as shipped; none with the bypass)
 # --------------------------------------------------------------------------
 
 SIGNUP_INTERVAL = 10.0
@@ -389,7 +496,7 @@ def wait_for_signup_slot():
 
 
 class RequestBudget:
-    """Keeps POST /api/requests under the per-address hourly limit."""
+    """Keeps POST /api/requests under the hourly limit."""
 
     def __init__(self, limit, window=3600.0):
         self.limit, self.window = limit, window
