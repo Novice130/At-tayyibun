@@ -21,6 +21,11 @@ export interface CampaignJobData {
   dispatchVersion?: number;
 }
 
+/** Deterministic: identical for every attempt, restart and re-run. */
+export function campaignIdempotencyKey(campaignId: string, userId: string): string {
+  return `campaign/${campaignId}/${userId}`;
+}
+
 type Audience = { roles?: string[]; membershipTiers?: string[] } | null | undefined;
 
 /** Real addresses in the audience, minus everyone unsubscribed or suspended. */
@@ -113,6 +118,9 @@ export class EmailCampaignProcessor extends WorkerHost {
             html: campaign.template,
             unsubscribeUrl: links.pageUrl,
             oneClickUrl: links.oneClickUrl,
+            // Same key on every retry of this (campaign, member): Resend returns
+            // the first result instead of sending a second email.
+            idempotencyKey: campaignIdempotencyKey(campaignId, recipient.id),
           });
           await db.update(campaignRecipients).set({ sent: true }).where(eq(campaignRecipients.id, claim.id));
         } catch (err) {

@@ -49,8 +49,8 @@ describe('EmailService compliance', () => {
 
   it('throws when Resend returns an error, so it is not counted as sent', async () => {
     const { service, send } = make({ EMAIL_POSTAL_ADDRESS: '1 Main St' });
-    send.mockResolvedValueOnce({ data: null as any, error: { name: 'rate_limit_exceeded' } });
-    await expect(service.sendCampaignEmail(campaign)).rejects.toThrow('rate_limit_exceeded');
+    send.mockResolvedValueOnce({ data: null as any, error: { name: 'validation_error' } });
+    await expect(service.sendCampaignEmail(campaign)).rejects.toThrow('validation_error');
   });
 
   describe('service messages', () => {

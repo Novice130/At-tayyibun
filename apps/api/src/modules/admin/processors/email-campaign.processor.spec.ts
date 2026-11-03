@@ -83,6 +83,7 @@ describe('EmailCampaignProcessor', () => {
       html: '<p>Hi</p>',
       unsubscribeUrl: 'page:pub1',
       oneClickUrl: 'click:pub1',
+      idempotencyKey: 'campaign/c1/u1',
     });
   });
 
@@ -91,6 +92,13 @@ describe('EmailCampaignProcessor', () => {
     db.insert.mockReturnValueOnce(chain([]));
     await processor.process(job(current));
     expect(email.sendCampaignEmail).not.toHaveBeenCalled();
+  });
+
+  it('uses a key built from campaign and member, so a retry cannot double-send', async () => {
+    arrangeSend([MEMBER], 1);
+    db.insert.mockReturnValueOnce(chain([{ id: 'claim-1' }]));
+    await processor.process(job(current));
+    expect(email.sendCampaignEmail.mock.calls[0][0].idempotencyKey).toBe('campaign/c1/u1');
   });
 
   it('one failure does not stop the rest, and is not counted as sent', async () => {

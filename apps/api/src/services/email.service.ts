@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { escapeHtml } from '../common/utils/html';
+import { ResendSender } from './resend-sender';
 
 export interface EmailOptions {
   to: string;
@@ -26,6 +27,7 @@ export class EmailService {
   private readonly fromEmail: string;
   private readonly fromName: string;
   private readonly webUrl: string;
+  private readonly sender: ResendSender;
   /** Null until the owner sets EMAIL_POSTAL_ADDRESS. Campaigns refuse to send without it. */
   readonly postalAddress: string | null;
 
@@ -35,6 +37,14 @@ export class EmailService {
     this.fromEmail = this.configService.get<string>('RESEND_FROM_EMAIL', 'noreply@attayyibun.com');
     this.fromName = this.configService.get<string>('RESEND_FROM_NAME', 'At-Tayyibun');
     this.webUrl = this.configService.get<string>('WEB_URL', 'http://localhost:3000');
+    const num = (key: string, fallback: number) => {
+      const n = Number(this.configService.get<string>(key));
+      return Number.isFinite(n) && n > 0 ? n : fallback;
+    };
+    this.sender = new ResendSender({
+      rps: num('RESEND_RATE_LIMIT_RPS', 2),
+      maxAttempts: num('RESEND_MAX_ATTEMPTS', 5),
+    });
   }
 
   // Lazy: don't instantiate Resend at boot. The Resend constructor throws on
@@ -60,13 +70,18 @@ export class EmailService {
    */
   async sendEmail(options: EmailOptions): Promise<void> {
     try {
-      await this.resend.emails.send({
-        from: this.from,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-        text: options.text || this.stripHtml(options.html),
-      });
+      // No idempotency key: only 429s (rejected before processing) are retried.
+      await this.sender.run(
+        () =>
+          this.resend.emails.send({
+            from: this.from,
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+            text: options.text || this.stripHtml(options.html),
+          }),
+        { kind: 'transactional', idempotent: false },
+      );
     } catch (error) {
       console.error('Email send error:', error);
       throw new Error('Failed to send email');
@@ -84,6 +99,8 @@ export class EmailService {
     html: string;
     unsubscribeUrl: string;
     oneClickUrl: string;
+    /** Stable per (campaign, recipient). Lets Resend dedupe a retry for 24 hours. */
+    idempotencyKey?: string;
   }): Promise<void> {
     if (!this.postalAddress) throw new Error(POSTAL_ADDRESS_MISSING);
 
@@ -96,7 +113,7 @@ export class EmailService {
     const html =
       closing === -1 ? options.html + footer : options.html.slice(0, closing) + footer + options.html.slice(closing);
 
-    const { error } = await this.resend.emails.send({
+    const payload = {
       from: this.from,
       to: options.to,
       subject: options.subject,
@@ -106,8 +123,14 @@ export class EmailService {
         'List-Unsubscribe': `<${options.oneClickUrl}>`,
         'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       },
-    });
-    if (error) throw new Error(`Resend refused the email: ${error.name}`);
+    };
+    // Throws ResendSendError (message "Resend refused the email: <code>") on a
+    // refusal or when retries run out; the caller then leaves the member unsent.
+    const key = options.idempotencyKey;
+    await this.sender.run(
+      () => this.resend.emails.send(payload, key ? { idempotencyKey: key } : undefined),
+      { kind: 'campaign', idempotent: !!key },
+    );
   }
 
   /**
