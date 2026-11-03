@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Download, Smartphone, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { notFound } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 
 // These three constants describe the APK file actually committed at
@@ -19,6 +20,10 @@ const APK_SHA256 =
 // URL (https://apps.apple.com/app/id<APP_ID>) and the iOS card replaces the
 // "no iPhone app yet" note below. Nothing else needs editing.
 const APP_STORE_URL: string | null = null;
+
+// The committed APK is behind the current app, so the page 404s until a current
+// build ships. Update the constants above, then set this to true.
+const DOWNLOAD_PAGE_LIVE: boolean = false;
 
 export const metadata: Metadata = {
   title: APP_STORE_URL
@@ -44,6 +49,8 @@ const steps = [
 ];
 
 export default function DownloadPage() {
+  if (!DOWNLOAD_PAGE_LIVE) notFound();
+
   return (
     <div className="min-h-screen">
       <Navbar />

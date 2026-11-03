@@ -11,11 +11,14 @@ import { AdminCampaignsController } from './controllers/admin-campaigns.controll
 import { AdminCampaignsService } from './services/admin-campaigns.service';
 import { AdminSchemasController } from './controllers/admin-schemas.controller';
 import { AdminSchemasService } from './services/admin-schemas.service';
+import { EmailCampaignProcessor } from './processors/email-campaign.processor';
+import { UnsubscribeModule } from '../unsubscribe/unsubscribe.module';
 
 @Module({
   imports: [
     ModerationModule,
     BullModule.registerQueue({ name: 'email-campaign-queue' }),
+    UnsubscribeModule,
   ],
   controllers: [
     AdminController,
@@ -30,6 +33,7 @@ import { AdminSchemasService } from './services/admin-schemas.service';
     AdminCouponsService,
     AdminCampaignsService,
     AdminSchemasService,
+    EmailCampaignProcessor,
   ],
   exports: [AdminService],
 })

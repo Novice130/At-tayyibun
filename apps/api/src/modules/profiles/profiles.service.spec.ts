@@ -7,7 +7,7 @@ import { EncryptionService } from '../../services/encryption.service';
 import { AvatarService } from '../../services/avatar.service';
 import { AuditService } from '../../services/audit.service';
 import { Gender } from '../../common/types/role';
-import { chain, createDbMock } from '../../test/drizzle-mock';
+import { chain, createDbMock, recordingChain as recordAllCalls, renderSql } from '../../test/drizzle-mock';
 import { DEFAULT_SIDE, MatchSide, mutualMatchSql } from './marital-match';
 
 const USER_ID = 'user-uuid';
@@ -513,6 +513,23 @@ describe('ProfilesService', () => {
       expect(result.data[0].age).toBeGreaterThan(0);
       expect(result.meta.total).toBe(1);
     });
+
+    it.each(['rankBoost', 'age', 'createdAt'] as const)(
+      'gives %s sort a tie-breaker so pages do not repeat or skip rows',
+      async (sortBy) => {
+        const calls: Record<string, unknown[][]> = {};
+        db.select
+          .mockReturnValueOnce(recordAllCalls([], calls))
+          .mockReturnValueOnce(chain([{ value: 0 }]));
+
+        await service.browseProfiles({ sortBy, page: 3, limit: 20 });
+
+        const order = calls.orderBy[0].map((part) => renderSql(part).sql);
+        expect(order).toHaveLength(2);
+        expect(order[1]).toBe('"users"."id" asc');
+        expect(calls.offset).toEqual([[40]]);
+      },
+    );
 
     it('works safely without a viewerId and defaults gender', async () => {
       db.select

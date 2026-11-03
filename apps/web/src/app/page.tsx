@@ -5,6 +5,14 @@ import { redirect } from 'next/navigation';
 import { Heart, Shield, Users, Clock, ChevronRight, Star, Quote, Lock, Sparkles } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { auth } from '@/lib/auth';
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata({
+  path: '/',
+  title: 'At-Tayyibun | Muslim Matrimony in the United States',
+  description:
+    'At-Tayyibun is a privacy-first, halal-oriented matrimony platform designed for Muslims in the United States. Find your righteous spouse with dignity and respect.',
+});
 
 const successStories = [
   {
@@ -66,14 +74,14 @@ export default async function HomePage() {
         {/* Mobile only: hero image as full background */}
         <div className="absolute inset-0 lg:hidden">
           <Image
-            src="/hero-couple-sunset-light.png"
+            src="/hero-couple-sunset-light.webp"
             alt=""
             fill
             className="object-cover object-[center_20%] scale-[1.18] dark:hidden"
             priority
           />
           <Image
-            src="/hero-couple-sunset.png"
+            src="/hero-couple-sunset.webp"
             alt=""
             fill
             className="object-cover object-[center_20%] scale-[1.18] hidden dark:block"
@@ -167,14 +175,14 @@ export default async function HomePage() {
                 {/* Image — overflow-hidden + scale crops the decorative border */}
                 <div className="relative w-full h-full rounded-3xl overflow-hidden">
                   <Image
-                    src="/hero-couple-sunset-light.png"
+                    src="/hero-couple-sunset-light.webp"
                     alt="Muslim couple overlooking a coastal sunset together"
                     fill
                     className="object-cover scale-[1.18] origin-center dark:hidden"
                     priority
                   />
                   <Image
-                    src="/hero-couple-sunset.png"
+                    src="/hero-couple-sunset.webp"
                     alt="Muslim couple overlooking a coastal sunset together"
                     fill
                     className="object-cover scale-[1.18] origin-center hidden dark:block"

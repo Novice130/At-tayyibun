@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Toaster } from '@/components/Toaster';
+import { isIndexable, OG_IMAGE, siteOrigin } from '@/lib/seo';
 
 // Declared explicitly rather than relying on Next's injected default: this
 // layout hand-writes its own <head>, so the implicit tag is easy to lose.
@@ -11,7 +12,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000'),
+  metadataBase: new URL(siteOrigin()),
   title: 'At-Tayyibun | Muslim Matrimony in the United States',
   description:
     'At-Tayyibun is a privacy-first, halal-oriented matrimony platform designed for Muslims in the United States. Find your righteous spouse with dignity and respect.',
@@ -23,16 +24,15 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_US',
     siteName: 'At-Tayyibun',
+    images: [OG_IMAGE],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'At-Tayyibun | Muslim Matrimony in the United States',
     description: 'Privacy-first matrimony for Muslims in the United States',
+    images: [OG_IMAGE.url],
   },
-  robots: {
-    index: true,
-    follow: true,
-  },
+  robots: isIndexable() ? { index: true, follow: true } : { index: false, follow: false },
 };
 
 export default function RootLayout({
@@ -79,11 +79,6 @@ export default function RootLayout({
               '@type': 'WebSite',
               name: 'At-Tayyibun',
               url: 'https://attayyibun.com',
-              potentialAction: {
-                '@type': 'SearchAction',
-                target: 'https://attayyibun.com/search?q={search_term_string}',
-                'query-input': 'required name=search_term_string',
-              },
             }),
           }}
         />

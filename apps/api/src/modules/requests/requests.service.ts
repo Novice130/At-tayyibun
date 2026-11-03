@@ -9,7 +9,7 @@ import {
 import { and, desc, eq, gt, isNull, lt, or } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { DrizzleService } from '../../db/drizzle.service';
-import { infoRequests, users, blocks } from '../../db/schema';
+import { infoRequests, users, blocks, profiles } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
 import { EncryptionService } from '../../services/encryption.service';
@@ -20,6 +20,34 @@ import type { MaritalStatus } from '../profiles/marital-match';
 import { CONTACT_LINK_TTL_DAYS, contactStateOf, isLiveRequest, isStalePending } from './request-state';
 
 export type SharedContact = { name?: string; phone?: string; email?: string };
+
+/** Largest and default page size of the request inboxes. */
+const MAX_REQUEST_LIST_LIMIT = 100;
+
+export interface RequestListPaging {
+  page?: number;
+  limit?: number;
+}
+
+/** Anything unusable falls back to the first page of the largest size. */
+function normalizeRequestPaging({ page, limit }: RequestListPaging = {}) {
+  const positive = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) && n >= 1 ? Math.trunc(n) : undefined);
+  const safeLimit = Math.min(positive(limit) ?? MAX_REQUEST_LIST_LIMIT, MAX_REQUEST_LIST_LIMIT);
+  return { limit: safeLimit, offset: ((positive(page) ?? 1) - 1) * safeLimit };
+}
+
+/** The other party's profile columns the inboxes read. */
+const INBOX_PROFILE_COLUMNS = {
+  firstName: profiles.firstName,
+  publicFields: profiles.publicFields,
+  gender: profiles.gender,
+  ethnicity: profiles.ethnicity,
+  city: profiles.city,
+  state: profiles.state,
+  maritalStatus: profiles.maritalStatus,
+  hasChildren: profiles.hasChildren,
+  childrenCount: profiles.childrenCount,
+};
 
 @Injectable()
 export class RequestsService {
@@ -191,9 +219,24 @@ export class RequestsService {
     if (request.status !== RequestStatus.PENDING) throw new BadRequestException('This request has already been processed');
 
     if (new Date() > new Date(request.expiresAt)) {
-      await db.update(infoRequests).set({ status: RequestStatus.EXPIRED as any }).where(eq(infoRequests.id, requestId));
+      await db
+        .update(infoRequests)
+        .set({ status: RequestStatus.EXPIRED as any })
+        .where(and(eq(infoRequests.id, requestId), eq(infoRequests.status, RequestStatus.PENDING)));
       throw new BadRequestException('This request has expired');
     }
+
+    // The status check above can be stale by the time we write: a double click,
+    // two devices, or a block cancelling the request. Only the UPDATE that still
+    // finds PENDING wins, and only the winner sends email or writes an audit row.
+    const claim = async (patch: Partial<typeof infoRequests.$inferInsert>) => {
+      const [won] = await db
+        .update(infoRequests)
+        .set(patch)
+        .where(and(eq(infoRequests.id, requestId), eq(infoRequests.status, RequestStatus.PENDING)))
+        .returning({ id: infoRequests.id });
+      if (!won) throw new BadRequestException('This request has already been processed');
+    };
 
     const requester = await this.getUserWithProfile(eq(users.id, request.requesterId));
     const target = await this.getUserWithProfile(eq(users.id, request.targetId));
@@ -215,16 +258,13 @@ export class RequestsService {
       const contactExpiresAt = new Date();
       contactExpiresAt.setDate(contactExpiresAt.getDate() + CONTACT_LINK_TTL_DAYS);
 
-      await db
-        .update(infoRequests)
-        .set({
-          status: RequestStatus.APPROVED as any,
-          allowedShares,
-          shareSource,
-          contactExpiresAt: contactExpiresAt.toISOString(),
-          respondedAt: new Date().toISOString(),
-        })
-        .where(eq(infoRequests.id, requestId));
+      await claim({
+        status: RequestStatus.APPROVED as any,
+        allowedShares,
+        shareSource,
+        contactExpiresAt: contactExpiresAt.toISOString(),
+        respondedAt: new Date().toISOString(),
+      });
 
       try {
         // A phone-first requester has no real address. They use the Requests
@@ -249,10 +289,7 @@ export class RequestsService {
         allowedShares,
       );
     } else {
-      await db
-        .update(infoRequests)
-        .set({ status: RequestStatus.DENIED as any, respondedAt: new Date().toISOString() })
-        .where(eq(infoRequests.id, requestId));
+      await claim({ status: RequestStatus.DENIED as any, respondedAt: new Date().toISOString() });
 
       try {
         await this.emailService.sendRequestDeniedEmail(requester.email, requester.profile?.firstName || 'User');
@@ -288,78 +325,95 @@ export class RequestsService {
     return { success: true };
   }
 
-  async getIncomingRequests(userId: string) {
-    const db = this.drizzle.db;
-    const rows = await db
-      .select()
+  async getIncomingRequests(userId: string, paging?: RequestListPaging) {
+    const { limit, offset } = normalizeRequestPaging(paging);
+    const rows = await this.drizzle.db
+      .select({
+        request: infoRequests,
+        otherPublicId: users.publicId,
+        otherSuspendedAt: users.suspendedAt,
+        otherProfile: INBOX_PROFILE_COLUMNS,
+      })
       .from(infoRequests)
-      .where(eq(infoRequests.targetId, userId))
-      .orderBy(desc(infoRequests.createdAt));
+      .leftJoin(users, eq(infoRequests.requesterId, users.id))
+      .leftJoin(profiles, eq(profiles.userId, infoRequests.requesterId))
+      .where(
+        and(
+          eq(infoRequests.targetId, userId),
+          // In SQL, not only below, so LIMIT counts rows the receiver can see:
+          // a declined, withdrawn or lapsed request is gone from their list.
+          or(
+            eq(infoRequests.status, RequestStatus.APPROVED),
+            and(eq(infoRequests.status, RequestStatus.PENDING), gt(infoRequests.expiresAt, new Date().toISOString())),
+          ),
+          isNull(users.suspendedAt),
+        ),
+      )
+      .orderBy(desc(infoRequests.createdAt), desc(infoRequests.id))
+      .limit(limit)
+      .offset(offset);
 
-    // A declined, withdrawn or lapsed request is gone from the receiver's list.
-    const items = await Promise.all(
-      rows.filter((r) => isLiveRequest(r)).map(async (r) => {
-        const requester = await this.getUserWithProfile(eq(users.id, r.requesterId));
-        if (requester?.suspendedAt) return null;
-        return {
-          ...this.publicRow(r),
-          requester: requester
-            ? {
-                publicId: requester.publicId,
-                profile: requester.profile
-                  ? {
-                      firstName: this.maskFirstNameIfHidden(requester.profile),
-                      gender: requester.profile.gender,
-                      ethnicity: requester.profile.ethnicity,
-                      city: requester.profile.city,
-                      state: requester.profile.state,
-                      // Incoming only: the receiver sees the requester's status.
-                      // openTo* preferences are never returned.
-                      maritalStatus: (requester.profile.maritalStatus ?? null) as MaritalStatus | null,
-                      hasChildren: requester.profile.hasChildren ?? null,
-                      childrenCount: requester.profile.childrenCount ?? null,
-                    }
-                  : null,
-              }
-            : null,
-        };
-      }),
-    );
-    return items.filter((item): item is NonNullable<typeof item> => item !== null);
+    return rows
+      .filter(({ request, otherSuspendedAt }) => isLiveRequest(request) && !otherSuspendedAt)
+      .map(({ request, otherPublicId, otherProfile }) => ({
+        ...this.publicRow(request),
+        requester: otherPublicId
+          ? {
+              publicId: otherPublicId,
+              profile: otherProfile
+                ? {
+                    firstName: this.maskFirstNameIfHidden(otherProfile),
+                    gender: otherProfile.gender,
+                    ethnicity: otherProfile.ethnicity,
+                    city: otherProfile.city,
+                    state: otherProfile.state,
+                    // Incoming only: the receiver sees the requester's status.
+                    // openTo* preferences are never returned.
+                    maritalStatus: (otherProfile.maritalStatus ?? null) as MaritalStatus | null,
+                    hasChildren: otherProfile.hasChildren ?? null,
+                    childrenCount: otherProfile.childrenCount ?? null,
+                  }
+                : null,
+            }
+          : null,
+      }));
   }
 
-  async getOutgoingRequests(userId: string) {
-    const db = this.drizzle.db;
-    const rows = await db
-      .select()
+  async getOutgoingRequests(userId: string, paging?: RequestListPaging) {
+    const { limit, offset } = normalizeRequestPaging(paging);
+    const rows = await this.drizzle.db
+      .select({
+        request: infoRequests,
+        otherPublicId: users.publicId,
+        otherProfile: INBOX_PROFILE_COLUMNS,
+      })
       .from(infoRequests)
+      .leftJoin(users, eq(infoRequests.targetId, users.id))
+      .leftJoin(profiles, eq(profiles.userId, infoRequests.targetId))
       .where(eq(infoRequests.requesterId, userId))
-      .orderBy(desc(infoRequests.createdAt));
+      .orderBy(desc(infoRequests.createdAt), desc(infoRequests.id))
+      .limit(limit)
+      .offset(offset);
 
-    return Promise.all(
-      rows.map(async (r) => {
-        const target = await this.getUserWithProfile(eq(users.id, r.targetId));
-        return {
-          ...this.publicRow(r),
-          status: isStalePending(r) ? RequestStatus.EXPIRED : r.status,
-          contactState: contactStateOf(r),
-          target: target
-            ? {
-                publicId: target.publicId,
-                profile: target.profile
-                  ? {
-                      firstName: this.maskFirstNameIfHidden(target.profile),
-                      gender: target.profile.gender,
-                      ethnicity: target.profile.ethnicity,
-                      city: target.profile.city,
-                      state: target.profile.state,
-                    }
-                  : null,
-              }
-            : null,
-        };
-      }),
-    );
+    return rows.map(({ request, otherPublicId, otherProfile }) => ({
+      ...this.publicRow(request),
+      status: isStalePending(request) ? RequestStatus.EXPIRED : request.status,
+      contactState: contactStateOf(request),
+      target: otherPublicId
+        ? {
+            publicId: otherPublicId,
+            profile: otherProfile
+              ? {
+                  firstName: this.maskFirstNameIfHidden(otherProfile),
+                  gender: otherProfile.gender,
+                  ethnicity: otherProfile.ethnicity,
+                  city: otherProfile.city,
+                  state: otherProfile.state,
+                }
+              : null,
+          }
+        : null,
+    }));
   }
 
   /**

@@ -9,6 +9,7 @@ import { ArrowLeft, MapPin, User, Loader, Lock, Send, X, Clock } from 'lucide-re
 import { api } from '@/lib/api';
 import { useRequireSession } from '@/lib/hooks';
 import { Navbar } from '@/components/Navbar';
+import { ProfileSafetyActions } from '@/components/profile/ProfileSafetyActions';
 
 interface ProfileData {
   publicId: string;
@@ -339,6 +340,11 @@ export default function ProfileDetailPage() {
               </div>
             )}
           </div>
+
+          {/* The API refuses both on your own profile, so do not offer them. */}
+          {(session?.user as { publicId?: string } | undefined)?.publicId !== profile.publicId && (
+            <ProfileSafetyActions publicId={profile.publicId} displayName={displayName} />
+          )}
         </div>
       </main>
     </div>

@@ -328,7 +328,10 @@ function firebaseMessage(err: unknown): string {
     case 'auth/invalid-app-credential':
       return 'Verification could not start. Reload the page and try again.';
     case 'auth/operation-not-allowed':
-      return 'SMS phone verification is disabled or region blocked in Firebase Console. Please enable Phone provider & SMS Region Policy in Firebase.';
+      // Phone provider off, or the number's region is not in the Firebase SMS
+      // region policy. That is ours to fix, not the user's.
+      console.error('[phone-verify] Firebase refused to send SMS (auth/operation-not-allowed)');
+      return 'We cannot send a code to that number right now. Check the number, or contact support if it keeps happening.';
     default:
       return (err as { message?: string })?.message || 'Something went wrong. Please try again.';
   }

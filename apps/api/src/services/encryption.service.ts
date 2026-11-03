@@ -29,6 +29,16 @@ export class EncryptionService {
   }
 
   /**
+   * HMAC under a key derived for one purpose, so a signature for one feature
+   * cannot be replayed in another and the raw encryption key never signs.
+   * Rotating ENCRYPTION_KEY invalidates signatures already handed out.
+   */
+  signFor(purpose: string, value: string): string {
+    const key = Buffer.from(crypto.hkdfSync('sha256', this.keyBuffer, Buffer.alloc(0), `at-tayyibun/${purpose}`, 32));
+    return crypto.createHmac('sha256', key).update(value).digest('base64url');
+  }
+
+  /**
    * Encrypt plaintext using AES-256-GCM
    * Returns: iv:authTag:ciphertext (all base64)
    */

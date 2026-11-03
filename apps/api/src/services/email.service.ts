@@ -17,14 +17,21 @@ export interface TemplatedEmailOptions {
   variables: Record<string, string>;
 }
 
+export const POSTAL_ADDRESS_MISSING =
+  'Campaign email needs a postal address: set EMAIL_POSTAL_ADDRESS on the API. Nothing was sent.';
+
 @Injectable()
 export class EmailService {
   private resendInstance?: Resend;
   private readonly fromEmail: string;
   private readonly fromName: string;
   private readonly webUrl: string;
+  /** Null until the owner sets EMAIL_POSTAL_ADDRESS. Campaigns refuse to send without it. */
+  readonly postalAddress: string | null;
 
   constructor(private readonly configService: ConfigService) {
+    this.postalAddress =
+      this.configService.get<string>('EMAIL_POSTAL_ADDRESS')?.replace(/^["']|["']$/g, '').trim() || null;
     this.fromEmail = this.configService.get<string>('RESEND_FROM_EMAIL', 'noreply@attayyibun.com');
     this.fromName = this.configService.get<string>('RESEND_FROM_NAME', 'At-Tayyibun');
     this.webUrl = this.configService.get<string>('WEB_URL', 'http://localhost:3000');
@@ -64,6 +71,43 @@ export class EmailService {
       console.error('Email send error:', error);
       throw new Error('Failed to send email');
     }
+  }
+
+  /**
+   * Send one marketing email: postal address, unsubscribe link and one-click
+   * headers (CAN-SPAM, RFC 8058). Throws rather than sends if the address is
+   * unset, and on a provider error, which Resend returns instead of throwing.
+   */
+  async sendCampaignEmail(options: {
+    to: string;
+    subject: string;
+    html: string;
+    unsubscribeUrl: string;
+    oneClickUrl: string;
+  }): Promise<void> {
+    if (!this.postalAddress) throw new Error(POSTAL_ADDRESS_MISSING);
+
+    const footer = `
+      <div style="text-align: center; color: #999; font-size: 11px; margin-top: 20px; padding: 0 20px;">
+        <p>At-Tayyibun, ${escapeHtml(this.postalAddress)}</p>
+        <p>You received this email because you have an account on At-Tayyibun. <a href="${escapeHtml(options.unsubscribeUrl)}" style="color: #999;">Unsubscribe</a></p>
+      </div>`;
+    const closing = options.html.toLowerCase().lastIndexOf('</body>');
+    const html =
+      closing === -1 ? options.html + footer : options.html.slice(0, closing) + footer + options.html.slice(closing);
+
+    const { error } = await this.resend.emails.send({
+      from: this.from,
+      to: options.to,
+      subject: options.subject,
+      html,
+      text: this.stripHtml(html),
+      headers: {
+        'List-Unsubscribe': `<${options.oneClickUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+    });
+    if (error) throw new Error(`Resend refused the email: ${error.name}`);
   }
 
   /**
@@ -274,7 +318,8 @@ export class EmailService {
           </div>
           <div style="text-align: center; color: #999; font-size: 11px; margin-top: 20px; padding: 0 20px;">
             <p>At-Tayyibun - Privacy-First Muslim Matrimony</p>
-            <p>You received this email because you have an account on At-Tayyibun. <a href="${this.webUrl}/unsubscribe" style="color: #999;">Unsubscribe</a></p>
+            ${this.postalAddress ? `<p>${escapeHtml(this.postalAddress)}</p>` : ''}
+            <p>This is a service message about your At-Tayyibun account.</p>
           </div>
         </div>
       </body>

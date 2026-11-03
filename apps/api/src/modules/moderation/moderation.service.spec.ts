@@ -179,6 +179,18 @@ describe('ModerationService', () => {
     });
   });
 
+  describe('listReports', () => {
+    it('rejects an unknown status instead of a Postgres enum 500', async () => {
+      await expect(service.listReports('NOPE')).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.select).not.toHaveBeenCalled();
+    });
+
+    it('accepts a known status', async () => {
+      db.select.mockReturnValueOnce(chain([{ id: 'r1' }]));
+      await expect(service.listReports(ReportStatus.PENDING)).resolves.toEqual([{ id: 'r1' }]);
+    });
+  });
+
   describe('resolveReport', () => {
     const ADMIN = 'admin-uuid';
 

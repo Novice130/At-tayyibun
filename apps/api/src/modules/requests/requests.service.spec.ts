@@ -4,7 +4,7 @@ import { DrizzleService } from '../../db/drizzle.service';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
 import { EncryptionService } from '../../services/encryption.service';
-import { chain, createDbMock } from '../../test/drizzle-mock';
+import { chain, createDbMock, recordingChain, renderSql } from '../../test/drizzle-mock';
 
 const REQUESTER_ID = 'requester-uuid';
 const TARGET_ID = 'target-uuid';
@@ -170,17 +170,22 @@ describe('RequestsService', () => {
     });
   });
 
+
   describe('request lists', () => {
     const row = { id: 'req-1', requesterId: REQUESTER_ID, targetId: TARGET_ID, status: 'PENDING', expiresAt: FUTURE };
     const MARITAL_KEYS = ['maritalStatus', 'hasChildren', 'childrenCount', 'openToDivorced', 'openToWidowed', 'openToChildren'];
 
+    /** The joined row shape: the request, the other party's publicId, their profile. */
+    const joined = (profileRow: unknown, publicId: string | null = 'usr_pub_r') => ({
+      request: row,
+      otherPublicId: publicId,
+      otherProfile: profileRow,
+    });
+
     it('incoming items carry the requester marital status and children', async () => {
-      db.select.mockReturnValueOnce(chain([row]));
-      db.query.users.findFirst.mockResolvedValueOnce({
-        id: REQUESTER_ID,
-        publicId: 'usr_pub_r',
-        profiles: [profile({ maritalStatus: 'DIVORCED', hasChildren: true, childrenCount: 2 })],
-      });
+      db.select.mockReturnValueOnce(
+        chain([joined(profile({ maritalStatus: 'DIVORCED', hasChildren: true, childrenCount: 2 }))]),
+      );
       const [item] = await service.getIncomingRequests(TARGET_ID);
       expect(item.requester?.profile).toMatchObject({ maritalStatus: 'DIVORCED', hasChildren: true, childrenCount: 2 });
       expect(item.requester?.profile).not.toHaveProperty('openToDivorced');
@@ -189,32 +194,44 @@ describe('RequestsService', () => {
     });
 
     it('incoming items return nulls for unanswered values', async () => {
-      db.select.mockReturnValueOnce(chain([row]));
-      db.query.users.findFirst.mockResolvedValueOnce({
-        id: REQUESTER_ID,
-        publicId: 'usr_pub_r',
-        profiles: [profile({ maritalStatus: null, hasChildren: null })],
-      });
+      db.select.mockReturnValueOnce(chain([joined(profile({ maritalStatus: null, hasChildren: null }))]));
       const [item] = await service.getIncomingRequests(TARGET_ID);
       expect(item.requester?.profile).toMatchObject({ maritalStatus: null, hasChildren: null, childrenCount: null });
     });
 
     it('incoming items with a requester that has no profile row yield profile null', async () => {
-      db.select.mockReturnValueOnce(chain([row]));
-      db.query.users.findFirst.mockResolvedValueOnce({ id: REQUESTER_ID, publicId: 'usr_pub_r', profiles: [] });
+      db.select.mockReturnValueOnce(chain([joined(null)]));
       const [item] = await service.getIncomingRequests(TARGET_ID);
       expect(item.requester).toEqual({ publicId: 'usr_pub_r', profile: null });
     });
 
+    it('keeps the request columns at the top level of each item', async () => {
+      db.select.mockReturnValueOnce(chain([joined(profile())]));
+      const [item] = await service.getIncomingRequests(TARGET_ID);
+      expect(item).toMatchObject(row);
+    });
+
+    it('masks a hidden first name without returning publicFields', async () => {
+      db.select.mockReturnValueOnce(chain([joined(profile({ publicFields: { hideName: true } }))]));
+      const [item] = await service.getIncomingRequests(TARGET_ID);
+      expect(item.requester?.profile?.firstName).toBeNull();
+      expect(item.requester?.profile).not.toHaveProperty('publicFields');
+    });
+
     it('outgoing items carry none of the marital fields', async () => {
-      db.select.mockReturnValueOnce(chain([row]));
-      db.query.users.findFirst.mockResolvedValueOnce({
-        id: TARGET_ID,
-        publicId: 'usr_pub_t',
-        profiles: [profile({ maritalStatus: 'DIVORCED', hasChildren: true, childrenCount: 2 })],
-      });
+      db.select.mockReturnValueOnce(
+        chain([joined(profile({ maritalStatus: 'DIVORCED', hasChildren: true, childrenCount: 2 }), 'usr_pub_t')]),
+      );
       const [item] = await service.getOutgoingRequests(REQUESTER_ID);
+      expect(item.target?.publicId).toBe('usr_pub_t');
       for (const k of MARITAL_KEYS) expect(item.target?.profile).not.toHaveProperty(k);
+    });
+
+    /** The same row shape with the request columns overridden. */
+    const joinedRow = (over: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
+      ...joined(profile()),
+      request: { ...row, ...over },
+      ...extra,
     });
 
     it.each([
@@ -222,35 +239,91 @@ describe('RequestsService', () => {
       ['lapsed', { status: 'PENDING', expiresAt: PAST }],
       ['expired', { status: 'EXPIRED' }],
     ])('hides a %s request from the receiver', async (_name, over) => {
-      db.select.mockReturnValueOnce(chain([{ ...row, ...over }]));
+      db.select.mockReturnValueOnce(chain([joinedRow(over)]));
       await expect(service.getIncomingRequests(TARGET_ID)).resolves.toEqual([]);
     });
 
     it('keeps an approved request in the receiver list', async () => {
-      db.select.mockReturnValueOnce(chain([{ ...row, status: 'APPROVED' }]));
-      db.query.users.findFirst.mockResolvedValueOnce({ id: REQUESTER_ID, publicId: 'usr_pub_r', profiles: [profile()] });
+      db.select.mockReturnValueOnce(chain([joinedRow({ status: 'APPROVED' })]));
       await expect(service.getIncomingRequests(TARGET_ID)).resolves.toHaveLength(1);
     });
 
+    it('hides a request from a suspended requester', async () => {
+      db.select.mockReturnValueOnce(chain([joinedRow({}, { otherSuspendedAt: PAST })]));
+      await expect(service.getIncomingRequests(TARGET_ID)).resolves.toEqual([]);
+    });
+
+    it('filters dead and suspended rows in SQL, so LIMIT only counts visible rows', async () => {
+      const calls: Record<string, unknown[][]> = {};
+      db.select.mockReturnValueOnce(recordingChain([], calls));
+      await service.getIncomingRequests(TARGET_ID);
+      const where = renderSql(calls.where[0][0]);
+      expect(where.sql).toContain('"users"."suspended_at" is null');
+      expect(where.params).toEqual(expect.arrayContaining(['APPROVED', 'PENDING']));
+    });
+
     it('reports a lapsed request to its sender as expired', async () => {
-      db.select.mockReturnValueOnce(chain([{ ...row, expiresAt: PAST }]));
+      db.select.mockReturnValueOnce(chain([joinedRow({ expiresAt: PAST })]));
       const [item] = await service.getOutgoingRequests(REQUESTER_ID);
       expect(item.status).toBe('EXPIRED');
     });
 
     it('never returns the legacy one-time token', async () => {
-      db.select.mockReturnValueOnce(chain([{ ...row, oneTimeToken: 'secret' }]));
+      db.select.mockReturnValueOnce(chain([joinedRow({ oneTimeToken: 'secret' })]));
       const [outgoing] = await service.getOutgoingRequests(REQUESTER_ID);
       expect(outgoing).not.toHaveProperty('oneTimeToken');
-      db.select.mockReturnValueOnce(chain([{ ...row, oneTimeToken: 'secret' }]));
+      db.select.mockReturnValueOnce(chain([joinedRow({ oneTimeToken: 'secret' })]));
       const [incoming] = await service.getIncomingRequests(TARGET_ID);
       expect(incoming).not.toHaveProperty('oneTimeToken');
     });
 
     it('carries the contact state on outgoing rows', async () => {
-      db.select.mockReturnValueOnce(chain([{ ...row, status: 'APPROVED', contactExpiresAt: FUTURE }]));
+      db.select.mockReturnValueOnce(chain([joinedRow({ status: 'APPROVED', contactExpiresAt: FUTURE })]));
       const [item] = await service.getOutgoingRequests(REQUESTER_ID);
       expect(item.contactState).toBe('AVAILABLE');
+    });
+
+    it.each(['getIncomingRequests', 'getOutgoingRequests'] as const)(
+      '%s issues one query however many rows come back (no N+1)',
+      async (method) => {
+        db.select.mockReturnValueOnce(chain([joined(profile()), joined(profile()), joined(profile())]));
+        const items = await service[method](TARGET_ID);
+        expect(items).toHaveLength(3);
+        expect(db.select).toHaveBeenCalledTimes(1);
+        expect(db.query.users.findFirst).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['getIncomingRequests', 'getOutgoingRequests'] as const)(
+      '%s is bounded even when the caller passes nothing',
+      async (method) => {
+        const calls: Record<string, unknown[][]> = {};
+        db.select.mockReturnValueOnce(recordingChain([], calls));
+        await service[method](TARGET_ID);
+        expect(calls.limit).toEqual([[100]]);
+        expect(calls.offset).toEqual([[0]]);
+      },
+    );
+
+    it('applies the requested page and clamps an oversized limit', async () => {
+      const calls: Record<string, unknown[][]> = {};
+      db.select.mockReturnValueOnce(recordingChain([], calls));
+      await service.getIncomingRequests(TARGET_ID, { page: 3, limit: 5000 });
+      expect(calls.limit).toEqual([[100]]);
+      expect(calls.offset).toEqual([[200]]);
+    });
+
+    it.each([
+      [{ page: 0, limit: 0 }, 100, 0],
+      [{ page: -2, limit: -5 }, 100, 0],
+      [{ page: Number.NaN, limit: Number.NaN }, 100, 0],
+      [{ page: 2, limit: 10 }, 10, 10],
+    ])('normalizes paging %j', async (paging, limit, offset) => {
+      const calls: Record<string, unknown[][]> = {};
+      db.select.mockReturnValueOnce(recordingChain([], calls));
+      await service.getOutgoingRequests(REQUESTER_ID, paging);
+      expect(calls.limit).toEqual([[limit]]);
+      expect(calls.offset).toEqual([[offset]]);
     });
   });
 
@@ -269,6 +342,7 @@ describe('RequestsService', () => {
     function arrange(targetRow: unknown, requesterRow: unknown = requester) {
       db.select.mockReturnValueOnce(chain([pending]));
       db.query.users.findFirst.mockResolvedValueOnce(requesterRow).mockResolvedValueOnce(targetRow);
+      db.update.mockReturnValue(chain([{ id: 'req-1' }]));
     }
 
     it('emails a link and no contact values', async () => {
@@ -292,12 +366,52 @@ describe('RequestsService', () => {
 
     it('stores the chosen source and a contact expiry', async () => {
       arrange(target({}, { biodataJsonEnc: GUARDIAN }));
-      const set = jest.fn(() => chain([]));
+      const set = jest.fn(() => chain([{ id: 'req-1' }]));
       db.update.mockReturnValueOnce({ set });
       await service.respondToRequest(TARGET_ID, 'req-1', { approved: true, shareSource: 'GUARDIAN' });
       expect(set.mock.calls[0]).toEqual([
         expect.objectContaining({ shareSource: 'GUARDIAN', contactExpiresAt: expect.any(String) }),
       ]);
+    });
+
+    it.each([[true], [false]])('guards the UPDATE on status = PENDING (approved=%s)', async (approved) => {
+      arrange(target());
+      const calls: Record<string, unknown[][]> = {};
+      db.update.mockReturnValue(recordingChain([{ id: 'req-1' }], calls));
+      await expect(service.respondToRequest(TARGET_ID, 'req-1', { approved })).resolves.toEqual({ success: true });
+      const where = renderSql(calls.where[0][0]);
+      expect(where.sql).toContain('"info_requests"."id" = $');
+      expect(where.sql).toContain('"info_requests"."status" = $');
+      expect(where.params).toEqual(expect.arrayContaining(['req-1', 'PENDING']));
+      expect(calls.returning).toHaveLength(1);
+    });
+
+    it('a racing approve that loses the UPDATE gets a 400, emails nothing, audits nothing', async () => {
+      arrange(target());
+      db.update.mockReturnValue(chain([]));
+      const err = await service.respondToRequest(TARGET_ID, 'req-1', { approved: true }).catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(err.message).toBe('This request has already been processed');
+      expect(email.sendContactLinkEmail).not.toHaveBeenCalled();
+      expect(audit.logInfoRequest).not.toHaveBeenCalled();
+    });
+
+    it('a racing deny that loses the UPDATE gets a 400 and sends no denial', async () => {
+      arrange(target());
+      db.update.mockReturnValue(chain([]));
+      const err = await service.respondToRequest(TARGET_ID, 'req-1', { approved: false }).catch((e) => e);
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect(email.sendRequestDeniedEmail).not.toHaveBeenCalled();
+      expect(audit.logInfoRequest).not.toHaveBeenCalled();
+    });
+
+    it('expiring a stale request also only touches a row still PENDING', async () => {
+      db.select.mockReturnValueOnce(chain([{ ...pending, expiresAt: PAST }]));
+      const calls: Record<string, unknown[][]> = {};
+      db.update.mockReturnValueOnce(recordingChain([], calls));
+      const err = await service.respondToRequest(TARGET_ID, 'req-1', { approved: true }).catch((e) => e);
+      expect(err.message).toBe('This request has expired');
+      expect(renderSql(calls.where[0][0]).params).toEqual(expect.arrayContaining(['req-1', 'PENDING']));
     });
 
     it('refuses guardian sharing when no guardian is saved', async () => {

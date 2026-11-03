@@ -161,12 +161,14 @@ export class ProfilesService {
     const dir = order === 'desc' ? desc : asc;
     const ageDir = order === 'asc' ? desc : asc;
 
+    // users.id breaks ties. Most members share rankBoost 0, and without a total
+    // order Postgres may repeat or skip rows from one OFFSET page to the next.
     const orderBy =
       sortBy === 'age'
-        ? [ageDir(profiles.dob)]
+        ? [ageDir(profiles.dob), asc(users.id)]
         : sortBy === 'createdAt'
-          ? [dir(users.createdAt)]
-          : [dir(users.rankBoost)];
+          ? [dir(users.createdAt), asc(users.id)]
+          : [dir(users.rankBoost), asc(users.id)];
 
     const db = this.drizzle.db;
     const [rows, [totalRow]] = await Promise.all([

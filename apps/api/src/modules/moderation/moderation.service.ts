@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { and, desc, eq, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { DrizzleService } from '../../db/drizzle.service';
@@ -191,6 +192,10 @@ export class ModerationService {
   // ---- admin side ----
 
   async listReports(status?: string) {
+    if (status && !Object.values(ReportStatus).includes(status as ReportStatus)) {
+      throw new BadRequestException('Unknown report status');
+    }
+    const reportedUser = alias(users, 'reported_user');
     const conds = status ? [eq(reports.status, status as ReportStatus)] : [];
     return this.drizzle.db
       .select({
@@ -207,9 +212,17 @@ export class ModerationService {
           publicId: users.publicId,
           email: users.email,
         },
+        // Null once the reported account has been deleted.
+        reported: {
+          publicId: reportedUser.publicId,
+          email: reportedUser.email,
+          name: reportedUser.name,
+          suspendedAt: reportedUser.suspendedAt,
+        },
       })
       .from(reports)
       .leftJoin(users, eq(reports.reporterId, users.id))
+      .leftJoin(reportedUser, eq(reports.reportedUserId, reportedUser.id))
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(reports.createdAt))
       .limit(100);

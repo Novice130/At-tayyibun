@@ -14,6 +14,43 @@ import {
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { MARITAL_STATUSES, MaritalStatus } from '../marital-match';
+import { Gender } from '../../../common/types/role';
+import type { BrowseFilters } from '../profiles.service';
+
+/** Highest browse page. With MAX_BROWSE_LIMIT this bounds OFFSET at 24,950 rows. */
+export const MAX_BROWSE_PAGE = 500;
+export const MAX_BROWSE_LIMIT = 50;
+
+/**
+ * Turns raw browse query params into filters. Anything unparseable or out of
+ * range falls back to the default rather than reaching the query as NaN or an
+ * invalid enum literal. Not a validated DTO class on purpose: the global
+ * ValidationPipe rejects unknown params, and clients send extras here.
+ */
+export function normalizeBrowseQuery(query: Record<string, unknown>): BrowseFilters {
+  const toInt = (value: unknown): number | undefined => {
+    if (value === undefined || value === null || String(value).trim() === '') return undefined;
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.trunc(n) : undefined;
+  };
+  const oneOf = <T extends string>(value: unknown, allowed: readonly T[]): T | undefined =>
+    allowed.includes(value as T) ? (value as T) : undefined;
+
+  const { ethnicity, gender, minAge, maxAge, sortBy, order, page, limit } = query;
+  const parsedMinAge = toInt(minAge);
+  const parsedMaxAge = toInt(maxAge);
+
+  return {
+    ethnicity: typeof ethnicity === 'string' ? ethnicity.trim().slice(0, 50) || undefined : undefined,
+    gender: oneOf(gender, [Gender.MALE, Gender.FEMALE]),
+    minAge: parsedMinAge && parsedMinAge > 0 && parsedMinAge <= 120 ? parsedMinAge : undefined,
+    maxAge: parsedMaxAge && parsedMaxAge > 0 && parsedMaxAge <= 120 ? parsedMaxAge : undefined,
+    sortBy: oneOf(sortBy, ['age', 'createdAt', 'rankBoost'] as const),
+    order: oneOf(order, ['asc', 'desc'] as const),
+    page: Math.min(Math.max(1, toInt(page) ?? 1), MAX_BROWSE_PAGE),
+    limit: Math.min(Math.max(1, toInt(limit) ?? 20), MAX_BROWSE_LIMIT),
+  };
+}
 
 export class UpdateProfileDto {
   @ApiPropertyOptional({ example: 'Ahmad' })

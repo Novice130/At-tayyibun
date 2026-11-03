@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { LayoutDashboard, Users, Settings, LogOut, Loader, Megaphone, Ticket, Mail, FileJson, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, LogOut, Loader, Megaphone, Ticket, Mail, FileJson, Flag, Menu, X } from 'lucide-react';
 import { useSession, signOut } from '@/lib/auth-client';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
@@ -15,6 +15,7 @@ const NAV = [
   { href: '/admin/campaigns', label: 'Campaigns', icon: Mail },
   { href: '/admin/schemas', label: 'Schemas', icon: FileJson },
   { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/reports', label: 'Reports', icon: Flag },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
