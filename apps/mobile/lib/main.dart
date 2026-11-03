@@ -53,13 +53,15 @@ class AtTayyibunApp extends ConsumerStatefulWidget {
   ConsumerState<AtTayyibunApp> createState() => _AtTayyibunAppState();
 }
 
-class _AtTayyibunAppState extends ConsumerState<AtTayyibunApp> {
+class _AtTayyibunAppState extends ConsumerState<AtTayyibunApp>
+    with WidgetsBindingObserver {
   StreamSubscription<String>? _tapSub;
   StreamSubscription<void>? _foregroundSub;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Confirm the persisted session with the server on launch.
     Future.microtask(() {
       ref.read(authControllerProvider.notifier).restore();
@@ -69,6 +71,7 @@ class _AtTayyibunAppState extends ConsumerState<AtTayyibunApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tapSub?.cancel();
     _foregroundSub?.cancel();
     super.dispose();
@@ -89,6 +92,18 @@ class _AtTayyibunAppState extends ConsumerState<AtTayyibunApp> {
       ref.invalidate(outgoingRequestsProvider);
       ref.invalidate(activeRequestProvider);
     });
+  }
+
+  /// Back in the foreground: register for push if that has not happened yet
+  /// (notifications just turned on in Settings, or the iOS APNs token was
+  /// late). Never prompts; a no-op once registered.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    final auth = ref.read(authControllerProvider);
+    if (!auth.isSignedIn || auth.needsPhone) return;
+    final push = ref.read(pushNotificationsProvider);
+    if (push != null) unawaited(push.start(prompt: false));
   }
 
   /// Push starts once a member is signed in and past the phone gate (the API

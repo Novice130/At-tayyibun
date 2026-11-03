@@ -24,6 +24,9 @@ class _FakeMessaging implements PushMessaging {
   }
 
   @override
+  Future<bool> hasPermission() async => permission;
+
+  @override
   Future<String?> getToken() async => token;
 
   @override
@@ -39,6 +42,19 @@ class _FakeMessaging implements PushMessaging {
   Stream<void> get onForegroundMessage => foreground.stream;
 }
 
+/// Registers normally; unregister never answers.
+class _HungDevices implements DevicesRepository {
+  _HungDevices(this._inner);
+  final DevicesRepository _inner;
+
+  @override
+  Future<void> register(String token, String platform) =>
+      _inner.register(token, platform);
+
+  @override
+  Future<void> unregister(String token) => Completer<void>().future;
+}
+
 /// Each request the fake API saw: method, path and decoded JSON body.
 typedef _Call = ({String method, String path, Map<String, dynamic> body});
 
@@ -46,6 +62,7 @@ void main() {
   late _FakeMessaging messaging;
   late List<_Call> calls;
   late PushNotifications push;
+  late DevicesRepository devices;
   int failWith = 0;
 
   setUp(() {
@@ -64,9 +81,10 @@ void main() {
       if (failWith != 0) return jsonBody({'message': 'nope'}, status: failWith);
       return jsonBody({'success': true});
     });
+    devices = DevicesRepository(api);
     push = PushNotifications(
       messaging: messaging,
-      devices: DevicesRepository(api),
+      devices: devices,
       platform: 'android',
     );
   });
@@ -119,16 +137,73 @@ void main() {
     expect(push.registeredToken, isNull);
   });
 
-  test('stop without a registered token makes no request', () async {
+  test('stop without a remembered token removes the current one', () async {
+    // Launched offline, then signed out: start() never ran this launch.
+    await push.stop();
+    expect(calls.single.path, '/api/devices/unregister');
+    expect(calls.single.body, {'token': 'tok-1'});
+  });
+
+  test('stop makes no request when notifications were never allowed',
+      () async {
+    messaging.permission = false;
     await push.stop();
     expect(calls, isEmpty);
   });
 
-  test('reset forgets the token without calling the server', () async {
+  test('reset stops without calling the server but keeps the token',
+      () async {
     await push.start();
     await push.reset();
     expect(calls, hasLength(1));
-    expect(push.registeredToken, isNull);
+    expect(push.registeredToken, 'tok-1');
+
+    // Signed out later from the offline screen, with a session again.
+    await push.stop();
+    expect(calls.last.path, '/api/devices/unregister');
+    expect(calls.last.body, {'token': 'tok-1'});
+  });
+
+  test('a denied permission can be retried later without a prompt', () async {
+    messaging.permission = false;
+    await push.start();
+    expect(calls, isEmpty);
+
+    // Turned on in Settings; the app comes back to the foreground.
+    messaging.permission = true;
+    await push.start(prompt: false);
+    expect(messaging.permissionRequests, 1);
+    expect(calls.single.body, {'token': 'tok-1', 'platform': 'android'});
+  });
+
+  test('a late APNs token is registered on a later start', () async {
+    messaging.token = null;
+    await push.start();
+    expect(calls, isEmpty);
+
+    messaging.token = 'tok-late';
+    await push.start(prompt: false);
+    expect(push.registeredToken, 'tok-late');
+  });
+
+  test('start(prompt: false) never shows the permission prompt', () async {
+    await push.start(prompt: false);
+    expect(messaging.permissionRequests, 0);
+    expect(push.registeredToken, 'tok-1');
+  });
+
+  test('stop gives up on a hung unregister call', () async {
+    final hung = PushNotifications(
+      messaging: messaging,
+      devices: _HungDevices(devices),
+      platform: 'android',
+      unregisterTimeout: const Duration(milliseconds: 50),
+    );
+    await hung.start();
+    await expectLater(
+      hung.stop().timeout(const Duration(seconds: 2)),
+      completes,
+    );
   });
 
   test('API failures never throw out of start or stop', () async {

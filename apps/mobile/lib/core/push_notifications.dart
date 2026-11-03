@@ -12,6 +12,9 @@ abstract class PushMessaging {
   /// Shows the system prompt the first time. True if notifications may show.
   Future<bool> requestPermission();
 
+  /// Whether notifications may show, without ever prompting.
+  Future<bool> hasPermission();
+
   Future<String?> getToken();
 
   Stream<String> get onTokenRefresh;
@@ -39,9 +42,16 @@ class FirebasePushMessaging implements PushMessaging {
       badge: true,
       sound: true,
     );
-    return settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional;
+    return _allowed(settings.authorizationStatus);
   }
+
+  @override
+  Future<bool> hasPermission() async =>
+      _allowed((await _fcm.getNotificationSettings()).authorizationStatus);
+
+  static bool _allowed(AuthorizationStatus status) =>
+      status == AuthorizationStatus.authorized ||
+      status == AuthorizationStatus.provisional;
 
   @override
   Future<String?> getToken() async {
@@ -82,11 +92,15 @@ class PushNotifications {
     required this._messaging,
     required this._devices,
     required this._platform,
+    this._unregisterTimeout = const Duration(seconds: 3),
   });
 
   final PushMessaging _messaging;
   final DevicesRepository _devices;
   final String _platform;
+
+  /// Sign-out waits for the unregister call; it must not hang on a bad network.
+  final Duration _unregisterTimeout;
 
   bool _active = false;
   String? _registeredToken;
@@ -98,19 +112,37 @@ class PushNotifications {
   String? get registeredToken => _registeredToken;
 
   /// Call once a member is signed in (past the phone gate, which the API
-  /// enforces on every route). Asks for permission, registers the token and
-  /// follows token refreshes. Repeated calls are ignored until [stop].
-  Future<void> start() async {
+  /// enforces on every route). Asks for permission (only checks it when
+  /// [prompt] is false), registers the token and follows token refreshes.
+  ///
+  /// Once a token is registered, repeated calls are ignored until [stop] or
+  /// [reset]. If nothing was registered (permission denied, the iOS APNs
+  /// token not ready yet, a network error), a later call tries again: the app
+  /// calls `start(prompt: false)` each time it returns to the foreground, so
+  /// turning notifications on in Settings takes effect without signing out.
+  Future<void> start({bool prompt = true}) async {
     if (_active) return;
     _active = true;
+    var registered = false;
     try {
-      if (!await _messaging.requestPermission()) return;
-      if (!_active) return;
-      _refreshSub = _messaging.onTokenRefresh.listen(_register);
-      final token = await _messaging.getToken();
-      if (token != null) await _register(token);
+      final allowed = prompt
+          ? await _messaging.requestPermission()
+          : await _messaging.hasPermission();
+      if (allowed && _active) {
+        _refreshSub ??= _messaging.onTokenRefresh.listen(_register);
+        final token = await _messaging.getToken();
+        if (token != null) {
+          await _register(token);
+          registered = _registeredToken == token;
+        }
+      }
     } catch (e) {
       debugPrint('[push] start failed: ${e.runtimeType}');
+    }
+    if (!registered && _active) {
+      _active = false;
+      await _refreshSub?.cancel();
+      _refreshSub = null;
     }
   }
 
@@ -127,33 +159,47 @@ class PushNotifications {
   }
 
   /// Stops following refreshes and removes this device's token from the
-  /// server. Needs the session, so the sign-out flow calls it first.
+  /// server. Needs the session, so the sign-out flow calls it first. Gives up
+  /// after a few seconds so sign-out never hangs on a bad network.
+  ///
+  /// With no token remembered (say the app was launched offline and the
+  /// member signs out from there), it removes the device's current FCM token,
+  /// if notifications were ever allowed. The server only deletes the caller's
+  /// own tokens, so this is harmless when the token belongs to nobody.
   Future<void> stop() async {
     _active = false;
     await _refreshSub?.cancel();
     _refreshSub = null;
-    await _unregister();
+    try {
+      await _unregister().timeout(_unregisterTimeout);
+    } on TimeoutException {
+      debugPrint('[push] unregister timed out');
+    }
   }
 
   Future<void> _unregister() async {
-    final token = _registeredToken;
+    var token = _registeredToken;
     _registeredToken = null;
-    if (token == null) return;
     try {
+      if (token == null && await _messaging.hasPermission()) {
+        token = await _messaging.getToken();
+      }
+      if (token == null) return;
       await _devices.unregister(token);
     } catch (e) {
       debugPrint('[push] unregister failed: ${e.runtimeType}');
     }
   }
 
-  /// Forgets local state without calling the server, for when the session is
-  /// already gone (account deleted, suspended, expired). The server removes
-  /// a deleted account's tokens itself and does not push to suspended ones.
+  /// Stops without calling the server, for when the session may be gone
+  /// (account deleted, suspended, expired, or the server unreachable). The
+  /// last registered token is kept, so a sign-out that still has a session
+  /// (from the offline screen, say) can remove it. The server removes a
+  /// deleted account's tokens itself and does not push to suspended ones.
   Future<void> reset() async {
     _active = false;
     await _refreshSub?.cancel();
     _refreshSub = null;
-    _registeredToken = null;
   }
 
   /// Where the notification that launched the app points. Answers once per
