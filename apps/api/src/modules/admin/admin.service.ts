@@ -6,10 +6,15 @@ import {
 } from '@nestjs/common';
 import { and, count, desc, eq, ilike, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { DrizzleService } from '../../db/drizzle.service';
-import { infoRequests, profiles, systemConfig, users } from '../../db/schema';
+import { auditLogs, infoRequests, profiles, systemConfig, users } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
 import { ModerationService } from '../moderation/moderation.service';
+
+/** Members per bulk-nudge request; at 2 emails/s this is about 20 seconds. */
+export const NUDGE_BATCH = 40;
+/** Stop starting new sends after this long, so the request ends in time. */
+export const NUDGE_TIME_BUDGET_MS = 45_000;
 
 @Injectable()
 export class AdminService {
@@ -230,17 +235,41 @@ export class AdminService {
     return { success: true, email: row.email };
   }
 
+  /**
+   * Emails incomplete signups in batches. Sends are paced to Resend's rate
+   * limit, so one HTTP request handles at most NUDGE_BATCH members and stops
+   * starting new sends after NUDGE_TIME_BUDGET_MS, well inside the
+   * Cloudflare/Caddy timeout. Anyone nudged in the last 24 hours is skipped,
+   * so a retry or a second click moves on to the next members instead of
+   * emailing the same people again. `more` tells the admin to run it again.
+   */
   async nudgeAllIncomplete(adminId: string) {
     const db = this.drizzle.db;
-    const targets = await db
+    const recentlyNudged = sql`exists (
+      select 1 from ${auditLogs}
+      where ${auditLogs.action} = 'ADMIN_NUDGE_VERIFY_PHONE'
+        and ${auditLogs.resourceId} = ${users.id}
+        and ${auditLogs.createdAt} > now() - interval '24 hours')`;
+    const rows = await db
       .select({ id: users.id, email: users.email, name: users.name })
       .from(users)
       .leftJoin(profiles, eq(profiles.userId, users.id))
-      .where(this.incompleteSignupWhere());
+      .where(and(this.incompleteSignupWhere(), sql`not ${recentlyNudged}`))
+      .orderBy(users.createdAt)
+      .limit(NUDGE_BATCH + 1);
+    let more = rows.length > NUDGE_BATCH;
+    const targets = rows.slice(0, NUDGE_BATCH);
 
+    const stopAt = Date.now() + NUDGE_TIME_BUDGET_MS;
     let sent = 0;
+    let attempted = 0;
     const failed: { email: string; error: string }[] = [];
     for (const t of targets) {
+      if (Date.now() > stopAt) {
+        more = true;
+        break;
+      }
+      attempted += 1;
       try {
         await this.emailService.sendVerifyPhoneNudgeEmail(t.email, t.name ? t.name.split(' ')[0] : null);
         await this.auditService.logAdminAction(adminId, 'NUDGE_VERIFY_PHONE', 'user', t.id, { email: t.email });
@@ -249,7 +278,7 @@ export class AdminService {
         failed.push({ email: t.email, error: e?.message || 'send failed' });
       }
     }
-    return { total: targets.length, sent, failed };
+    return { total: attempted, sent, failed, more };
   }
 
   async deleteUser(adminId: string, userId: string) {

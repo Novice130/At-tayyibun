@@ -293,20 +293,22 @@ export default function AdminUsersPage() {
     const count = list?.data.filter(isIncomplete).length ?? 0;
     if (
       !confirm(
-        `Send a verification reminder to every incomplete signup? This emails all accounts with no verified phone and no profile (across all pages, not just the ${count} on this one).`
+        `Send a verification reminder to incomplete signups? This emails accounts with no verified phone and no profile (across all pages, not just the ${count} on this one), in batches of up to 40, skipping anyone reminded in the last 24 hours.`
       )
     )
       return;
     setNudging('all');
     setAction(null);
     try {
-      const res: { total: number; sent: number; failed: { email: string; error: string }[] } = await api.post(
-        '/admin/users/nudge-unverified'
-      );
-      const msg =
+      // The API sends one batch per call and skips anyone reminded in the last
+      // 24 hours, so running it again continues with the next members.
+      const res: { total: number; sent: number; failed: { email: string; error: string }[]; more?: boolean } =
+        await api.post('/admin/users/nudge-unverified');
+      const base =
         res.failed.length > 0
           ? `Sent ${res.sent}/${res.total} reminders. Failed: ${res.failed.map((f) => f.email).join(', ')}`
           : `Sent ${res.sent} verification reminder${res.sent === 1 ? '' : 's'}`;
+      const msg = res.more ? `${base}. More remain: run it again to continue.` : base;
       setAction({ type: res.failed.length > 0 ? 'error' : 'info', msg });
       if (res.failed.length > 0) toast.error(`${res.failed.length} send(s) failed`);
       else toast.success(msg);
