@@ -46,13 +46,6 @@ function withCsp(response: NextResponse, csp: CspHeader): NextResponse {
 }
 
 export function middleware(request: NextRequest) {
-  // App Link / Universal Link verification files. Apple and Google fetch these
-  // without cookies and do not follow redirects, so they are never gated or
-  // redirected, on either host.
-  if (request.nextUrl.pathname.startsWith('/.well-known/')) {
-    return NextResponse.next();
-  }
-
   // Canonical redirect www.attayyibun.com -> attayyibun.com
   // Preserves protocol, cookies, and search params without cross-subdomain cookie drops.
   const host = request.headers.get('host') || '';
@@ -118,5 +111,8 @@ export function middleware(request: NextRequest) {
 // Static files (_next/static, _next/image, images, avatars, favicon) need no
 // CSP: it only governs documents. /monitoring is the Sentry tunnel.
 export const config = {
+  // /.well-known/ is excluded here, and only here: the App Link / Universal
+  // Link verification files must never be gated or redirected (Apple and
+  // Google fetch them without cookies and do not follow redirects).
   matcher: ['/((?!_next/static|_next/image|monitoring|avatars|\\.well-known/|favicon.ico|.*\\.(?:jpg|jpeg|gif|png|svg|ico|webp|mp4)).*)'],
 };
