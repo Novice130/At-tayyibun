@@ -33,11 +33,23 @@ FROM deps AS prod-deps
 WORKDIR /app
 RUN pnpm install --filter @at-tayyibun/api --prod --frozen-lockfile --prefer-offline \
  && pnpm store prune \
+ && rm -rf node_modules/esbuild node_modules/@esbuild node_modules/@esbuild-kit \
+    node_modules/drizzle-kit node_modules/tsx node_modules/get-tsconfig \
+    node_modules/resolve-pkg-maps node_modules/typescript node_modules/@swc \
+    node_modules/turbo node_modules/pnpm node_modules/@playwright node_modules/playwright \
+    node_modules/playwright-core node_modules/.bin \
+ && find node_modules -type d \( -name esbuild -o -name '@esbuild' \) -prune -exec rm -rf {} + \
  && rm -rf /root/.local/share/pnpm /root/.cache
 
 # --- Stage 4: Runner ---
 FROM node:20-alpine AS runner
-RUN apk add --no-cache libc6-compat
+# Runtime does not need package managers. Patch OpenSSL (libssl3/libcrypto3)
+# past whatever the base image shipped, then drop npm/npx/corepack/yarn.
+RUN apk add --no-cache libc6-compat \
+ && apk upgrade --no-cache libssl3 libcrypto3 \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-* /root/.npm
 WORKDIR /app
 
 ENV NODE_ENV=production

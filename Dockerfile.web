@@ -51,7 +51,13 @@ RUN --mount=type=secret,id=sentry_auth_token,env=SENTRY_AUTH_TOKEN \
 
 # --- Stage 3: Runner (standalone output = no node_modules copy needed) ---
 FROM node:20-alpine AS runner
-RUN apk add --no-cache libc6-compat
+# Runtime does not need package managers. Patch OpenSSL (libssl3/libcrypto3)
+# past whatever the base image shipped, then drop npm/npx/corepack/yarn.
+RUN apk add --no-cache libc6-compat \
+ && apk upgrade --no-cache libssl3 libcrypto3 \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-* /root/.npm
 WORKDIR /app
 
 ENV NODE_ENV=production

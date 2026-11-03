@@ -18,6 +18,7 @@ coverage
 
 # VCS + IDE
 .git
+**/.git
 .gitignore
 .vscode
 .idea
@@ -27,8 +28,9 @@ coverage
 # A bare pattern matches the build-context root only, hence the **/ forms.
 .env
 .env.*
+**/.env
+**/.env.*
 **/.env*
-!.env.example
 *.p8
 **/*.p8
 *.pem
@@ -77,7 +79,15 @@ test-*.ts
 graphify-out
 .playwright-mcp
 docs
+video
+loadtest
 memory-bank
+**/docs
+**/*.p12
+**/*serviceaccount*.json
+**/*service-account*.json
+**/google-services.json
+**/GoogleService-Info.plist
 diagnostics
 apps/mobile
 
