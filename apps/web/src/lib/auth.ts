@@ -9,6 +9,7 @@ import { firebaseVerifyOTP } from "./phone-verify";
 import { assertImageWritable, imageForNewUser } from "./avatar-url";
 import { secondFactorSessionHook } from "./second-factor-session";
 import { withLoadtestBypass } from "./loadtest-bypass";
+import { postToResend } from "./resend-post";
 
 const escapeHtml = (value: unknown): string =>
   String(value ?? '')
@@ -37,23 +38,13 @@ async function sendAuthEmail(to: string, subject: string, html: string) {
   if (!process.env.RESEND_API_KEY) {
     throw new Error(`RESEND_API_KEY not set; cannot send "${subject}"`);
   }
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-    },
-    body: JSON.stringify({
-      from: `${process.env.RESEND_FROM_NAME || "At-Tayyibun"} <${process.env.RESEND_FROM_EMAIL || "noreply@attayyibun.com"}>`,
-      to: [to],
-      subject,
-      html,
-    }),
+  // Retries Resend 429s within a short budget; see resend-post.ts.
+  await postToResend(process.env.RESEND_API_KEY, {
+    from: `${process.env.RESEND_FROM_NAME || "At-Tayyibun"} <${process.env.RESEND_FROM_EMAIL || "noreply@attayyibun.com"}>`,
+    to: [to],
+    subject,
+    html,
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Resend ${res.status}: ${body.slice(0, 200)}`);
-  }
 }
 
 function actionEmailHtml(opts: {
@@ -316,23 +307,7 @@ const options = {
 </body>
 </html>`;
 
-          const res = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-            },
-            body: JSON.stringify({
-              from: `${process.env.RESEND_FROM_NAME || "At-Tayyibun"} <${process.env.RESEND_FROM_EMAIL || "noreply@attayyibun.com"}>`,
-              to: [user.email],
-              subject: "Your verification code – At-Tayyibun",
-              html,
-            }),
-          });
-          if (!res.ok) {
-            const body = await res.text().catch(() => "");
-            throw new Error(`Resend ${res.status}: ${body.slice(0, 200)}`);
-          }
+          await sendAuthEmail(user.email, "Your verification code – At-Tayyibun", html);
         },
       },
     }),
