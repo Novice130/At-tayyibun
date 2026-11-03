@@ -103,6 +103,9 @@ importers:
       express-rate-limit:
         specifier: ^7.5.0
         version: 7.5.1(express@5.2.1)
+      firebase-admin:
+        specifier: ^14.5.0
+        version: 14.5.0(@firebase/app-compat@0.5.18)(@firebase/app@0.16.2)
       helmet:
         specifier: ^8.0.0
         version: 8.1.0

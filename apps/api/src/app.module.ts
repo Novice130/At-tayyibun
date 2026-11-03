@@ -13,6 +13,7 @@ import { ProfilesModule } from "./modules/profiles/profiles.module";
 import { RequestsModule } from "./modules/requests/requests.module";
 import { ModerationModule } from "./modules/moderation/moderation.module";
 import { AdminModule } from "./modules/admin/admin.module";
+import { NotificationsModule } from "./modules/notifications/notifications.module";
 // Guards & Interceptors
 import { BetterAuthGuard } from "./common/guards/better-auth.guard";
 import { AuditLogInterceptor } from "./common/interceptors/audit-log.interceptor";
@@ -101,6 +102,7 @@ import { createLoadtestSkipIf } from "./common/loadtest/loadtest-bypass";
     RequestsModule,
     ModerationModule,
     AdminModule,
+    NotificationsModule,
   ],
   providers: [
     // Global guards (deny-by-default)

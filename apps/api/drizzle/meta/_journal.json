@@ -50,6 +50,13 @@
       "when": 1793000000000,
       "tag": "0006_contact_link_and_suspension",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794000000000,
+      "tag": "0008_device_tokens",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@ import { DrizzleService } from '../../db/drizzle.service';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
 import { EncryptionService } from '../../services/encryption.service';
+import { PushService } from '../notifications/push.service';
 import { chain, createDbMock, recordingChain, renderSql } from '../../test/drizzle-mock';
 
 const REQUESTER_ID = 'requester-uuid';
@@ -34,6 +35,7 @@ describe('RequestsService', () => {
   let service: RequestsService;
   let audit: { log: jest.Mock; logInfoRequest: jest.Mock };
   let email: { sendContactRequestEmail: jest.Mock; sendContactLinkEmail: jest.Mock; sendRequestDeniedEmail: jest.Mock };
+  let push: { notify: jest.Mock };
 
   beforeEach(() => {
     db = createDbMock();
@@ -43,11 +45,13 @@ describe('RequestsService', () => {
       sendContactLinkEmail: jest.fn(async () => undefined),
       sendRequestDeniedEmail: jest.fn(async () => undefined),
     };
+    push = { notify: jest.fn() };
     service = new RequestsService(
       { db } as unknown as DrizzleService,
       audit as unknown as AuditService,
       email as unknown as EmailService,
       { decryptJson: (v: string) => JSON.parse(v) } as unknown as EncryptionService,
+      push as unknown as PushService,
     );
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
   });
@@ -71,6 +75,24 @@ describe('RequestsService', () => {
       arrange(profile(), profile());
       await expect(service.createRequest(REQUESTER_ID, 'usr_pub_t')).resolves.toEqual({ id: 'req-1' });
       expect(db.insert).toHaveBeenCalledTimes(1);
+    });
+
+    it('pushes the recipient, after the row is written', async () => {
+      arrange(profile(), profile());
+      db.insert.mockReset();
+      db.insert.mockImplementationOnce(() => {
+        expect(push.notify).not.toHaveBeenCalled();
+        return chain([{ id: 'req-1' }]);
+      });
+      await service.createRequest(REQUESTER_ID, 'usr_pub_t');
+      expect(push.notify).toHaveBeenCalledTimes(1);
+      expect(push.notify).toHaveBeenCalledWith(TARGET_ID, 'REQUEST_RECEIVED');
+    });
+
+    it('pushes nobody when the request is refused', async () => {
+      arrange(profile(), profile(), true);
+      await service.createRequest(REQUESTER_ID, 'usr_pub_t').catch(() => undefined);
+      expect(push.notify).not.toHaveBeenCalled();
     });
 
     it('rejects a requester whose profile is not complete', async () => {
@@ -380,6 +402,22 @@ describe('RequestsService', () => {
       arrange(target({}, { publicFields: { hideName: true } }));
       await service.respondToRequest(TARGET_ID, 'req-1', { approved: true });
       expect(email.sendContactLinkEmail.mock.calls[0][2]).toBe('A member');
+    });
+
+    it('pushes the requester once the approval is claimed', async () => {
+      arrange(target());
+      await service.respondToRequest(TARGET_ID, 'req-1', { approved: true });
+      expect(push.notify).toHaveBeenCalledTimes(1);
+      expect(push.notify).toHaveBeenCalledWith(REQUESTER_ID, 'REQUEST_APPROVED');
+    });
+
+    it('pushes nothing for a denial or a lost race', async () => {
+      arrange(target());
+      await service.respondToRequest(TARGET_ID, 'req-1', { approved: false });
+      arrange(target());
+      db.update.mockReturnValue(chain([]));
+      await service.respondToRequest(TARGET_ID, 'req-1', { approved: true }).catch(() => undefined);
+      expect(push.notify).not.toHaveBeenCalled();
     });
 
     it('skips the email for a phone-first requester', async () => {

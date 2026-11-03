@@ -14,6 +14,7 @@ import { infoRequests, users, blocks, profiles } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
 import { EncryptionService } from '../../services/encryption.service';
+import { PushService } from '../notifications/push.service';
 import { RequestStatus } from '../../common/types/role';
 import { RespondRequestDto } from './dto';
 import { hasCompleteProfile, isMutualMatch, toMatchSide } from '../profiles/marital-match';
@@ -59,6 +60,7 @@ export class RequestsService {
     private readonly auditService: AuditService,
     private readonly emailService: EmailService,
     private readonly encryptionService: EncryptionService,
+    private readonly pushService: PushService,
   ) {}
 
   private async getUserWithProfile(where: any) {
@@ -154,6 +156,10 @@ export class RequestsService {
         allowedShares: [],
       })
       .returning();
+
+    // Background send: never delays or fails the request. The block, match and
+    // suspension checks above already decided this recipient may be told.
+    this.pushService.notify(target.id, 'REQUEST_RECEIVED');
 
     try {
       // Skip rather than bounce a notification off an unreachable .invalid
@@ -268,6 +274,9 @@ export class RequestsService {
         contactExpiresAt: contactExpiresAt.toISOString(),
         respondedAt: new Date().toISOString(),
       });
+
+      // Only the winning claim reaches here, so one push per approval.
+      this.pushService.notify(request.requesterId, 'REQUEST_APPROVED');
 
       try {
         // A phone-first requester has no real address. They use the Requests

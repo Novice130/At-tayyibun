@@ -1,4 +1,4 @@
-import { pgTable, index, foreignKey, uuid, text, boolean, timestamp, uniqueIndex, varchar, jsonb, integer, date, smallint, pgEnum } from "drizzle-orm/pg-core"
+import { pgTable, index, foreignKey, uuid, text, boolean, timestamp, uniqueIndex, varchar, jsonb, integer, date, smallint, pgEnum, check } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 export const campaignStatus = pgEnum("CampaignStatus", ['DRAFT', 'SENDING', 'SENT'])
@@ -495,5 +495,28 @@ export const twoFactor = pgTable("two_factor", {
 			columns: [table.userId],
 			foreignColumns: [users.id],
 			name: "two_factor_user_id_fkey"
+		}).onUpdate("cascade").onDelete("cascade"),
+]);
+
+/**
+ * Push tokens (FCM registration tokens) for the mobile app. One row per
+ * device token: a token moves to whoever signed in on that device last.
+ * Created by drizzle/0008_device_tokens.sql. Rows go with the user (cascade).
+ */
+export const deviceTokens = pgTable("device_tokens", {
+	id: uuid().primaryKey().notNull(),
+	userId: uuid("user_id").notNull(),
+	token: text().notNull(),
+	platform: varchar({ length: 16 }).notNull(),
+	createdAt: timestamp("created_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp("updated_at", { precision: 3, mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("device_tokens_token_key").using("btree", table.token.asc().nullsLast().op("text_ops")),
+	index("device_tokens_user_id_idx").using("btree", table.userId.asc().nullsLast().op("uuid_ops")),
+	check("device_tokens_platform_check", sql`${table.platform} IN ('android', 'ios')`),
+	foreignKey({
+			columns: [table.userId],
+			foreignColumns: [users.id],
+			name: "device_tokens_user_id_fkey"
 		}).onUpdate("cascade").onDelete("cascade"),
 ]);
