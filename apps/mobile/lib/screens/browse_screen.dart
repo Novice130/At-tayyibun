@@ -69,6 +69,8 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
       // Keep existing filter if already set, otherwise FEMALE
       _filters = _filters.copyWith(gender: _filters.gender ?? 'FEMALE');
     }
+    // A suspension response redirects away while the profile is loading.
+    if (!mounted) return;
     await _load(reset: true);
   }
 

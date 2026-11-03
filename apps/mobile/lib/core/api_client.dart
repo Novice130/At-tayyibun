@@ -6,13 +6,15 @@ import 'package:path_provider/path_provider.dart';
 
 import 'api_exception.dart';
 import 'constants.dart';
+import 'session_store.dart';
 
 /// Single HTTP entry point for the app.
 ///
 /// Auth is entirely cookie-based: better-auth sets a session cookie on sign-in
 /// and the NestJS guard reads that same cookie. A [PersistCookieJar] backed by
-/// the app-support directory keeps the user signed in across restarts, which is
-/// the only session persistence this app needs — there is no bearer token path.
+/// secure storage (see session_store.dart) keeps the user signed in across
+/// restarts, which is the only session persistence this app needs — there is
+/// no bearer token path.
 class ApiClient {
   ApiClient._(this.dio, this._cookieJar);
 
@@ -23,12 +25,14 @@ class ApiClient {
   final Dio dio;
   final CookieJar? _cookieJar;
 
+  /// Called whenever the API refuses a request because the account is
+  /// suspended. Every screen's request passes through here, so the app reacts
+  /// in one place.
+  void Function()? onAccountSuspended;
+
   static Future<ApiClient> create() async {
     final dir = await getApplicationSupportDirectory();
-    final jar = PersistCookieJar(
-      storage: FileStorage('${dir.path}/.cookies'),
-      ignoreExpires: false,
-    );
+    final jar = await openSessionCookieJar(dir.path);
 
     final dio = Dio(
       BaseOptions(
@@ -98,7 +102,9 @@ class ApiClient {
       final response = await run();
       return response.data as T;
     } on DioException catch (e) {
-      throw ApiException.fromDio(e);
+      final error = ApiException.fromDio(e);
+      if (error.isSuspended) onAccountSuspended?.call();
+      throw error;
     }
   }
 }

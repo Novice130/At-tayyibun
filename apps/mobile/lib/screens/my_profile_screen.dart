@@ -355,7 +355,6 @@ class _BlockedList extends ConsumerWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(entry.name ?? entry.targetPublicId),
-                subtitle: Text(entry.email ?? ''),
                 trailing: TextButton(
                   onPressed: () async {
                     try {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/api_client.dart';
+import 'core/crash_reporting.dart';
 import 'core/theme.dart';
 import 'firebase_options.dart';
 import 'providers.dart';
@@ -11,22 +12,24 @@ import 'router.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase is used for one thing: delivering and checking the phone-
-  // verification SMS. It never holds a session — better-auth's cookie does.
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await runWithCrashReporting(() async {
+    // Firebase is used for one thing: delivering and checking the phone-
+    // verification SMS. It never holds a session — better-auth's cookie does.
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
-  // The cookie jar has to be opened from disk before anything can make a
-  // request, so the container is built with it already in place.
-  final apiClient = await ApiClient.create();
+    // The cookie jar has to be opened from storage before anything can make a
+    // request, so the container is built with it already in place.
+    final apiClient = await ApiClient.create();
 
-  runApp(
-    ProviderScope(
-      overrides: [apiClientProvider.overrideWithValue(apiClient)],
-      child: const AtTayyibunApp(),
-    ),
-  );
+    runApp(
+      ProviderScope(
+        overrides: [apiClientProvider.overrideWithValue(apiClient)],
+        child: const AtTayyibunApp(),
+      ),
+    );
+  });
 }
 
 class AtTayyibunApp extends ConsumerStatefulWidget {
