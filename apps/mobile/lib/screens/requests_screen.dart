@@ -38,15 +38,137 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen>
     ref.invalidate(activeRequestProvider);
   }
 
-  Future<void> _respond(InfoRequest request, bool approved) async {
+  /// Mirrors the API: the signup form pre-fills the phone with a country code.
+  bool _hasGuardianContact(Map<String, dynamic>? biodata) {
+    final phone = biodata?['guardianPhone'];
+    final email = biodata?['guardianEmail'];
+    final digits = phone is String ? phone.replaceAll(RegExp(r'\D'), '') : '';
+    return digits.length >= 7 || (email is String && email.trim().isNotEmpty);
+  }
+
+  Future<void> _accept(InfoRequest request) async {
+    var guardianSaved = false;
+    try {
+      final me = await ref.read(myProfileProvider.future);
+      guardianSaved = _hasGuardianContact(me.profile?.biodata);
+    } on ApiException {
+      // Unknown: the own-contact choice still works, and the API re-checks.
+    }
+    if (!mounted) return;
+
+    final source = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Whose contact should they receive?'),
+        content: Text(
+          guardianSaved
+              ? 'They can view it once. After that, it cannot be taken back.'
+              : 'They can view it once. After that, it cannot be taken back.\n\n'
+                  'No guardian contact is saved on your profile.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: guardianSaved ? () => Navigator.pop(ctx, 'GUARDIAN') : null,
+            child: const Text("My guardian's"),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, 'SELF'),
+            child: const Text('My own'),
+          ),
+        ],
+      ),
+    );
+    if (source != null) await _respond(request, true, shareSource: source);
+  }
+
+  Future<void> _resend(InfoRequest request) async {
+    final publicId = request.counterpart?.publicId;
+    if (publicId == null || publicId.isEmpty) return;
+    setState(() => _busyId = request.id);
+    try {
+      await ref.read(requestsRepositoryProvider).send(publicId);
+      _refreshAll();
+      _toast('Request sent again.');
+    } on ApiException catch (e) {
+      _toast(e.message);
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
+
+  Future<void> _revealContact(InfoRequest request) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('View contact details?'),
+        content: const Text(
+          'These details can be viewed once. Have somewhere ready to save them.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Not yet'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Show contact details'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _busyId = request.id);
+    try {
+      final contact =
+          await ref.read(requestsRepositoryProvider).revealContact(request.id);
+      _refreshAll();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Contact details'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Please save these now. They will not be shown again.'),
+              const SizedBox(height: 12),
+              if (contact.name != null) SelectableText(contact.name!),
+              if (contact.phone != null) SelectableText(contact.phone!),
+              if (contact.email != null) SelectableText(contact.email!),
+            ],
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
+    } on ApiException catch (e) {
+      _refreshAll();
+      _toast(e.message);
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
+  }
+
+  Future<void> _respond(InfoRequest request, bool approved, {String? shareSource}) async {
     setState(() => _busyId = request.id);
     try {
       await ref
           .read(requestsRepositoryProvider)
-          .respond(request.id, approved: approved);
+          .respond(request.id, approved: approved, shareSource: shareSource);
       _refreshAll();
       _toast(approved
-          ? 'Request accepted. Your contact details have been emailed to them.'
+          ? 'Request accepted. They can now view the contact you chose, once.'
           : 'Request declined.');
     } on ApiException catch (e) {
       _toast(e.message);
@@ -246,7 +368,7 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen>
               builder: (request) => _IncomingTile(
                 request: request,
                 busy: _busyId == request.id,
-                onAccept: () => _respond(request, true),
+                onAccept: () => _accept(request),
                 onDecline: () => _respond(request, false),
                 onBlock: () => _blockParty(request),
                 onReport: () => _reportParty(request),
@@ -267,6 +389,8 @@ class _RequestsScreenState extends ConsumerState<RequestsScreen>
                 request: request,
                 busy: _busyId == request.id,
                 onCancel: () => _cancel(request),
+                onRevealContact: () => _revealContact(request),
+                onResend: () => _resend(request),
                 onBlock: () => _blockParty(request),
                 onReport: () => _reportParty(request),
               ),
@@ -535,6 +659,8 @@ class _OutgoingTile extends StatelessWidget {
     required this.request,
     required this.busy,
     required this.onCancel,
+    required this.onRevealContact,
+    required this.onResend,
     required this.onBlock,
     required this.onReport,
   });
@@ -542,6 +668,8 @@ class _OutgoingTile extends StatelessWidget {
   final InfoRequest request;
   final bool busy;
   final VoidCallback onCancel;
+  final VoidCallback onRevealContact;
+  final VoidCallback onResend;
   final VoidCallback onBlock;
   final VoidCallback onReport;
 
@@ -552,7 +680,13 @@ class _OutgoingTile extends StatelessWidget {
 
     final status = switch (request.status) {
       'PENDING' => 'Waiting for response…',
-      'APPROVED' => 'Contact info has been sent to your email.',
+      'APPROVED' => switch (request.contactState) {
+          'AVAILABLE' => 'Accepted. You can view the contact details once.',
+          'VIEWED' => 'You have viewed these contact details.',
+          'EXPIRED' =>
+            'The contact link expired. You can send a new request from their profile.',
+          _ => 'Contact info has been sent to your email.',
+        },
       'DENIED' => 'You can now send a request to another profile.',
       _ => 'This request expired.',
     };
@@ -567,6 +701,20 @@ class _OutgoingTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(status, style: theme.textTheme.bodySmall?.copyWith(color: muted)),
+            if (request.status == 'APPROVED' && request.contactState == 'AVAILABLE') ...[
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: busy ? null : onRevealContact,
+                child: const Text('View contact details'),
+              ),
+            ],
+            if (request.status == 'EXPIRED') ...[
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: busy ? null : onResend,
+                child: const Text('Send again'),
+              ),
+            ],
             if (request.isPending) ...[
               const SizedBox(height: 8),
               OutlinedButton.icon(

@@ -13,6 +13,7 @@ import { api } from '@/lib/api';
 import { MARITAL_OPTIONS, formatMaritalLine } from '@/lib/marital';
 import { useRequireSession } from '@/lib/hooks';
 import { authClient } from '@/lib/auth-client';
+import { readPendingEmail, writePendingEmail } from '@/lib/email-gate';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -148,9 +149,11 @@ const toAbsoluteAvatar = (path: string) =>
 export default function ProfileSetupPage() {
   const router = useRouter();
   const { session, loading: sessionLoading } = useRequireSession();
+  const [emailLinkSentTo, setEmailLinkSentTo] = useState('');
   const needsEmail = Boolean(
     (session?.user as { emailIsPlaceholder?: boolean } | undefined)?.emailIsPlaceholder,
   );
+  const userId = (session?.user as { id?: string } | undefined)?.id;
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormData>(EMPTY);
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | null>(null);
@@ -188,6 +191,17 @@ export default function ProfileSetupPage() {
       }
       if (cancelled) return;
       const p = data?.profile ?? null;
+
+      // A link already sent from this browser: show that address rather than
+      // an empty field, and do not mail it again just for pressing Next.
+      if (needsEmail) {
+        const pending = readPendingEmail(userId);
+        if (pending?.email) {
+          setEmail(pending.email);
+          setEmailLinkSentTo(pending.email);
+        }
+        if (p?.profileComplete) writePendingEmail(userId, { profileComplete: true });
+      }
 
       // A social sign-in lands here with ?new=1 to route profile-less accounts
       // into the wizard. Anyone who already finished it belongs in /browse —
@@ -341,23 +355,28 @@ export default function ProfileSetupPage() {
   };
 
   /**
-   * Swap the placeholder address for the real one.
+   * Ask to replace the placeholder address with a real one.
    *
-   * better-auth answers /change-email with `{ status: true }` even when the
-   * address already belongs to someone else — deliberately, so the endpoint
-   * cannot be used to enumerate accounts. That means success is not proof the
-   * change happened: re-read the session and check.
+   * The address changes only when the link mailed to it is opened, so the wizard
+   * carries on meanwhile. better-auth answers `{ status: true }` and sends nothing
+   * when the address belongs to someone else, deliberately, so that this endpoint
+   * cannot be used to enumerate accounts. The wording has to allow for that.
    */
   const saveEmail = async (): Promise<string> => {
+    const newEmail = email.trim().toLowerCase();
+    if (newEmail === emailLinkSentTo) return '';
     setSavingEmail(true);
     try {
-      const res = await authClient.changeEmail({ newEmail: email.trim().toLowerCase() });
+      const res = await authClient.changeEmail({ newEmail, callbackURL: '/profile/setup' });
       if (res.error) return res.error.message || 'Could not save that email address.';
-      const fresh = await authClient.getSession();
-      const user = fresh?.data?.user as { emailIsPlaceholder?: boolean } | undefined;
-      if (user?.emailIsPlaceholder) {
-        return 'That email address is already registered to another account.';
-      }
+      setEmailLinkSentTo(newEmail);
+      // Lets the email gate through once the profile is complete too (see
+      // lib/email-gate.ts); the Navbar banner then keeps asking to confirm.
+      writePendingEmail(userId, { email: newEmail });
+      toast.success(
+        `Check ${newEmail} for a confirmation link. Your email is saved once you open it. If nothing arrives, the address may already be in use on another account, so try a different one.`,
+        { duration: 10000 },
+      );
       return '';
     } catch {
       return 'Could not save that email address. Please try again.';
@@ -385,7 +404,7 @@ export default function ProfileSetupPage() {
       if (avatar) {
         await authClient.updateUser({ image: toAbsoluteAvatar(avatar) }).catch(() => {});
       }
-      await api.put('/profiles/me', {
+      const saved = await api.put('/profiles/me', {
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         dob: form.dob,
@@ -426,6 +445,9 @@ export default function ProfileSetupPage() {
           nikahIntent: form.nikahIntent,
         },
       });
+      if (needsEmail && saved?.profile?.profileComplete) {
+        writePendingEmail(userId, { profileComplete: true });
+      }
       toast.success('Profile saved.');
       router.push('/profile');
     } catch (err: any) {

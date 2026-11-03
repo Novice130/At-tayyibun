@@ -24,7 +24,7 @@ export default function PhoneSignupPage() {
 
         <PhoneVerify
           title="Sign up with your phone"
-          subtitle="We'll text you a code. Your number keeps one account per person and is never shown on your profile."
+          subtitle="We'll text you a code. Members must be 18 or older. Your number helps keep it to one account per person and is never shown on your profile."
           onVerified={() => router.push('/profile/setup')}
           onPhoneTaken={() => router.push('/login?phone=taken')}
         />

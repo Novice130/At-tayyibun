@@ -8,8 +8,11 @@ import * as crypto from 'crypto';
  */
 @Injectable()
 export class EncryptionService {
+  private static readonly AUTH_TAG_LENGTH = 16;
   private readonly algorithm = 'aes-256-gcm';
   private readonly keyBuffer: Buffer;
+  /** HKDF output per signFor purpose; the key never changes after boot. */
+  private readonly signingKeys = new Map<string, Buffer>();
 
   constructor(private readonly configService: ConfigService) {
     const key = this.configService.get<string>('ENCRYPTION_KEY');
@@ -25,6 +28,20 @@ export class EncryptionService {
       console.error(msg);
       throw new Error(msg);
     }
+  }
+
+  /**
+   * HMAC under a key derived for one purpose, so a signature for one feature
+   * cannot be replayed in another and the raw encryption key never signs.
+   * Rotating ENCRYPTION_KEY invalidates signatures already handed out.
+   */
+  signFor(purpose: string, value: string): string {
+    let key = this.signingKeys.get(purpose);
+    if (!key) {
+      key = Buffer.from(crypto.hkdfSync('sha256', this.keyBuffer, Buffer.alloc(0), `at-tayyibun/${purpose}`, 32));
+      this.signingKeys.set(purpose, key);
+    }
+    return crypto.createHmac('sha256', key).update(value).digest('base64url');
   }
 
   /**
@@ -55,8 +72,15 @@ export class EncryptionService {
     const [ivBase64, authTagBase64, ciphertext] = parts;
     const iv = Buffer.from(ivBase64, 'base64');
     const authTag = Buffer.from(authTagBase64, 'base64');
+    // GCM accepts tags as short as 4 bytes unless the length is pinned, which
+    // makes forging a ciphertext far easier. encrypt() always writes 16.
+    if (authTag.length !== EncryptionService.AUTH_TAG_LENGTH) {
+      throw new Error('Invalid auth tag length');
+    }
 
-    const decipher = crypto.createDecipheriv(this.algorithm, this.keyBuffer, iv);
+    const decipher = crypto.createDecipheriv(this.algorithm, this.keyBuffer, iv, {
+      authTagLength: EncryptionService.AUTH_TAG_LENGTH,
+    });
     decipher.setAuthTag(authTag);
 
     let decrypted = decipher.update(ciphertext, 'base64', 'utf8');

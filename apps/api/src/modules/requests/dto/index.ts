@@ -20,4 +20,12 @@ export class RespondRequestDto {
   @IsArray()
   @IsIn(['phone', 'email'], { each: true })
   shareItems?: string[];
+
+  @ApiPropertyOptional({
+    enum: ['GUARDIAN', 'SELF'],
+    description: "Whose contact to share. Defaults to SELF, the behaviour older app builds describe.",
+  })
+  @IsOptional()
+  @IsIn(['GUARDIAN', 'SELF'])
+  shareSource?: 'GUARDIAN' | 'SELF';
 }

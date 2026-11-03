@@ -227,7 +227,7 @@ class WelcomeScreen extends StatelessWidget {
 
                         // Hero Subtitle
                         Text(
-                          'At-Tayyibun is a privacy-first matrimony platform designed for Muslims in the United States. Parents and guardians create profiles and connect on behalf of their families.',
+                          'At-Tayyibun is a privacy-first matrimony platform designed for Muslims in the United States. Parents and guardians can create profiles and connect on behalf of their families.',
                           style: TextStyle(
                             fontSize: 14.5,
                             color: textSecondary,
@@ -282,7 +282,7 @@ class WelcomeScreen extends StatelessWidget {
                           child: const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text('Start Your Journey'),
+                              Text('Create Account'),
                               SizedBox(width: 8),
                               Icon(Icons.chevron_right_rounded, size: 20),
                             ],
@@ -315,7 +315,7 @@ class WelcomeScreen extends StatelessWidget {
 
                         Center(
                           child: Text(
-                            'By continuing, you agree to our Terms of Service & Privacy Policy',
+                            'By continuing, you agree to our Terms of Use & Privacy Policy',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 11,

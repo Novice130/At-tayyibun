@@ -59,8 +59,10 @@ class _FakeAuthRepository implements AuthRepository {
         );
   }
 
+  final List<String> events = [];
+
   @override
-  Future<void> signOut() async {}
+  Future<void> signOut() async => events.add('signOut');
 
   @override
   Future<void> deleteAccount() async {}
@@ -205,6 +207,29 @@ void main() {
       await controller.updateAvatar('https://attayyibun.com/avatars/male/male-1.jpg');
       expect(controller.state.needsAvatar, isFalse);
       expect(controller.state.user?.hasPresetAvatar, isTrue);
+    });
+  });
+
+  group('sign-out', () {
+    test('removes the push token while the session still exists', () async {
+      final fakeRepo = _FakeAuthRepository();
+      final controller = AuthController(
+        fakeRepo,
+        beforeSignOut: () async => fakeRepo.events.add('unregisterPush'),
+      );
+      await controller.signIn('user@example.com', 'secret');
+
+      await controller.signOut();
+
+      expect(fakeRepo.events, ['unregisterPush', 'signOut']);
+      expect(controller.state.status, AuthStatus.signedOut);
+    });
+
+    test('works without a push hook', () async {
+      final fakeRepo = _FakeAuthRepository();
+      final controller = AuthController(fakeRepo);
+      await controller.signOut();
+      expect(fakeRepo.events, ['signOut']);
     });
   });
 }

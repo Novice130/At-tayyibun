@@ -6,6 +6,10 @@ import { eq, and, ne } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "./db-schema";
 import { firebaseVerifyOTP } from "./phone-verify";
+import { assertImageWritable, imageForNewUser } from "./avatar-url";
+import { secondFactorSessionHook } from "./second-factor-session";
+import { withLoadtestBypass } from "./loadtest-bypass";
+import { postToResend } from "./resend-post";
 
 const escapeHtml = (value: unknown): string =>
   String(value ?? '')
@@ -34,23 +38,13 @@ async function sendAuthEmail(to: string, subject: string, html: string) {
   if (!process.env.RESEND_API_KEY) {
     throw new Error(`RESEND_API_KEY not set; cannot send "${subject}"`);
   }
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-    },
-    body: JSON.stringify({
-      from: `${process.env.RESEND_FROM_NAME || "At-Tayyibun"} <${process.env.RESEND_FROM_EMAIL || "noreply@attayyibun.com"}>`,
-      to: [to],
-      subject,
-      html,
-    }),
+  // Retries Resend 429s within a short budget; see resend-post.ts.
+  await postToResend(process.env.RESEND_API_KEY, {
+    from: `${process.env.RESEND_FROM_NAME || "At-Tayyibun"} <${process.env.RESEND_FROM_EMAIL || "noreply@attayyibun.com"}>`,
+    to: [to],
+    subject,
+    html,
   });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Resend ${res.status}: ${body.slice(0, 200)}`);
-  }
 }
 
 function actionEmailHtml(opts: {
@@ -145,19 +139,24 @@ const firstNameOf = (name?: string | null) => name?.split(" ")[0] || "there";
 // instead of quietly burning the sending domain's reputation.
 export const PLACEHOLDER_EMAIL_DOMAIN = "@phone.attayyibun.invalid";
 
+const baseURL =
+  process.env.BETTER_AUTH_URL?.replace(/^["']|["']$/g, '').trim() ||
+  process.env.WEB_URL?.replace(/^["']|["']$/g, '').trim() ||
+  "https://attayyibun.com";
+
+const trustedOrigins = [
+  "https://attayyibun.com",
+  "https://www.attayyibun.com",
+  ...(process.env.NODE_ENV !== "production" ? ["http://localhost:3000"] : []),
+];
+
+// Web and mobile both store avatars as absolute URLs on attayyibun.com.
+const avatarOrigins = [...trustedOrigins, new URL(baseURL).origin];
+
 const options = {
-  baseURL:
-    process.env.BETTER_AUTH_URL?.replace(/^["']|["']$/g, '').trim() ||
-    process.env.WEB_URL?.replace(/^["']|["']$/g, '').trim() ||
-    "https://attayyibun.com",
+  baseURL,
   basePath: "/auth",
-  trustedOrigins: [
-    "https://attayyibun.com",
-    "https://www.attayyibun.com",
-    "http://attayyibun.10-1-10-60.traefik.me",
-    "https://attayyibun.10-1-10-60.traefik.me",
-    ...(process.env.NODE_ENV !== "production" ? ["http://localhost:3000"] : []),
-  ],
+  trustedOrigins,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
@@ -220,7 +219,7 @@ const options = {
     }),
     twoFactor({
       otpOptions: {
-        // Better Auth 1.6.27 interprets `period` in minutes: (period || 3) * 60 * 1000.
+        // Better Auth 1.6.27 and 1.7.15 interpret `period` in minutes: (period || 3) * 60 * 1000.
         // 5 minutes (300 seconds) matches the email copy.
         period: 5,
         async sendOTP({ user, otp }) {
@@ -308,23 +307,7 @@ const options = {
 </body>
 </html>`;
 
-          const res = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-            },
-            body: JSON.stringify({
-              from: `${process.env.RESEND_FROM_NAME || "At-Tayyibun"} <${process.env.RESEND_FROM_EMAIL || "noreply@attayyibun.com"}>`,
-              to: [user.email],
-              subject: "Your verification code – At-Tayyibun",
-              html,
-            }),
-          });
-          if (!res.ok) {
-            const body = await res.text().catch(() => "");
-            throw new Error(`Resend ${res.status}: ${body.slice(0, 200)}`);
-          }
+          await sendAuthEmail(user.email, "Your verification code – At-Tayyibun", html);
         },
       },
     }),
@@ -345,7 +328,8 @@ const options = {
     window: 10,
     max: 100,
     storage: "memory",
-    customRules: {
+    // Off unless allowed; never in production. See ./loadtest-bypass.ts.
+    customRules: withLoadtestBypass({
       "/sign-in/email": { window: 60, max: 10 },
       "/sign-up/email": { window: 60, max: 10 },
       "/sign-in/social": { window: 60, max: 20 },
@@ -366,7 +350,7 @@ const options = {
       "/phone-number/request-password-reset": { window: 60, max: 1 },
       "/phone-number/reset-password": { window: 60, max: 1 },
       "/change-email": { window: 60, max: 5 },
-    },
+    }),
   },
   advanced: {
     database: {
@@ -382,6 +366,14 @@ const options = {
   databaseHooks: {
     session: {
       create: {
+        before: secondFactorSessionHook(async (userId) => {
+          const [user] = await db
+            .select({ twoFactorEnabled: schema.users.twoFactorEnabled })
+            .from(schema.users)
+            .where(eq(schema.users.id, userId))
+            .limit(1);
+          return user?.twoFactorEnabled === true;
+        }),
         after: async (session) => {
           try {
             const [user] = await db
@@ -407,8 +399,12 @@ const options = {
     },
     user: {
       create: {
-        before: async (user) => ({
-          data: { ...user, publicId: generateId(12) },
+        before: async (user, ctx) => ({
+          data: {
+            ...user,
+            publicId: generateId(12),
+            image: imageForNewUser(user.image, ctx?.path, avatarOrigins),
+          },
         }),
       },
       update: {
@@ -416,7 +412,8 @@ const options = {
         // +<e164>@phone.attayyibun.invalid one. Doing it here catches every
         // write path — /change-email, /verify-email, an admin edit — instead of
         // only the one the wizard happens to call.
-        before: async (user) => {
+        before: async (user, ctx) => {
+          assertImageWritable((user as { image?: string | null }).image, ctx?.path, avatarOrigins);
           const email = (user as { email?: string }).email;
           if (typeof email !== "string") return { data: user };
           return {
@@ -468,6 +465,25 @@ const options = {
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
+    // With this off, /sign-up/email answers a new and an already registered
+    // address identically: 200, no token, no cookie. Otherwise it returned
+    // USER_ALREADY_EXISTS to anyone asking. Clients sign in as a second step.
+    autoSignIn: false,
+    // The stand-in returned for a registered address. Every field a real new row
+    // returns has to be here, with a value of the same kind, or the body gives
+    // the answer away. auth-config.test.ts checks this against the user table.
+    customSyntheticUser: ({ coreFields, additionalFields, id }) => ({
+      ...coreFields,
+      publicId: generateId(12),
+      role: "USER",
+      emailIsPlaceholder: false,
+      phoneGateExempt: false,
+      phoneNumber: null,
+      phoneNumberVerified: false,
+      twoFactorEnabled: false,
+      ...additionalFields,
+      id,
+    }),
     // Without this callback better-auth accepts /request-password-reset and
     // then delivers nothing, so the forgot-password page has been silently
     // doing nothing. Phone-first accounts have no password at all — the reset
@@ -513,6 +529,12 @@ const options = {
       );
     },
   },
+  session: {
+    additionalFields: {
+      // See ./second-factor-session.ts. The column already exists.
+      twoFactorVerified: { type: "boolean", required: false, defaultValue: false, input: false },
+    },
+  },
   user: {
     additionalFields: {
       publicId: { type: "string", required: false, input: false },
@@ -533,13 +555,13 @@ const options = {
       // How a phone-first user swaps their +<e164>@phone.attayyibun.invalid
       // placeholder for a real address.
       enabled: true,
-      // Placeholder accounts always have emailVerified=false, and the address
-      // they are replacing is one nobody could ever have received mail at, so
-      // there is no prior owner to ask for permission. better-auth swaps the
-      // address in place and then sends the usual verification link to the new
-      // one. Accounts with a *verified* email do not take this path — they get
-      // the confirmation mail below, at their existing address.
-      updateEmailWithoutVerification: true,
+      // Off, so an unverified account cannot take an address it does not own: a
+      // swapped-in address would be shared as contact details, and a later Google
+      // sign-in by its real owner would link onto this account. The address now
+      // changes only when the link sent to it is opened, and that also marks it
+      // verified. Accounts with a *verified* email get the confirmation mail
+      // below first, at their existing address.
+      updateEmailWithoutVerification: false,
       async sendChangeEmailConfirmation({ user, newEmail, url }) {
         await sendAuthEmail(
           user.email,

@@ -7,8 +7,8 @@ import {
   ApiQuery,
 } from "@nestjs/swagger";
 import { Request } from "express";
-import { ProfilesService, BrowseFilters } from "./profiles.service";
-import { UpdateProfileDto } from "./dto";
+import { ProfilesService } from "./profiles.service";
+import { normalizeBrowseQuery, UpdateProfileDto } from "./dto";
 import { CurrentUser, Public } from "../../common/decorators";
 import { Throttle } from "@nestjs/throttler";
 import { Gender } from "../../common/types/role";
@@ -46,30 +46,7 @@ export class ProfilesController {
     @Query("limit") limit?: number,
     @CurrentUser("id") userId?: string
   ) {
-    // Anything unparseable or out of range falls back to the default rather
-    // than reaching the query as NaN or an invalid enum literal.
-    const toInt = (value: unknown): number | undefined => {
-      if (value === undefined || value === null || String(value).trim() === '') return undefined;
-      const n = Number(value);
-      return Number.isFinite(n) ? Math.trunc(n) : undefined;
-    };
-    const oneOf = <T extends string>(value: unknown, allowed: readonly T[]): T | undefined =>
-      allowed.includes(value as T) ? (value as T) : undefined;
-
-    const parsedMinAge = toInt(minAge);
-    const parsedMaxAge = toInt(maxAge);
-
-    const filters: BrowseFilters = {
-      ethnicity: typeof ethnicity === 'string' ? ethnicity.trim().slice(0, 50) || undefined : undefined,
-      gender: oneOf(gender, [Gender.MALE, Gender.FEMALE]),
-      minAge: parsedMinAge && parsedMinAge > 0 && parsedMinAge <= 120 ? parsedMinAge : undefined,
-      maxAge: parsedMaxAge && parsedMaxAge > 0 && parsedMaxAge <= 120 ? parsedMaxAge : undefined,
-      sortBy: oneOf(sortBy, ['age', 'createdAt', 'rankBoost'] as const),
-      order: oneOf(order, ['asc', 'desc'] as const),
-      page: Math.min(Math.max(1, toInt(page) ?? 1), 100000),
-      limit: Math.min(Math.max(1, toInt(limit) ?? 20), 50),
-    };
-
+    const filters = normalizeBrowseQuery({ ethnicity, gender, minAge, maxAge, sortBy, order, page, limit });
     return this.profilesService.browseProfiles(filters, userId);
   }
 

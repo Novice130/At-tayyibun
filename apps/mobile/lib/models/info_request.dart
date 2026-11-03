@@ -7,7 +7,11 @@ class InfoRequest {
     required this.createdAt,
     required this.expiresAt,
     required this.counterpart,
+    this.contactState,
   });
+
+  /// AVAILABLE, VIEWED, EXPIRED or EMAILED on an approved outgoing request.
+  final String? contactState;
 
   final String id;
   final String status;
@@ -27,11 +31,27 @@ class InfoRequest {
       status: json['status'] as String? ?? 'PENDING',
       createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? ''),
       expiresAt: DateTime.tryParse(json['expiresAt']?.toString() ?? ''),
+      contactState: json['contactState'] as String?,
       counterpart: party == null
           ? null
           : RequestParty.fromJson((party as Map).cast<String, dynamic>()),
     );
   }
+}
+
+/// What an approver chose to share. Shown once and never stored on the device.
+class SharedContact {
+  SharedContact({this.name, this.phone, this.email});
+
+  final String? name;
+  final String? phone;
+  final String? email;
+
+  factory SharedContact.fromJson(Map<String, dynamic> json) => SharedContact(
+        name: json['name'] as String?,
+        phone: json['phone'] as String?,
+        email: json['email'] as String?,
+      );
 }
 
 class RequestParty {
@@ -56,7 +76,7 @@ class RequestParty {
   final String? city;
   final String? state;
 
-  String get displayName => firstName ?? publicId;
+  String get displayName => firstName ?? 'Member';
 
   String get location =>
       [city, state].where((e) => e != null && e.isNotEmpty).join(', ');

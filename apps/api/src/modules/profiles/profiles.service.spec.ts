@@ -7,7 +7,7 @@ import { EncryptionService } from '../../services/encryption.service';
 import { AvatarService } from '../../services/avatar.service';
 import { AuditService } from '../../services/audit.service';
 import { Gender } from '../../common/types/role';
-import { chain, createDbMock } from '../../test/drizzle-mock';
+import { chain, createDbMock, recordingChain as recordAllCalls, renderSql } from '../../test/drizzle-mock';
 import { DEFAULT_SIDE, MatchSide, mutualMatchSql } from './marital-match';
 
 const USER_ID = 'user-uuid';
@@ -123,6 +123,139 @@ describe('ProfilesService', () => {
       await expect(
         service.updateMyProfile(USER_ID, { firstName: 'Aisha', gender: Gender.FEMALE }),
       ).resolves.toEqual({ ok: true });
+    });
+  });
+
+  describe('updateMyProfile completeness', () => {
+    const complete = {
+      firstName: 'Aisha',
+      lastName: 'K',
+      gender: Gender.FEMALE,
+      ethnicity: 'Arab',
+      bio: 'Hello',
+      maritalStatus: 'NEVER_MARRIED',
+      hasChildren: false,
+    } as any;
+
+    function save(existing: Record<string, unknown>, data: any) {
+      db.select.mockReturnValueOnce(chain([{ userId: USER_ID, ...existing }]));
+      jest.spyOn(service, 'getMyProfile').mockResolvedValue({ ok: true } as any);
+      const set = jest.fn((_v: any) => chain([]));
+      db.update.mockReturnValueOnce({ set } as any);
+      return service.updateMyProfile(USER_ID, data).then(() => set.mock.calls[0][0]);
+    }
+
+    it('stays incomplete when the only date of birth is the placeholder', async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      await expect(save({ dob: today }, complete)).resolves.toHaveProperty('profileComplete', false);
+    });
+
+    it('completes once a real date of birth is given', async () => {
+      await expect(save({}, { ...complete, dob: birthday(25) })).resolves.toHaveProperty('profileComplete', true);
+    });
+  });
+
+  describe('getProfileByPublicId visibility', () => {
+    const OWNER = 'owner-uuid';
+    const VIEWER = 'viewer-uuid';
+    const FUTURE = new Date(Date.now() + 86_400_000).toISOString();
+    const PAST = new Date(Date.now() - 86_400_000).toISOString();
+    const FULL = 'Full bio text that is much longer than the preview';
+    const owner = {
+      id: OWNER,
+      publicId: 'pub',
+      profiles: [
+        {
+          userId: OWNER,
+          firstName: 'Aisha',
+          gender: Gender.FEMALE,
+          dob: '1995-01-01',
+          bioEnc: `enc:${FULL}`,
+          biodataJsonEnc: `enc:${JSON.stringify({ education: 'BA', guardianPhone: '+1312' })}`,
+          publicFields: { bio: 'Preview' },
+          maritalStatus: 'NEVER_MARRIED',
+          hasChildren: false,
+        },
+      ],
+    };
+    const pendingFromOwner = { status: 'PENDING', expiresAt: FUTURE, requesterId: OWNER, targetId: VIEWER };
+
+    beforeEach(() => {
+      (service as any).avatarService = { getAvatarDisplay: () => 'avatar' };
+    });
+
+    /** select #1 -> block check, #2 -> viewer profile, #3 -> requests between the pair. */
+    function view(requests: unknown[], viewerId: string | undefined = VIEWER, user: unknown = owner, isAuthenticated = true) {
+      db.query.users.findFirst.mockResolvedValueOnce(user);
+      db.select
+        .mockReturnValueOnce(chain([]))
+        .mockReturnValueOnce(chain([viewerRow()]))
+        .mockReturnValueOnce(chain(requests));
+      return service.getProfileByPublicId('pub', isAuthenticated, viewerId) as Promise<any>;
+    }
+
+    const preview = { bio: 'Preview', biodata: {}, isFullView: false };
+    const full = { bio: FULL, biodata: { education: 'BA' }, isFullView: true };
+
+    it('gives a logged-out visitor no bio', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce(owner);
+      const result: any = await service.getProfileByPublicId('pub', false, undefined);
+      expect(result.bio).toBeNull();
+      expect(result).not.toHaveProperty('biodata');
+    });
+
+    it('gives a member with no request the preview only', async () => {
+      await expect(view([])).resolves.toMatchObject(preview);
+    });
+
+    it('opens the sender profile to the receiver while pending', async () => {
+      await expect(view([pendingFromOwner])).resolves.toMatchObject(full);
+    });
+
+    it('does not open the receiver profile to the sender while pending', async () => {
+      await expect(view([{ ...pendingFromOwner, requesterId: VIEWER, targetId: OWNER }])).resolves.toMatchObject(preview);
+    });
+
+    it('opens both sides after acceptance', async () => {
+      await expect(view([{ status: 'APPROVED', expiresAt: PAST, requesterId: VIEWER, targetId: OWNER }])).resolves.toMatchObject(full);
+      await expect(view([{ status: 'APPROVED', expiresAt: PAST, requesterId: OWNER, targetId: VIEWER }])).resolves.toMatchObject(full);
+    });
+
+    it.each([
+      ['declined', { status: 'DENIED' }],
+      ['expired', { status: 'EXPIRED' }],
+      ['lapsed', { expiresAt: PAST }],
+    ])('closes access after a %s request', async (_name, over) => {
+      await expect(view([{ ...pendingFromOwner, ...over }])).resolves.toMatchObject(preview);
+    });
+
+    it('closes access after a withdrawal, which deletes the request', async () => {
+      await expect(view([])).resolves.toMatchObject(preview);
+    });
+
+    it('never returns guardian details, even in full view', async () => {
+      const result = await view([pendingFromOwner]);
+      expect(result.biodata).not.toHaveProperty('guardianPhone');
+    });
+
+    it('gives the owner their full profile', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce(owner);
+      await expect(service.getProfileByPublicId('pub', true, OWNER)).resolves.toMatchObject(full);
+    });
+
+    it('hides a suspended member from others', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce({ ...owner, suspendedAt: PAST });
+      await expect(service.getProfileByPublicId('pub', true, VIEWER)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('404s a non-match whose only request was declined', async () => {
+      const ruledOut = { ...owner, profiles: [{ ...owner.profiles[0], hasChildren: true }] };
+      await expect(view([{ ...pendingFromOwner, status: 'DENIED' }], VIEWER, ruledOut)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('keeps a non-match reachable through a live request', async () => {
+      const ruledOut = { ...owner, profiles: [{ ...owner.profiles[0], hasChildren: true }] };
+      await expect(view([pendingFromOwner], VIEWER, ruledOut)).resolves.toMatchObject(full);
     });
   });
 
@@ -381,6 +514,23 @@ describe('ProfilesService', () => {
       expect(result.meta.total).toBe(1);
     });
 
+    it.each(['rankBoost', 'age', 'createdAt'] as const)(
+      'gives %s sort a tie-breaker so pages do not repeat or skip rows',
+      async (sortBy) => {
+        const calls: Record<string, unknown[][]> = {};
+        db.select
+          .mockReturnValueOnce(recordAllCalls([], calls))
+          .mockReturnValueOnce(chain([{ value: 0 }]));
+
+        await service.browseProfiles({ sortBy, page: 3, limit: 20 });
+
+        const order = calls.orderBy[0].map((part) => renderSql(part).sql);
+        expect(order).toHaveLength(2);
+        expect(order[1]).toBe('"users"."id" asc');
+        expect(calls.offset).toEqual([[40]]);
+      },
+    );
+
     it('works safely without a viewerId and defaults gender', async () => {
       db.select
         .mockReturnValueOnce(chain([]))
@@ -554,7 +704,7 @@ describe('ProfilesService', () => {
         },
       });
 
-      const result: any = await service.getProfileByPublicId('usr_pub_1', true);
+      const result: any = await service.getProfileByPublicId('usr_pub_1', true, 'target-uuid');
 
       expect(result.biodata).toEqual({
         education: "Master's",
@@ -600,7 +750,7 @@ describe('ProfilesService', () => {
       expect(result.biodata).toBeUndefined();
     });
 
-    it('gives unauthenticated viewers the truncated bio, not the decrypted one', async () => {
+    it('gives unauthenticated viewers no bio at all', async () => {
       db.query.users.findFirst.mockResolvedValueOnce({
         ...baseUser,
         profiles: { ...baseProfile, bioEnc: 'enc:Full bio, call me on 555-0100', publicFields: { bio: 'Full bio' } },
@@ -608,16 +758,27 @@ describe('ProfilesService', () => {
 
       const result: any = await service.getProfileByPublicId('usr_pub_1', false);
 
-      expect(result.bio).toBe('Full bio');
+      expect(result.bio).toBeNull();
     });
 
-    it('gives authenticated viewers the full bio', async () => {
+    it('gives a signed-in member with no request the preview', async () => {
       db.query.users.findFirst.mockResolvedValueOnce({
         ...baseUser,
         profiles: { ...baseProfile, bioEnc: 'enc:Full bio, call me on 555-0100', publicFields: { bio: 'Full bio' } },
       });
 
       const result: any = await service.getProfileByPublicId('usr_pub_1', true);
+
+      expect(result.bio).toBe('Full bio');
+    });
+
+    it('gives the owner the full bio', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce({
+        ...baseUser,
+        profiles: { ...baseProfile, bioEnc: 'enc:Full bio, call me on 555-0100', publicFields: { bio: 'Full bio' } },
+      });
+
+      const result: any = await service.getProfileByPublicId('usr_pub_1', true, 'target-uuid');
 
       expect(result.bio).toBe('Full bio, call me on 555-0100');
     });
@@ -682,7 +843,7 @@ describe('ProfilesService', () => {
       });
 
       it('shows the profile when an info request exists between them, checked in both directions', async () => {
-        const wheres = arrange(divorcedTarget, [neverMarriedViewer], [{ id: 'req-1' }]);
+        const wheres = arrange(divorcedTarget, [neverMarriedViewer], [{ status: 'APPROVED', expiresAt: '2000-01-01', requesterId: 'viewer-uuid', targetId: 'target-uuid' }]);
 
         const result: any = await service.getProfileByPublicId('usr_pub_1', true, VIEWER_ID);
 
@@ -712,7 +873,7 @@ describe('ProfilesService', () => {
         );
       });
 
-      it('shows a mutual match without looking up requests', async () => {
+      it('shows a mutual match with no request', async () => {
         db.query.users.findFirst.mockResolvedValueOnce(divorcedTarget);
         db.select
           .mockReturnValueOnce(chain([]))
@@ -721,7 +882,6 @@ describe('ProfilesService', () => {
         const result: any = await service.getProfileByPublicId('usr_pub_1', true, VIEWER_ID);
 
         expect(result.publicId).toBe('usr_pub_1');
-        expect(db.select).toHaveBeenCalledTimes(2);
       });
 
       it('leaves anonymous visitors unchanged', async () => {
@@ -738,7 +898,7 @@ describe('ProfilesService', () => {
       });
 
       it('never returns the marital keys, signed in or anonymous', async () => {
-        arrange(divorcedTarget, [neverMarriedViewer], [{ id: 'req-1' }]);
+        arrange(divorcedTarget, [neverMarriedViewer], [{ status: 'APPROVED', expiresAt: '2000-01-01', requesterId: 'viewer-uuid', targetId: 'target-uuid' }]);
         const full: any = await service.getProfileByPublicId('usr_pub_1', true, VIEWER_ID);
         db.query.users.findFirst.mockResolvedValueOnce(divorcedTarget);
         const anon: any = await service.getProfileByPublicId('usr_pub_1', false);

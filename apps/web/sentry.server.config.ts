@@ -27,7 +27,7 @@ Sentry.init({
     databaseQueryData: false,
     queues: false,
     httpBodies: [],
-    httpHeaders: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
+    httpHeaders: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user', 'loadtest-bypass'] },
     cookies: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
     urlQueryParams: { deny: ['forwarded', '-ip', 'remote-', 'via', '-user'] },
   },

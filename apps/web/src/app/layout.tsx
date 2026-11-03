@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { Toaster } from '@/components/Toaster';
+import { isIndexable, OG_IMAGE, siteOrigin } from '@/lib/seo';
 
 // Declared explicitly rather than relying on Next's injected default: this
 // layout hand-writes its own <head>, so the implicit tag is easy to lose.
@@ -11,35 +13,40 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_WEB_URL || 'http://localhost:3000'),
+  metadataBase: new URL(siteOrigin()),
   title: 'At-Tayyibun | Muslim Matrimony in the United States',
   description:
     'At-Tayyibun is a privacy-first, halal-oriented matrimony platform designed for Muslims in the United States. Find your righteous spouse with dignity and respect.',
   keywords: ['Muslim matrimony', 'halal marriage', 'nikah', 'Islamic matchmaking', 'Muslim singles USA'],
   authors: [{ name: 'At-Tayyibun' }],
   openGraph: {
-    title: 'At-Tayyibun | Muslim Matrimony',
+    title: 'At-Tayyibun | Muslim Matrimony in the United States',
     description: 'Privacy-first matrimony for Muslims in the United States',
     type: 'website',
     locale: 'en_US',
     siteName: 'At-Tayyibun',
+    images: [OG_IMAGE],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'At-Tayyibun | Muslim Matrimony',
+    title: 'At-Tayyibun | Muslim Matrimony in the United States',
     description: 'Privacy-first matrimony for Muslims in the United States',
+    images: [OG_IMAGE.url],
   },
-  robots: {
-    index: true,
-    follow: true,
-  },
+  robots: isIndexable() ? { index: true, follow: true } : { index: false, follow: false },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Per-request CSP nonce from src/middleware.ts. Reading headers() makes every
+  // route dynamic, which a nonce needs anyway: a page prerendered at build time
+  // could not carry this request's nonce. Browsers blank the nonce attribute
+  // after load, hence suppressHydrationWarning on the scripts.
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
+
   return (
     <html lang="en" className="light" suppressHydrationWarning>
       <head>
@@ -47,6 +54,8 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/at-tayyibun-logo.png" />
         {/* Prevent flash of wrong theme */}
         <script
+          nonce={nonce}
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `
               try {
@@ -58,6 +67,8 @@ export default function RootLayout({
         />
         {/* JSON-LD Structured Data */}
         <script
+          nonce={nonce}
+          suppressHydrationWarning
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
@@ -72,6 +83,8 @@ export default function RootLayout({
           }}
         />
         <script
+          nonce={nonce}
+          suppressHydrationWarning
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
@@ -79,11 +92,6 @@ export default function RootLayout({
               '@type': 'WebSite',
               name: 'At-Tayyibun',
               url: 'https://attayyibun.com',
-              potentialAction: {
-                '@type': 'SearchAction',
-                target: 'https://attayyibun.com/search?q={search_term_string}',
-                'query-input': 'required name=search_term_string',
-              },
             }),
           }}
         />

@@ -18,22 +18,36 @@ coverage
 
 # VCS + IDE
 .git
+**/.git
 .gitignore
 .vscode
 .idea
 *.swp
 
 # Env / secrets (never ship to image)
+# A bare pattern matches the build-context root only, hence the **/ forms.
 .env
 .env.*
-!.env.example
+**/.env
+**/.env.*
+**/.env*
 *.p8
+**/*.p8
 *.pem
+**/*.pem
 *.key
+**/*.key
 *.jks
+**/*.jks
 key.properties
+**/key.properties
 service-account.json
+**/service-account.json
 *firebase-adminsdk*.json
+**/*firebase-adminsdk*.json
+**/*firebase*admin*.json
+opencode-mcp-export.json
+**/opencode-mcp-export.json
 
 # Logs / temp
 *.log
@@ -65,7 +79,15 @@ test-*.ts
 graphify-out
 .playwright-mcp
 docs
+video
+loadtest
 memory-bank
+**/docs
+**/*.p12
+**/*serviceaccount*.json
+**/*service-account*.json
+**/google-services.json
+**/GoogleService-Info.plist
 diagnostics
 apps/mobile
 

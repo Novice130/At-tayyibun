@@ -285,7 +285,7 @@ class _Body extends ConsumerWidget {
               TextButton(
                 onPressed: () => launchUrl(Uri.parse('$kBaseUrl/terms'),
                     mode: LaunchMode.externalApplication),
-                child: const Text('Terms of Service'),
+                child: const Text('Terms of Use'),
               ),
               TextButton(
                 onPressed: () => launchUrl(Uri.parse('$kBaseUrl/contact'),
@@ -355,7 +355,6 @@ class _BlockedList extends ConsumerWidget {
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(entry.name ?? entry.targetPublicId),
-                subtitle: Text(entry.email ?? ''),
                 trailing: TextButton(
                   onPressed: () async {
                     try {

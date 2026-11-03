@@ -6,13 +6,14 @@ gender, both exclusive to this user) and fires a pair of calls at the same momen
     double-post       A posts two requests at once        expect one 201 and one 409
     approve-vs-cancel B approves while A cancels          expect one outcome
     approve-vs-deny   B approves and denies at once       expect one 200 and one 400
+    double-reveal     A reveals an approved contact twice expect one 200 and one 410
 
 The status codes each side received are recorded as named Locust requests and in
 the summary printed at the end. Bodies are never printed. A 500 is a failure.
 Where the final state breaks a rule from the guide, a request named
 "invariant: ..." is reported as a failure so it shows in the failures table.
 
-POST /api/requests is limited to 10 an hour per address as shipped, so rounds are
+POST /api/requests is limited to 10 an hour per user as shipped, so rounds are
 paced by a budget (LOADTEST_REQUEST_BUDGET, default 8 an hour).
 
     locust -f loadtest/races.py RaceUser --host https://staging.attayyibun.com \\
@@ -20,7 +21,6 @@ paced by a budget (LOADTEST_REQUEST_BUDGET, default 8 an hour).
 """
 
 import itertools
-import os
 
 import gevent
 from gevent.event import Event
@@ -34,16 +34,10 @@ from common import (
     StagingUser,
     abort_run,
     check,
+    count_response,
     json_body,
     set_session_cookie,
 )
-
-# Hook for the shared/<token> race. The token is not returned by any single-purpose
-# endpoint, so a person supplies tokens: a file with one token per line. Leave unset
-# to skip that race. (Code note: GET /api/requests/outgoing and /incoming currently
-# include oneTimeToken in each row; see README. Nothing here reads it from there.)
-TOKEN_FILE = os.environ.get("LOADTEST_TOKEN_FILE")
-
 
 def _pair(fn_a, fn_b):
     """Run two callables as close together as possible; return (result_a, result_b)."""
@@ -65,7 +59,7 @@ class RaceUser(StagingUser):
 
     def __init__(self, environment):
         super().__init__(environment)
-        self._rounds = itertools.cycle(("double-post", "approve-vs-cancel", "approve-vs-deny"))
+        self._rounds = itertools.cycle(("double-post", "approve-vs-cancel", "approve-vs-deny", "double-reveal"))
 
     # ---- setup -----------------------------------------------------------
 
@@ -73,13 +67,14 @@ class RaceUser(StagingUser):
         s = HttpSession(base_url=self.host, request_event=self.environment.events.request, user=self)
         s.headers.update(self.client.headers)
         s.max_redirects = 0
+        s.hooks["response"].append(count_response)
         set_session_cookie(s, cookie)
         return s
 
     def on_start(self):
         pair = POOL.acquire_pair()
         if pair is None:
-            abort_run(self, "need a free pool pair (one brother, one sister) for each race user")
+            abort_run(self, "need a free matching pool pair (one brother, one sister) for each race user")
         self.a, self.b = pair  # a = requester, b = target
         # Two sessions per side so each call of a pair has its own connection.
         self.a1, self.a2 = self._session(self.a["cookie"]), self._session(self.a["cookie"])
@@ -144,7 +139,8 @@ class RaceUser(StagingUser):
         self._cancel_pending()
         {"double-post": self._double_post,
          "approve-vs-cancel": self._approve_vs_cancel,
-         "approve-vs-deny": self._approve_vs_deny}[kind]()
+         "approve-vs-deny": self._approve_vs_deny,
+         "double-reveal": self._double_reveal}[kind]()
 
     def _double_post(self):
         REQUEST_BUDGET.wait_take(2)
@@ -202,33 +198,26 @@ class RaceUser(StagingUser):
                         f"approve {sa} and deny {sd} both answered 200, final {final}")
         self._cancel_pending()
 
-    # ---- HOOK: shared/<token> race, only with LOADTEST_TOKEN_FILE ----------
-    # Two readers open the same one-time link at once. It should work once.
-    # Not run unless a token file is supplied. Statuses only; contact details are
-    # never read or printed.
+    def _double_reveal(self):
+        """Two tabs reveal one approved contact. Statuses only: the contact is never read or printed."""
+        request_id = self._setup_request()
+        if not request_id:
+            return
+        status, _ = self._call(self.b1, "PUT", f"/api/requests/{request_id}/respond", "race4 setup approve", 200,
+                               json={"approved": True, "shareItems": ["phone"], "shareSource": "SELF"})
+        if status != 200:
+            return
+        path = f"/api/requests/{request_id}/contact"
+        name = "race4 POST /requests/:id/contact"
+        (s1, _), (s2, _) = _pair(
+            lambda: self._reveal(self.a1, path, name),
+            lambda: self._reveal(self.a2, path, name),
+        )
+        TALLY.add("double-reveal: statuses received", "+".join(str(s) for s in sorted((s1, s2))))
+        self._invariant("double-reveal: the contact opens only once", s1 == 200 and s2 == 200,
+                        f"both readers got {s1} and {s2}")
 
-    if TOKEN_FILE:
-
-        @task
-        def shared_token_race(self):
-            token = self._next_token()
-            if token is None:
-                return
-            path = f"/api/requests/shared/{token}"
-            name = "race4 GET /requests/shared/:token"
-            (s1, _), (s2, _) = _pair(
-                lambda: self._call(self.a1, "GET", path, name, {200, 400, 404}),
-                lambda: self._call(self.a2, "GET", path, name, {200, 400, 404}),
-            )
-            TALLY.add("shared-token: statuses received", "+".join(str(s) for s in sorted((s1, s2))))
-            self._invariant("shared-token: link works only once", s1 == 200 and s2 == 200,
-                            f"both readers got {s1} and {s2}")
-
-        _tokens = None
-
-        def _next_token(self):
-            cls = type(self)
-            if cls._tokens is None:
-                with open(TOKEN_FILE) as f:
-                    cls._tokens = [line.strip() for line in f if line.strip()]
-            return cls._tokens.pop() if cls._tokens else None
+    def _reveal(self, session, path, name):
+        with session.post(path, name=name, catch_response=True) as r:
+            check(r, {200, 410}, name)
+            return r.status_code, None

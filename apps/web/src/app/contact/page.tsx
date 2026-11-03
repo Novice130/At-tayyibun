@@ -28,7 +28,7 @@ export default function ContactPage() {
               <Mail className="w-5 h-5" /> support@attayyibun.com
             </a>
             <p className="text-muted text-sm">
-              We typically respond within one business day, inshaAllah.
+              We typically respond within one business day (Central Time, Chicago), InshaAllah.
             </p>
           </div>
         </div>

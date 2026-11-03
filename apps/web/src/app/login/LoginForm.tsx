@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { authClient, signIn } from '@/lib/auth-client';
+import { safeNextPath } from '@/lib/safe-redirect';
 
 export default function LoginForm() {
   const router = useRouter();
@@ -121,7 +122,10 @@ export default function LoginForm() {
         router.push('/admin');
         return;
       }
-      router.push('/browse');
+      // The middleware sends a signed-out visitor here with their destination,
+      // such as a contact link from an email. Same-site paths only.
+      const next = new URLSearchParams(window.location.search).get('next');
+      router.push(safeNextPath(next) ?? '/browse');
     } catch (err: any) {
       const msg = err.message || 'Failed to sign in. Please try again.';
       setError(msg);

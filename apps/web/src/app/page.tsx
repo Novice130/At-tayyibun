@@ -5,20 +5,16 @@ import { redirect } from 'next/navigation';
 import { Heart, Shield, Users, Clock, ChevronRight, Star, Quote, Lock, Sparkles } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { auth } from '@/lib/auth';
+import { pageMetadata } from '@/lib/seo';
+
+export const metadata = pageMetadata({
+  path: '/',
+  title: 'At-Tayyibun | Muslim Matrimony in the United States',
+  description:
+    'At-Tayyibun is a privacy-first, halal-oriented matrimony platform designed for Muslims in the United States. Find your righteous spouse with dignity and respect.',
+});
 
 const successStories = [
-  {
-    names: 'Abdullah & Mariam',
-    location: 'New York, NY',
-    quote: 'We connected through At-Tayyibun and our families were involved from day one. Alhamdulillah, we had our nikah within 6 months. The privacy-first approach gave us confidence throughout the process.',
-    year: '2025',
-  },
-  {
-    names: 'Yusuf & Aisha',
-    location: 'Houston, TX',
-    quote: 'My mother created my profile as my guardian. She felt comfortable knowing the platform was designed with Islamic values. We are now happily married with our families\' blessings.',
-    year: '2025',
-  },
   {
     names: 'Omar & Fatima',
     location: 'Chicago, IL',
@@ -36,7 +32,7 @@ const features = [
   {
     icon: Users,
     title: 'Guardian-Led Process',
-    description: 'Parents, guardians, or siblings create profiles and manage connections. Family involvement from the very first step.',
+    description: 'Parents, guardians, or siblings can create profiles and manage connections. Family involvement from the very first step.',
   },
   {
     icon: Heart,
@@ -46,7 +42,7 @@ const features = [
   {
     icon: Lock,
     title: 'Data Encrypted',
-    description: 'All sensitive data encrypted at rest. Your personal information is secured with military-grade encryption.',
+    description: 'Last names, bios and biodata, including guardian details, are encrypted at rest with AES-256-GCM. Our Privacy Policy lists what is and is not encrypted.',
   },
 ];
 
@@ -78,14 +74,14 @@ export default async function HomePage() {
         {/* Mobile only: hero image as full background */}
         <div className="absolute inset-0 lg:hidden">
           <Image
-            src="/hero-couple-sunset-light.png"
+            src="/hero-couple-sunset-light.webp"
             alt=""
             fill
             className="object-cover object-[center_20%] scale-[1.18] dark:hidden"
             priority
           />
           <Image
-            src="/hero-couple-sunset.png"
+            src="/hero-couple-sunset.webp"
             alt=""
             fill
             className="object-cover object-[center_20%] scale-[1.18] hidden dark:block"
@@ -137,13 +133,13 @@ export default async function HomePage() {
 
               <p className="text-lg sm:text-xl mb-8 max-w-xl leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
                 At-Tayyibun is a privacy-first matrimony platform designed for Muslims
-                in the United States. Parents and guardians create profiles and connect
+                in the United States. Parents and guardians can create profiles and connect
                 on behalf of their families.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link href="/signup" className="btn-primary px-8 py-4 text-lg">
-                  Start Your Journey
+                  Create Account
                   <ChevronRight className="w-5 h-5 ml-2" />
                 </Link>
                 <Link href="/browse" className="btn-secondary px-8 py-4 text-lg">
@@ -179,14 +175,14 @@ export default async function HomePage() {
                 {/* Image — overflow-hidden + scale crops the decorative border */}
                 <div className="relative w-full h-full rounded-3xl overflow-hidden">
                   <Image
-                    src="/hero-couple-sunset-light.png"
+                    src="/hero-couple-sunset-light.webp"
                     alt="Muslim couple overlooking a coastal sunset together"
                     fill
                     className="object-cover scale-[1.18] origin-center dark:hidden"
                     priority
                   />
                   <Image
-                    src="/hero-couple-sunset.png"
+                    src="/hero-couple-sunset.webp"
                     alt="Muslim couple overlooking a coastal sunset together"
                     fill
                     className="object-cover scale-[1.18] origin-center hidden dark:block"
@@ -272,7 +268,7 @@ export default async function HomePage() {
             {[
               { step: '01', title: 'Create Profile', desc: 'You or your guardian signs up and creates a profile with basic information and a cartoon avatar.' },
               { step: '02', title: 'Browse & Connect', desc: 'Browse profiles. Found someone compatible? Send a contact request through the platform.' },
-              { step: '03', title: 'Families Connect', desc: 'Once approved, guardian contact info is shared via secure email. Families take it from there.' },
+              { step: '03', title: 'Families Connect', desc: 'Once a request is accepted, the member chooses to share a guardian\'s contact or their own. The sender views it once through a sign-in link. Families take it from there.' },
             ].map((item) => (
               <div key={item.step} className="text-center">
                 <div className="text-5xl font-heading font-bold mb-4 text-gradient-gold opacity-60">{item.step}</div>
@@ -292,14 +288,14 @@ export default async function HomePage() {
               Blessed Unions
             </p>
             <h2 className="font-heading text-3xl sm:text-4xl font-bold mb-4" style={{ color: 'var(--color-text)' }}>
-              <span className="text-gradient-gold">Success Stories</span>
+              <span className="text-gradient-gold">A Success Story</span>
             </h2>
             <p className="max-w-2xl mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
-              Alhamdulillah, families have found blessed unions through At-Tayyibun.
+              Alhamdulillah, one couple shares their path to a blessed union through At-Tayyibun.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="max-w-2xl mx-auto">
             {successStories.map((story) => (
               <div key={story.names} className="card p-6 relative">
                 <Quote className="w-8 h-8 absolute top-4 right-4 opacity-10" style={{ color: 'var(--color-gold-500)' }} />
@@ -328,11 +324,10 @@ export default async function HomePage() {
             Begin Your Search Today
           </h2>
           <p className="mb-8 max-w-xl mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
-            Join families across the United States who have found
-            their path to a blessed marriage through At-Tayyibun.
+            Join Muslim families across the United States.
           </p>
           <Link href="/signup" className="btn-primary px-8 py-4 text-lg inline-flex">
-            Create Free Account
+            Create Account
             <ChevronRight className="w-5 h-5 ml-2" />
           </Link>
         </div>
@@ -357,8 +352,8 @@ export default async function HomePage() {
             {/* Links */}
             <div className="flex flex-wrap justify-center gap-6 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
               <Link href="/about" className="hover:opacity-80 transition">Our Story</Link>
-              <Link href="/privacy" className="hover:opacity-80 transition">Privacy Sanctuary</Link>
-              <Link href="/terms" className="hover:opacity-80 transition">Terms of Union</Link>
+              <Link href="/privacy" className="hover:opacity-80 transition">Privacy Policy</Link>
+              <Link href="/terms" className="hover:opacity-80 transition">Terms of Use</Link>
               <Link href="/contact" className="hover:opacity-80 transition">Support</Link>
             </div>
 
