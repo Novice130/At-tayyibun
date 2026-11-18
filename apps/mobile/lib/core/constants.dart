@@ -1,12 +1,15 @@
-/// Deployed origin. Both surfaces live here:
+import 'env.dart';
+
+/// Deployed origin for this build's environment (see env.dart). Both surfaces
+/// live here:
 ///   /auth/*  -> better-auth inside the Next.js app
 ///   /api/*   -> proxied through to the NestJS API
-const String kBaseUrl = 'https://attayyibun.com';
+final String kBaseUrl = kAppEnv.baseUrl;
 
 /// better-auth runs an origin check on every non-GET /auth/* request. Once the
 /// cookie jar holds anything for the host it rejects requests whose Origin is
 /// missing or untrusted, so this header is mandatory on auth POSTs.
-const String kOriginHeader = kBaseUrl;
+final String kOriginHeader = kBaseUrl;
 
 /// Session cookie. The `__Secure-` prefix is applied by better-auth because the
 /// origin is HTTPS; the unprefixed name is what a local http:// dev server
@@ -26,11 +29,19 @@ const int kBrowsePageSize = 20;
 ///
 /// Injected at build time so it never lands in the repo:
 ///   flutter build apk --dart-define=GOOGLE_SERVER_CLIENT_ID=xxx.apps.googleusercontent.com
-const String kGoogleIosClientId = String.fromEnvironment(
-  'GOOGLE_IOS_CLIENT_ID',
-  defaultValue:
-      '659173631996-gg4ju84nmskgcrq6hkc030fmsa7kaj4l.apps.googleusercontent.com',
-);
+///
+/// The iOS client is tied to a bundle ID, so the dev app has its own. Empty
+/// means google_sign_in falls back to GIDClientID in Info.plist.
+const String _kGoogleIosClientIdOverride = String.fromEnvironment('GOOGLE_IOS_CLIENT_ID');
+final String kGoogleIosClientId = _kGoogleIosClientIdOverride.isNotEmpty
+    ? _kGoogleIosClientIdOverride
+    : switch (kAppEnv) {
+        AppEnv.prod =>
+          '659173631996-gg4ju84nmskgcrq6hkc030fmsa7kaj4l.apps.googleusercontent.com',
+        // Set once the iOS OAuth client for com.attayyibun.attayyibun.dev exists
+        // (Google Cloud project 659173631996). See README "Dev app".
+        AppEnv.dev => '',
+      };
 
 const String kGoogleServerClientId = String.fromEnvironment(
   'GOOGLE_SERVER_CLIENT_ID',

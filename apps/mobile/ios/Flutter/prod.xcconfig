@@ -1,0 +1,8 @@
+// Production app (flavor `prod`, and the plain Runner scheme).
+// Talks to https://attayyibun.com — the server is picked in Dart from the
+// flavor, see lib/core/env.dart.
+PRODUCT_BUNDLE_IDENTIFIER = com.attayyibun.attayyibun
+APP_DISPLAY_NAME = At-Tayyibun
+// iOS OAuth client for this bundle ID (Google Cloud project 659173631996).
+GOOGLE_IOS_CLIENT_ID = 659173631996-gg4ju84nmskgcrq6hkc030fmsa7kaj4l.apps.googleusercontent.com
+GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.659173631996-gg4ju84nmskgcrq6hkc030fmsa7kaj4l

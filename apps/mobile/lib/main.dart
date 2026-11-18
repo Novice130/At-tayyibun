@@ -8,8 +8,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/api_client.dart';
 import 'core/crash_reporting.dart';
 import 'core/push_notifications.dart';
+import 'core/env.dart';
 import 'core/theme.dart';
 import 'firebase_options.dart';
+import 'firebase_options_dev.dart';
 import 'providers.dart';
 import 'router.dart';
 
@@ -20,7 +22,10 @@ Future<void> main() async {
     // Firebase delivers and checks the phone-verification SMS and carries push
     // notifications. It never holds a session — better-auth's cookie does.
     await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
+      options: switch (kAppEnv) {
+        AppEnv.prod => DefaultFirebaseOptions.currentPlatform,
+        AppEnv.dev => DevFirebaseOptions.currentPlatform,
+      },
     );
 
     // The cookie jar has to be opened from storage before anything can make a
@@ -129,12 +134,21 @@ class _AtTayyibunAppState extends ConsumerState<AtTayyibunApp>
   Widget build(BuildContext context) {
     ref.listen<AuthState>(authControllerProvider, _onAuthChanged);
     return MaterialApp.router(
-      title: 'At-Tayyibun',
+      title: kAppEnv.appName,
       debugShowCheckedModeBanner: false,
       theme: buildLightTheme(),
       darkTheme: buildDarkTheme(),
       themeMode: ThemeMode.system,
       routerConfig: ref.watch(routerProvider),
+      // The dev app looks identical otherwise; this keeps testers and
+      // screenshots from mistaking staging for the real thing.
+      builder: kAppEnv == AppEnv.dev
+          ? (context, child) => Banner(
+                message: 'STAGING',
+                location: BannerLocation.topEnd,
+                child: child ?? const SizedBox.shrink(),
+              )
+          : null,
     );
   }
 }

@@ -1,0 +1,10 @@
+# Icon for the dev app (flavor `dev`): the normal logo with a red DEV band.
+# Regenerate with: dart run flutter_launcher_icons
+# The prod icon stays configured in pubspec.yaml.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/logo-dev.png"
+  adaptive_icon_background: "#0F0F1A"
+  adaptive_icon_foreground: "assets/logo-dev.png"
