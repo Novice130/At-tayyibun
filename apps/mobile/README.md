@@ -118,36 +118,32 @@ How it is wired:
   build configurations and the `dev` scheme use them. Icon set `AppIcon-dev`.
 - Android: `productFlavors` in `android/app/build.gradle.kts`; dev icons in
   `android/app/src/dev/res/`.
-- Same Firebase project (`at-tayyibun-e3f79`), Google Cloud project, Apple team
-  and Resend sender as prod. Only the database (staging Neon) is separate.
+- Separate Firebase / Google Cloud projects: prod uses `at-tayyibun-prod`,
+  dev uses `at-tayyibun-staging` (same projects as the website and staging
+  website). Config per flavor:
+  - Android: `android/app/src/prod/google-services.json`,
+    `android/app/src/dev/google-services.json`
+  - iOS: `ios/config/{prod,dev}/GoogleService-Info.plist` (reference copies;
+    the app reads `lib/firebase_options.dart` / `lib/firebase_options_dev.dart`,
+    and the Google iOS client + reCAPTCHA URL scheme from the xcconfigs)
+  - Google web client (`serverClientId`) and iOS client: `lib/core/constants.dart`
+- Same Apple team and Resend sender as prod. Database: staging Neon.
 
-### One-time console setup
+### Console setup status
 
-Until these are done the dev app builds on iOS but stops at launch with a
-"Dev Firebase apps are not registered yet" error, and the Android dev build
-fails with `No matching client found for package name
-'com.attayyibun.at_tayyibun.dev'`.
-
-1. **Firebase** (project `at-tayyibun-e3f79`)
-   - Add an Android app `com.attayyibun.at_tayyibun.dev` with the same SHA-1
-     and SHA-256 fingerprints as the prod Android app. Download
-     `google-services.json` and replace `android/app/google-services.json`
-     (the new file lists both packages).
-   - Add an iOS app `com.attayyibun.attayyibun.dev`. Upload the same APNs key
-     as the prod iOS app (phone sign-in needs it).
-   - Copy the new apps' `apiKey` / `appId` into `lib/firebase_options_dev.dart`
-     (replace the `throw`; same shape as `lib/firebase_options.dart`).
-   - Authentication → Settings → Authorized domains: add
-     `staging.attayyibun.com`.
-2. **Google Cloud** (project of client `659173631996-…`)
-   - OAuth client, type iOS, bundle ID `com.attayyibun.attayyibun.dev`. Put its
-     client ID and reversed client ID into `ios/Flutter/dev.xcconfig`, and the
-     client ID into the `AppEnv.dev` case of `kGoogleIosClientId` in
-     `lib/core/constants.dart`.
-   - OAuth client, type Android, package `com.attayyibun.at_tayyibun.dev`, same
-     SHA-1 as prod.
-   - The server keeps verifying against the web client (`GOOGLE_CLIENT_ID`), so
-     no server change for Google.
+1. **Firebase / Google Cloud** — done 2026-11-25: apps registered in both
+   projects, iOS/Android OAuth clients created, `staging.attayyibun.com`
+   authorized. Still to do:
+   - Prod Android: add the Play App Signing SHA-1 and SHA-256 (Play Console →
+     Protected with Play → Manage Play app signing) to the Android app in
+     `at-tayyibun-prod`, then re-download `src/prod/google-services.json`.
+     Google sign-in on the prod Android app fails until then.
+   - Dev Android has only the local debug keystore's fingerprint; add the dev
+     app's Play signing fingerprints the same way once it is on Play.
+   - iOS: upload an APNs auth key to both Firebase projects (Project settings →
+     Cloud Messaging). Without it phone sign-in falls back to a reCAPTCHA page.
+2. **Google Cloud** — nothing else; the server verifies against the web client
+   (`GOOGLE_CLIENT_ID`), which must match `kGoogleServerClientId` per flavor.
 3. **Apple Developer / App Store Connect**
    - App ID `com.attayyibun.attayyibun.dev` with Sign in with Apple.
    - New App Store Connect app "At-Tayyibun Dev" on that bundle ID. Use it for

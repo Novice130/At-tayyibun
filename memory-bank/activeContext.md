@@ -3,7 +3,7 @@
 ## Status
 - **Admin Single Concurrent Session**: Implemented in `apps/web/src/lib/auth.ts` (`databaseHooks.session.create.after`). When an admin logs in from any device/country, all other active sessions for that admin account are automatically revoked from the database.
 - **Apple Sign-In**: Live and verified on production web (`https://attayyibun.com`) and iOS app.
-- **Google Sign-In**: Fixed audience mismatch; using `659173631996-bi5c9d3i4qk6pksee92abkn3t4vheeo9.apps.googleusercontent.com`.
+- **Google Sign-In**: Fixed audience mismatch; using `302409438996-b89uv51bu8h044h2eakirmg63k9cmug3.apps.googleusercontent.com`.
 - **iOS App & TestFlight**:
   - App ID: `6805307609`, Bundle ID: `com.attayyibun.attayyibun`, Team ID: `TT3HQ774N4`.
   - Build script: `apps/mobile/scripts/upload_to_testflight.sh`.

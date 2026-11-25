@@ -77,8 +77,8 @@ if [ "$SKIP_BUILD" = false ]; then
   # a failed build silently reuses whatever stale archive is already on disk.
   rm -rf "$ARCHIVE"
 
-  flutter build ipa --release --flavor "$FLAVOR" \
-    --dart-define=GOOGLE_SERVER_CLIENT_ID=659173631996-bi5c9d3i4qk6pksee92abkn3t4vheeo9.apps.googleusercontent.com || true
+  # The web client id for Google sign-in comes from the flavor (lib/core/constants.dart).
+  flutter build ipa --release --flavor "$FLAVOR" || true
 
   if [ ! -d "$ARCHIVE" ]; then
     echo "❌ Error: the build produced no archive — see the flutter build output above."

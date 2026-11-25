@@ -68,6 +68,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
+				<string>$(FIREBASE_ENCODED_APP_ID)</string>
 			</array>
 		</dict>
 	</array>

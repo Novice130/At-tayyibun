@@ -2,22 +2,22 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CLIENT_ID</key>
+	<string>302409438996-2o4i457ecpv9matr4bg8mjj0rhvuq59f.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.302409438996-2o4i457ecpv9matr4bg8mjj0rhvuq59f</string>
 	<key>API_KEY</key>
-	<string>AIzaSyA-Sz9xVuEPFqHwLxf_eJ18eYKnhSYPPl0</string>
+	<string>AIzaSyBy0XRk0qb3452KOQengLL0T3IGwaabfE4</string>
 	<key>GCM_SENDER_ID</key>
-	<string>637715249195</string>
+	<string>302409438996</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.attayyibun.attayyibun</string>
-	<key>CLIENT_ID</key>
-	<string>659173631996-gg4ju84nmskgcrq6hkc030fmsa7kaj4l.apps.googleusercontent.com</string>
-	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.659173631996-gg4ju84nmskgcrq6hkc030fmsa7kaj4l</string>
 	<key>PROJECT_ID</key>
-	<string>at-tayyibun-e3f79</string>
+	<string>at-tayyibun-prod</string>
 	<key>STORAGE_BUCKET</key>
-	<string>at-tayyibun-e3f79.firebasestorage.app</string>
+	<string>at-tayyibun-prod.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -29,6 +29,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:637715249195:ios:44b1cfac12e7952556126e</string>
+	<string>1:302409438996:ios:69ed80fda11d859b531401</string>
 </dict>
 </plist>

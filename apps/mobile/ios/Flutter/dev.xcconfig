@@ -2,9 +2,8 @@
 // https://staging.attayyibun.com. Overrides prod.xcconfig.
 PRODUCT_BUNDLE_IDENTIFIER = com.attayyibun.attayyibun.dev
 APP_DISPLAY_NAME = At-Tayyibun Dev
-// iOS OAuth client for com.attayyibun.attayyibun.dev. Google ties iOS clients
-// to one bundle ID, so the prod client can't be reused. Fill both in once the
-// client exists (README "Dev app"); until then Google sign-in fails in the dev
-// app only.
-GOOGLE_IOS_CLIENT_ID =
-GOOGLE_REVERSED_CLIENT_ID = com.attayyibun.attayyibun.dev.google-not-configured
+// iOS OAuth client for com.attayyibun.attayyibun.dev (Firebase/Google Cloud
+// project at-tayyibun-staging). Source: ios/config/dev/GoogleService-Info.plist.
+GOOGLE_IOS_CLIENT_ID = 1011611778098-okilkjejj879ngnf8n0936kouqalinkg.apps.googleusercontent.com
+GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.1011611778098-okilkjejj879ngnf8n0936kouqalinkg
+FIREBASE_ENCODED_APP_ID = app-1-1011611778098-ios-f758eb50e7ab873969d02b

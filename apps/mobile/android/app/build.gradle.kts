@@ -55,7 +55,8 @@ android {
     //   dev  → com.attayyibun.at_tayyibun.dev "At-Tayyibun Dev" → staging.attayyibun.com
     // The server is chosen in Dart from the flavor (lib/core/env.dart), so the
     // app ID and the backend can't disagree. Build with --flavor prod|dev.
-    // google-services.json must list a client for each package name.
+    // Firebase config per flavor: src/prod/google-services.json (at-tayyibun-prod)
+    // and src/dev/google-services.json (at-tayyibun-staging).
     flavorDimensions += "env"
     productFlavors {
         create("prod") {

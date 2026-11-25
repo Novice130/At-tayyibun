@@ -103,7 +103,7 @@
 - **Admin Single Concurrent Session:** Implemented via `databaseHooks.session.create.after` in `apps/web/src/lib/auth.ts`. When an admin logs in on a new device/browser, all older active sessions for that admin account are automatically invalidated from the database so previous users are signed out instantly.
 - **2FA:** Google Authenticator (TOTP) + Email OTP + Backup Codes enabled on `/admin/security/challenge`.
 - **Apple Sign-In (Web & Mobile):** Configured with Apple Client ID & Client Secret in Dokploy environment and live on production.
-- **Google OAuth Web & Mobile:** Fixed server client ID to `659173631996-bi5c9d3i4qk6pksee92abkn3t4vheeo9.apps.googleusercontent.com` across mobile builds and Dokploy.
+- **Google OAuth Web & Mobile:** Fixed server client ID to `302409438996-b89uv51bu8h044h2eakirmg63k9cmug3.apps.googleusercontent.com` across mobile builds and Dokploy.
 - **Mobile Post-Verification Avatar Flow:** When users sign in via Google/Apple/Phone, `/verify-phone` automatically routes them to the interactive Brother/Sister avatar picker (`/profile/avatar?initial=true`) before opening `/browse`.
 - **TestFlight Releases:** Automated via `apps/mobile/scripts/upload_to_testflight.sh`. Latest build uploaded: `0.1.3+6` (App ID: `6805307609`, Bundle ID: `com.attayyibun.attayyibun`).
 - **Avatars:** 42 curated avatars (21 male, 21 female from `Images_New/`) deployed to production.

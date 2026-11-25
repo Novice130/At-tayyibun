@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "1011611778098",
+    "project_id": "at-tayyibun-staging",
+    "storage_bucket": "at-tayyibun-staging.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1011611778098:android:e2a58724c3cbcad069d02b",
+        "android_client_info": {
+          "package_name": "com.attayyibun.at_tayyibun.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1011611778098-h7vtp8g4dkhcpspq78q2j72v2378v0rc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.attayyibun.at_tayyibun.dev",
+            "certificate_hash": "99f6a78bdc1efee3e1351789445459e73c0bf1dd"
+          }
+        },
+        {
+          "client_id": "1011611778098-tege7ab7tuju0l5sgl81cdnqvruf5geu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCX1flrGcxC-qY2IzO8e7RC2hCJe43WjVo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1011611778098-l2va7fnar0q9amkcnctvcfb32nh0ijtk.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1011611778098-okilkjejj879ngnf8n0936kouqalinkg.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.attayyibun.attayyibun.dev"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
