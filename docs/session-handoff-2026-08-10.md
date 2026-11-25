@@ -137,8 +137,8 @@ Account linking is enabled with `trustedProviders: ['google']` and
 later used Google on the same address does not end up with two accounts.
 
 OAuth clients (project `attayyibun-auth`):
-- Web client id: `659173631996-bi5c9d3i4qk6pksee92abkn3t4vheeo9.apps.googleusercontent.com`
-- Android client id: `659173631996-v043u83qkebdirej7qos9o75drs4iam7.apps.googleusercontent.com`
+- Web client id: `302409438996-b89uv51bu8h044h2eakirmg63k9cmug3.apps.googleusercontent.com`
+- Android client id: none yet for project at-tayyibun-prod (302409438996). Add it after Play App Signing provides the SHA-1. The old 659173631996 client is retired.
 - Redirect URIs: `https://attayyibun.com/auth/callback/google` and
   `http://localhost:3000/auth/callback/google` (note `/auth/`, not `/api/auth/` —
   Traefik routes `/api/*` to the NestJS container)
@@ -242,7 +242,7 @@ Currently published: v0.1.1+2, 37,636,176 bytes, SHA-256
 to `at-tayyibun.apk.sha256` next to it). This is **not** the binary this document
 originally described (`e2857116…`) — that one predated Google Sign-In. Verified by
 `strings` on `lib/arm64-v8a/libapp.so`: the published APK carries the web client
-id `659173631996-bi5c9d3i4qk6pksee92abkn3t4vheeo9`, so it was built with the
+id `302409438996-b89uv51bu8h044h2eakirmg63k9cmug3`, so it was built with the
 required `--dart-define=GOOGLE_SERVER_CLIENT_ID`.
 
 Android 14+ blocks unknown-source installs by default — users must allow it for

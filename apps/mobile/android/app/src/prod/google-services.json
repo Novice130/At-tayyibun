@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "302409438996",
+    "project_id": "at-tayyibun-prod",
+    "storage_bucket": "at-tayyibun-prod.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:302409438996:android:e429bb409219e486531401",
+        "android_client_info": {
+          "package_name": "com.attayyibun.at_tayyibun"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "302409438996-qclj5g2m8jl1cr5lp0o9g0q11cmpurpl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLQgezdkBtCcSR9RMdfQlkTA68IPssWD8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "302409438996-b89uv51bu8h044h2eakirmg63k9cmug3.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "302409438996-2o4i457ecpv9matr4bg8mjj0rhvuq59f.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.attayyibun.attayyibun"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

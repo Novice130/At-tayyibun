@@ -5,7 +5,10 @@ set -e
 # At-Tayyibun iOS TestFlight Build & Upload Script
 # ==============================================================================
 # Usage:
-#   ./scripts/upload_to_testflight.sh [--skip-build] [ISSUER_ID]
+#   ./scripts/upload_to_testflight.sh [--flavor prod|dev] [--skip-build] [ISSUER_ID]
+#
+#   --flavor prod (default)  At-Tayyibun      com.attayyibun.attayyibun      → attayyibun.com
+#   --flavor dev             At-Tayyibun Dev  com.attayyibun.attayyibun.dev  → staging.attayyibun.com
 #
 # Environment overrides:
 #   APPLE_ISSUER_ID   App Store Connect Issuer ID (default below)
@@ -17,9 +20,13 @@ KEY_ID="${ASC_API_KEY_ID:-T479RMTYDJ}"
 DEFAULT_ISSUER_ID="07ba3ed9-33fb-4952-8cb5-aca4d1f5a7d6"
 ISSUER_ID="${APPLE_ISSUER_ID:-$DEFAULT_ISSUER_ID}"
 SKIP_BUILD=false
+FLAVOR=prod
 
-for arg in "$@"; do
-  if [ "$arg" == "--skip-build" ] || [ "$arg" == "-s" ]; then
+while [ $# -gt 0 ]; do
+  arg="$1"; shift
+  if [ "$arg" == "--flavor" ]; then
+    FLAVOR="${1:-}"; shift || true
+  elif [ "$arg" == "--skip-build" ] || [ "$arg" == "-s" ]; then
     SKIP_BUILD=true
   elif [[ "$arg" =~ ^[0-9a-fA-F-]{36}$ ]]; then
     ISSUER_ID="$arg"
@@ -35,6 +42,13 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_ROOT="$(cd "$PROJECT_ROOT/../.." && pwd)"
 KEY_FILE="${ASC_API_KEY_PATH:-$REPO_ROOT/AuthKey_${KEY_ID}.p8}"
 ARCHIVE="$PROJECT_ROOT/build/ios/archive/Runner.xcarchive"
+
+case "$FLAVOR" in
+  prod) EXPORT_OPTIONS="$REPO_ROOT/ExportOptions.plist";     BUNDLE_ID=com.attayyibun.attayyibun ;;
+  dev)  EXPORT_OPTIONS="$REPO_ROOT/ExportOptions-dev.plist"; BUNDLE_ID=com.attayyibun.attayyibun.dev ;;
+  *)    echo "❌ Error: --flavor must be prod or dev (got '$FLAVOR')."; exit 1 ;;
+esac
+echo "🏷  Flavor: $FLAVOR"
 EXPORT_DIR="$PROJECT_ROOT/build/ios/ipa-export"
 
 # Ensure the API key is in Apple's expected location
@@ -63,8 +77,8 @@ if [ "$SKIP_BUILD" = false ]; then
   # a failed build silently reuses whatever stale archive is already on disk.
   rm -rf "$ARCHIVE"
 
-  flutter build ipa --release \
-    --dart-define=GOOGLE_SERVER_CLIENT_ID=659173631996-bi5c9d3i4qk6pksee92abkn3t4vheeo9.apps.googleusercontent.com || true
+  # The web client id for Google sign-in comes from the flavor (lib/core/constants.dart).
+  flutter build ipa --release --flavor "$FLAVOR" || true
 
   if [ ! -d "$ARCHIVE" ]; then
     echo "❌ Error: the build produced no archive — see the flutter build output above."
@@ -79,6 +93,14 @@ else
   fi
 fi
 
+# Both flavors archive to the same path, so make sure this archive is the app
+# we mean to ship (matters most with --skip-build).
+ARCHIVED_ID="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleIdentifier' "$ARCHIVE/Info.plist" 2>/dev/null || true)"
+if [ "$ARCHIVED_ID" != "$BUNDLE_ID" ]; then
+  echo "❌ Error: archive is '$ARCHIVED_ID' but --flavor $FLAVOR ships '$BUNDLE_ID'. Rebuild without --skip-build."
+  exit 1
+fi
+
 # Export an App Store-signed IPA. This is where Xcode re-signs with an Apple
 # Distribution certificate — packaging the archive by hand would ship a
 # development-signed IPA, which App Store Connect rejects with error 90161.
@@ -89,7 +111,7 @@ echo "📦 Step 2: Exporting App Store-signed IPA..."
 rm -rf "$EXPORT_DIR"
 xcodebuild -exportArchive \
   -archivePath "$ARCHIVE" \
-  -exportOptionsPlist "$REPO_ROOT/ExportOptions.plist" \
+  -exportOptionsPlist "$EXPORT_OPTIONS" \
   -exportPath "$EXPORT_DIR" \
   -allowProvisioningUpdates \
   -authenticationKeyPath "$KEY_PATH" \

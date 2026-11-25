@@ -1,12 +1,15 @@
-/// Deployed origin. Both surfaces live here:
+import 'env.dart';
+
+/// Deployed origin for this build's environment (see env.dart). Both surfaces
+/// live here:
 ///   /auth/*  -> better-auth inside the Next.js app
 ///   /api/*   -> proxied through to the NestJS API
-const String kBaseUrl = 'https://attayyibun.com';
+final String kBaseUrl = kAppEnv.baseUrl;
 
 /// better-auth runs an origin check on every non-GET /auth/* request. Once the
 /// cookie jar holds anything for the host it rejects requests whose Origin is
 /// missing or untrusted, so this header is mandatory on auth POSTs.
-const String kOriginHeader = kBaseUrl;
+final String kOriginHeader = kBaseUrl;
 
 /// Session cookie. The `__Secure-` prefix is applied by better-auth because the
 /// origin is HTTPS; the unprefixed name is what a local http:// dev server
@@ -22,21 +25,37 @@ const int kBrowsePageSize = 20;
 /// Passing it as `serverClientId` makes Google mint an ID token whose audience
 /// is the web client, which is exactly what the server verifies
 /// (better-auth checks `audience: options.clientId`, a single value). An
-/// Android client id here would produce a token the server rejects.
+/// Android client id here would produce a token the server rejects. It must
+/// equal GOOGLE_CLIENT_ID on the server this flavor talks to.
 ///
-/// Injected at build time so it never lands in the repo:
-///   flutter build apk --dart-define=GOOGLE_SERVER_CLIENT_ID=xxx.apps.googleusercontent.com
-const String kGoogleIosClientId = String.fromEnvironment(
-  'GOOGLE_IOS_CLIENT_ID',
-  defaultValue:
-      '659173631996-gg4ju84nmskgcrq6hkc030fmsa7kaj4l.apps.googleusercontent.com',
-);
+/// Client ids are public identifiers (the secret stays on the server). Each
+/// flavor has its own Google Cloud project:
+///   prod → at-tayyibun-prod     dev → at-tayyibun-staging
+/// Either can be overridden at build time with
+///   --dart-define=GOOGLE_SERVER_CLIENT_ID=… / GOOGLE_IOS_CLIENT_ID=…
+const String _kGoogleServerClientIdOverride =
+    String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
+final String kGoogleServerClientId = _kGoogleServerClientIdOverride.isNotEmpty
+    ? _kGoogleServerClientIdOverride
+    : switch (kAppEnv) {
+        AppEnv.prod =>
+          '302409438996-b89uv51bu8h044h2eakirmg63k9cmug3.apps.googleusercontent.com',
+        AppEnv.dev =>
+          '1011611778098-l2va7fnar0q9amkcnctvcfb32nh0ijtk.apps.googleusercontent.com',
+      };
 
-const String kGoogleServerClientId = String.fromEnvironment(
-  'GOOGLE_SERVER_CLIENT_ID',
-  defaultValue:
-      '659173631996-bi5c9d3i4qk6pksee92abkn3t4vheeo9.apps.googleusercontent.com',
-);
+/// The iOS OAuth client is tied to a bundle ID, so each flavor has its own.
+/// Must match GIDClientID in Info.plist (Flutter/prod.xcconfig, dev.xcconfig).
+const String _kGoogleIosClientIdOverride =
+    String.fromEnvironment('GOOGLE_IOS_CLIENT_ID');
+final String kGoogleIosClientId = _kGoogleIosClientIdOverride.isNotEmpty
+    ? _kGoogleIosClientIdOverride
+    : switch (kAppEnv) {
+        AppEnv.prod =>
+          '302409438996-2o4i457ecpv9matr4bg8mjj0rhvuq59f.apps.googleusercontent.com',
+        AppEnv.dev =>
+          '1011611778098-okilkjejj879ngnf8n0936kouqalinkg.apps.googleusercontent.com',
+      };
 
 /// The preset avatar set, mirrored from apps/web/src/app/signup/SignupForm.tsx.
 /// Real photos are never displayed publicly — a chosen cartoon avatar is the

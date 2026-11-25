@@ -50,6 +50,26 @@ android {
         versionName = flutter.versionName
     }
 
+    // Two apps from one codebase, installable side by side:
+    //   prod → com.attayyibun.at_tayyibun     "At-Tayyibun"     → attayyibun.com
+    //   dev  → com.attayyibun.at_tayyibun.dev "At-Tayyibun Dev" → staging.attayyibun.com
+    // The server is chosen in Dart from the flavor (lib/core/env.dart), so the
+    // app ID and the backend can't disagree. Build with --flavor prod|dev.
+    // Firebase config per flavor: src/prod/google-services.json (at-tayyibun-prod)
+    // and src/dev/google-services.json (at-tayyibun-staging).
+    flavorDimensions += "env"
+    productFlavors {
+        create("prod") {
+            dimension = "env"
+            manifestPlaceholders["appName"] = "At-Tayyibun"
+        }
+        create("dev") {
+            dimension = "env"
+            applicationIdSuffix = ".dev"
+            manifestPlaceholders["appName"] = "At-Tayyibun Dev"
+        }
+    }
+
     signingConfigs {
         if (hasReleaseSigning) {
             create("release") {

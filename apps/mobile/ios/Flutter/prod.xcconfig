@@ -1,0 +1,13 @@
+// Production app (flavor `prod`, and the plain Runner scheme).
+// Talks to https://attayyibun.com — the server is picked in Dart from the
+// flavor, see lib/core/env.dart.
+PRODUCT_BUNDLE_IDENTIFIER = com.attayyibun.attayyibun
+APP_DISPLAY_NAME = At-Tayyibun
+// iOS OAuth client for this bundle ID (Firebase/Google Cloud project
+// at-tayyibun-prod). Source: ios/config/prod/GoogleService-Info.plist.
+GOOGLE_IOS_CLIENT_ID = 302409438996-2o4i457ecpv9matr4bg8mjj0rhvuq59f.apps.googleusercontent.com
+GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.302409438996-2o4i457ecpv9matr4bg8mjj0rhvuq59f
+// Firebase Phone Auth falls back to a reCAPTCHA web flow when APNs silent push
+// is unavailable; it returns to the app on this scheme (GOOGLE_APP_ID with
+// ':' replaced by '-', prefixed "app-").
+FIREBASE_ENCODED_APP_ID = app-1-302409438996-ios-69ed80fda11d859b531401
