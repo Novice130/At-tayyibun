@@ -11,15 +11,22 @@ import { api } from '@/lib/api';
 import { useRequireSession, notifyRequestsChanged } from '@/lib/hooks';
 import { Navbar } from '@/components/Navbar';
 import { formatMaritalLine } from '@/lib/marital';
+import { formatPlace, memberDisplayName } from '@/lib/format';
+import { PhoneVerifiedBadge } from '@/components/profile/PhoneVerifiedBadge';
 
 interface RequestProfile {
   publicId: string;
+  phoneVerified?: boolean;
   profile: {
-    firstName: string;
+    /** First name, or an alias like "Sister 4821". Missing on older API responses. */
+    displayName?: string | null;
+    /** Null when the member hides their name. */
+    firstName: string | null;
+    phoneVerified?: boolean;
     gender: string;
     ethnicity: string;
-    city?: string;
-    state?: string;
+    city?: string | null;
+    state?: string | null;
     maritalStatus?: string | null;
     hasChildren?: boolean | null;
     childrenCount?: number | null;
@@ -234,6 +241,8 @@ export default function RequestsPage() {
               {incoming.map((req) => {
                 const person = req.requester;
                 const profile = person?.profile;
+                const name = memberDisplayName(profile);
+                const place = formatPlace(profile?.city, profile?.state);
                 const maritalLine = formatMaritalLine(
                   profile?.maritalStatus ?? null,
                   profile?.hasChildren ?? null,
@@ -243,8 +252,8 @@ export default function RequestsPage() {
                   <div key={req.id} className="card p-4 sm:p-5">
                     <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                       <div className="flex items-start gap-4 flex-1 min-w-0">
-                        <div className="w-12 h-12 bg-gradient-gold rounded-full flex items-center justify-center text-black font-bold text-lg flex-shrink-0">
-                          {profile?.firstName?.[0] || '?'}
+                        <div className="w-12 h-12 bg-gradient-gold rounded-full flex items-center justify-center text-black font-bold text-lg flex-shrink-0" aria-hidden="true">
+                          {name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -252,16 +261,17 @@ export default function RequestsPage() {
                               href={`/profiles/${person?.publicId}`}
                               className="font-semibold hover:text-gold-400 transition"
                             >
-                              {profile?.firstName || 'Unknown'}
+                              {name}
                             </Link>
                             <StatusBadge status={req.status} />
+                            {(profile?.phoneVerified ?? person?.phoneVerified ?? false) && <PhoneVerifiedBadge />}
                           </div>
                           <div className="flex items-center gap-x-3 gap-y-1 mt-1 text-sm flex-wrap" style={{ color: 'var(--color-text-secondary)' }}>
                             <span>{profile?.ethnicity}</span>
-                            {(profile?.city || profile?.state) && (
+                            {place && (
                               <span className="flex items-center gap-1">
-                                <MapPin className="w-3 h-3" />
-                                {[profile?.city, profile?.state].filter(Boolean).join(', ')}
+                                <MapPin className="w-3 h-3" aria-hidden="true" />
+                                {place}
                               </span>
                             )}
                             <span>{timeAgo(req.createdAt)}</span>
@@ -353,11 +363,13 @@ export default function RequestsPage() {
               {outgoing.map((req) => {
                 const person = req.target;
                 const profile = person?.profile;
+                const name = memberDisplayName(profile);
+                const place = formatPlace(profile?.city, profile?.state);
                 return (
                   <div key={req.id} className="card p-4 sm:p-5">
                     <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-gradient-gold rounded-full flex items-center justify-center text-black font-bold text-lg flex-shrink-0">
-                        {profile?.firstName?.[0] || '?'}
+                      <div className="w-12 h-12 bg-gradient-gold rounded-full flex items-center justify-center text-black font-bold text-lg flex-shrink-0" aria-hidden="true">
+                        {name.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -365,16 +377,17 @@ export default function RequestsPage() {
                             href={`/profiles/${person?.publicId}`}
                             className="font-semibold hover:text-gold-400 transition"
                           >
-                            {profile?.firstName || 'Unknown'}
+                            {name}
                           </Link>
                           <StatusBadge status={req.status} />
+                          {(profile?.phoneVerified ?? person?.phoneVerified ?? false) && <PhoneVerifiedBadge />}
                         </div>
                         <div className="flex items-center gap-x-3 gap-y-1 mt-1 text-sm flex-wrap" style={{ color: 'var(--color-text-secondary)' }}>
                           <span>{profile?.ethnicity}</span>
-                          {(profile?.city || profile?.state) && (
+                          {place && (
                             <span className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              {[profile?.city, profile?.state].filter(Boolean).join(', ')}
+                              <MapPin className="w-3 h-3" aria-hidden="true" />
+                              {place}
                             </span>
                           )}
                           <span>Sent {timeAgo(req.createdAt)}</span>

@@ -290,7 +290,6 @@ class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
   List<(String, String)> _detailRows(ProfileSummary p) => [
         if (p.gender.isNotEmpty) ('Gender', p.gender),
         if (p.ethnicity.isNotEmpty) ('Ethnicity', p.ethnicity),
-        ('Public ID', p.publicId),
         for (final entry in kBiodataLabels.entries)
           if (displayBiodataValue(p.biodata[entry.key]) != null)
             (entry.value, displayBiodataValue(p.biodata[entry.key])!),

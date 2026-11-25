@@ -240,6 +240,14 @@
     background: rgba(139, 92, 246, 0.15);
     color: #8b5cf6;
   }
+  .badge-verified {
+    @apply badge gap-1;
+    background: rgba(16, 185, 129, 0.12);
+    color: #047857;
+  }
+  .dark .badge-verified {
+    color: #6ee7b7;
+  }
 
   /* ======== Modal ======== */
   .modal-backdrop {

@@ -24,7 +24,7 @@ The outcome: the product does what the pages say, and the pages say only what is
   - 72-hour expiry stays. After expiry the sender can resend.
 - **Visibility before approval:** members see the 200-character preview and basics. Logged-out visitors get no bio.
 - **Success stories:** Omar & Fatima are real and stay. The other two go.
-- **Operator:** "At-Tayyibun" for now. It is an LLC registered in Chicago; exact details come later.
+- **Operator:** "At Tayyibun LLC", an Illinois LLC (Articles of Organization file #18663953, filed 2026-09-14, principal office Lombard, IL).
 - **Time zone:** Chicago time, stated clearly.
 - **Code fixes in scope:** age-gate bypass, real suspension, limiting bio to approved people.
 - **Not in scope:** contact form. The email link stays.
@@ -35,9 +35,9 @@ The outcome: the product does what the pages say, and the pages say only what is
 - **Contact shows once, within 7 days of acceptance,** behind a "Show contact details" button, so email scanners can't use up the view. After that the sender sends a new request.
 - **Both sides see each other's full bio after acceptance.** Before that, only the receiver sees the sender's.
 - **Marital status stays private in browse.** My question listed it among "basics" by mistake. The code deliberately keeps it out of browse and shows it only to a request's receiver, and I am keeping that.
-- **Governing law: Illinois,** inferred from Chicago.
-- **Operator wording:** "At-Tayyibun, an LLC registered in Chicago, Illinois." Operator, state and dates live in one constants file, so the exact LLC name is a one-line change.
-- **Legal contact email: `support@attayyibun.com`.** No privacy address is known to exist.
+- **Governing law: Illinois,** the state of organization.
+- **Operator wording:** "At Tayyibun LLC, an Illinois limited liability company." Operator, state and dates live in one constants file, so the exact LLC name is a one-line change.
+- **Legal contact email: `admin@attayyibun.com`.** No privacy address is known to exist.
 - **Signup label: "Create Account"** everywhere, without "Free": no paid features exist today, but admin settings call Silver and Gold "purchasable".
 - **Enforcement wording in Terms:** "may result in suspension or removal" throughout.
 - **Legal link labels:** "Terms of Use" and "Privacy Policy" on web and mobile, keeping the creative names as page headings.
@@ -159,7 +159,7 @@ Stop at a tested branch. Deploy is separate and needs owner approval: migration 
 
 ## Open for the owner
 
-- **Before launch:** have a lawyer review Terms and Privacy. The exact LLC name is still needed, and Illinois governing law needs confirming.
+- **Before launch:** have a lawyer review Terms and Privacy. The LLC name is confirmed from the filing; the lawyer should confirm Illinois governing law.
 - **Omar & Fatima:** confirm they agreed to be featured and that the quote at `page.tsx:25` is theirs.
 - **Noted, not fixed here:** the email footer's dead `/unsubscribe` link (`email.service.ts:281`), and the Firebase phone record surviving account deletion, which Privacy will disclose.
 

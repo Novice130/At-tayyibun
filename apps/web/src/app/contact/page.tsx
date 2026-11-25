@@ -22,10 +22,10 @@ export default function ContactPage() {
               Reach us directly at
             </div>
             <a
-              href="mailto:support@attayyibun.com?subject=At-Tayyibun%20Support"
+              href="mailto:admin@attayyibun.com?subject=At-Tayyibun%20Support"
               className="btn-primary inline-flex items-center gap-2"
             >
-              <Mail className="w-5 h-5" /> support@attayyibun.com
+              <Mail className="w-5 h-5" /> admin@attayyibun.com
             </a>
             <p className="text-muted text-sm">
               We typically respond within one business day (Central Time, Chicago), InshaAllah.

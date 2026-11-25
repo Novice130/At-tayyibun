@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/api_exception.dart';
 import '../core/biodata.dart';
 import '../core/constants.dart';
+import '../core/place.dart';
 import '../models/profile.dart';
 import '../providers.dart';
 import '../widgets/profile_avatar.dart';
@@ -165,8 +166,7 @@ class _Body extends ConsumerWidget {
     final fullName = [p.firstName, p.lastName]
         .where((e) => e.isNotEmpty)
         .join(' ');
-    final location =
-        [p.city, p.state].where((e) => e != null && e.isNotEmpty).join(', ');
+    final location = formatPlace(p.city, p.state);
 
     return ListView(
       padding: const EdgeInsets.all(16),

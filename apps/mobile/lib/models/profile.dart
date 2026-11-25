@@ -1,8 +1,12 @@
+import '../core/place.dart';
+
 /// A row from `GET /api/profiles` (browse) or `GET /api/profiles/:publicId`.
 ///
 /// `firstName` arrives null when the owner set hideName — always render
-/// defensively. `biodata` holds the profile detail fields (education,
-/// profession, deen, preferences …) and is only present on the detail endpoint.
+/// defensively. Show `displayName` (first name or an alias such as
+/// "Sister 4821"), never `publicId`, which is for routes only. `biodata`
+/// holds the profile detail fields (education, profession, deen,
+/// preferences …) and is only present on the detail endpoint.
 class ProfileSummary {
   ProfileSummary({
     required this.publicId,
@@ -17,10 +21,19 @@ class ProfileSummary {
     required this.membershipTier,
     required this.biodata,
     this.isFullView = false,
-  });
+    String? displayName,
+    this.phoneVerified = false,
+  }) : displayName = displayName ?? _nonEmpty(firstName) ?? 'Member';
 
+  /// For routes and API calls only. Show [displayName] instead.
   final String publicId;
   final String? firstName;
+
+  /// First name, or an alias like "Sister 4821" when the name is hidden.
+  final String displayName;
+
+  /// True when the member has verified a phone number.
+  final bool phoneVerified;
   final int age;
   final String gender;
   final String ethnicity;
@@ -37,12 +50,9 @@ class ProfileSummary {
   /// True when the viewer may see the full bio and biodata.
   final bool isFullView;
 
-  /// Anonymised profiles fall back to the public id.
-  String get displayName => firstName ?? 'Member';
   bool get isAnonymous => firstName == null;
 
-  String get location =>
-      [city, state].where((e) => e != null && e.isNotEmpty).join(', ');
+  String get location => formatPlace(city, state);
 
   factory ProfileSummary.fromJson(Map<String, dynamic> json) => ProfileSummary(
         publicId: json['publicId'] as String,
@@ -57,6 +67,8 @@ class ProfileSummary {
         membershipTier: json['membershipTier'] as String? ?? 'FREE',
         biodata: (json['biodata'] as Map?)?.cast<String, dynamic>() ?? {},
         isFullView: json['isFullView'] as bool? ?? false,
+        displayName: _nonEmpty(json['displayName']),
+        phoneVerified: json['phoneVerified'] == true,
       );
 }
 
@@ -94,7 +106,16 @@ class MyProfile {
     required this.isVerified,
     required this.image,
     required this.profile,
-  });
+    String? displayName,
+    this.phoneVerified = false,
+  }) : displayName =
+            displayName ?? _nonEmpty(profile?.firstName) ?? 'Member';
+
+  /// Name the owner is shown as to others: first name or an alias.
+  final String displayName;
+
+  /// True when the owner has verified a phone number.
+  final bool phoneVerified;
 
   final String id;
   final String publicId;
@@ -119,8 +140,13 @@ class MyProfile {
             ? null
             : ProfileDetails.fromJson(
                 (json['profile'] as Map).cast<String, dynamic>()),
+        displayName: _nonEmpty(json['displayName']),
+        phoneVerified: json['phoneVerified'] == true,
       );
 }
+
+String? _nonEmpty(Object? value) =>
+    value is String && value.trim().isNotEmpty ? value : null;
 
 class ProfileDetails {
   ProfileDetails({

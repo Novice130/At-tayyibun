@@ -374,15 +374,11 @@ class _ProfileCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                profile.isAnonymous
-                    ? '${profile.displayName} · ${profile.age}'
-                    : '${profile.displayName}, ${profile.age}',
+                '${profile.displayName}, ${profile.age}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontFamily: profile.isAnonymous ? 'monospace' : null,
-                ),
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               Text(
                 profile.ethnicity,
@@ -400,8 +396,41 @@ class _ProfileCard extends StatelessWidget {
                     color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
+              if (profile.phoneVerified) const _PhoneVerifiedRow(),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small "Phone verified" line under the card's location.
+class _PhoneVerifiedRow extends StatelessWidget {
+  const _PhoneVerifiedRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.primary;
+    return Semantics(
+      label: 'Phone verified',
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Row(
+          children: [
+            Icon(Icons.verified, size: 14, color: color),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                'Phone verified',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(color: color),
+              ),
+            ),
+          ],
         ),
       ),
     );

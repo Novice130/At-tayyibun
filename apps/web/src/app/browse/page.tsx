@@ -11,6 +11,7 @@ import { FilterBar, FilterState } from '@/components/filters/FilterBar';
 import { api } from '@/lib/api';
 import { useRequireSession } from '@/lib/hooks';
 import { pageFromSearch, pageToRecoverTo, reachablePages } from '@/lib/browse-paging';
+import { memberDisplayName } from '@/lib/format';
 
 interface ActiveRequest {
   id: string;
@@ -18,8 +19,8 @@ interface ActiveRequest {
   targetId: string;
   target: {
     publicId: string;
-    profile: { firstName: string | null } | null;
-  };
+    profile: { firstName: string | null; displayName?: string | null } | null;
+  } | null;
 }
 
 type FetchProfiles = (activeFilters: FilterState, gender: 'MALE' | 'FEMALE' | null | undefined, requestedPage?: number) => Promise<void>;
@@ -205,7 +206,7 @@ export default function BrowsePage() {
             <Lock className="w-5 h-5 text-gold-500 flex-shrink-0" />
             <div className="flex-1">
               <p className="text-sm text-gold-300">
-                You have a pending request for <strong>{activeRequest?.target?.profile?.firstName || activeRequest?.target?.publicId}</strong>.
+                You have a pending request for <strong>{memberDisplayName(activeRequest?.target?.profile)}</strong>.
                 You can browse and view profiles, but cannot send a new request until they respond
                 — or until you cancel this one.
               </p>
