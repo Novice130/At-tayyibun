@@ -62,7 +62,8 @@ export class AuditService {
       | 'REQUEST_APPROVED'
       | 'REQUEST_DENIED'
       | 'REQUEST_EXPIRED'
-      | 'REQUEST_CANCELLED',
+      | 'REQUEST_CANCELLED'
+      | 'CONTACT_VIEWED',
     targetUserId: string,
     requestId: string,
     allowedShares?: string[],

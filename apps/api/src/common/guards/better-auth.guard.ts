@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ALLOW_UNVERIFIED_PHONE_KEY } from '../decorators/allow-unverified-phone.decorator';
+import { ALLOW_SUSPENDED_KEY } from '../decorators/allow-suspended.decorator';
 import { DrizzleService } from '../../db/drizzle.service';
 import { session } from '../../db/schema';
 
@@ -138,7 +139,12 @@ export class BetterAuthGuard implements CanActivate {
     // is not enforced here — handlers that care must check it themselves.
     if (isPublic) {
       try {
-        await this.authenticate(request);
+        const user = await this.authenticate(request);
+        // A suspended member gets what any logged-out visitor gets.
+        if (user?.suspendedAt) {
+          delete request.user;
+          delete request.session;
+        }
       } catch {
         /* anonymous */
       }
@@ -146,6 +152,17 @@ export class BetterAuthGuard implements CanActivate {
     }
 
     const user = await this.authenticate(request);
+
+    const allowSuspended = this.reflector.getAllAndOverride<boolean>(ALLOW_SUSPENDED_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (user?.suspendedAt && !allowSuspended) {
+      throw new ForbiddenException({
+        message: 'This account is suspended. Please contact support@attayyibun.com.',
+        code: 'ACCOUNT_SUSPENDED',
+      });
+    }
 
     // Phone gate. phoneGateExempt covers accounts that predate phone
     // verification, so nobody who already signed up is locked out.

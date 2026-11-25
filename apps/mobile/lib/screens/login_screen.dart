@@ -225,7 +225,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ? 'Password is required'
                           : null,
                     ),
-                    const SizedBox(height: 24),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => context.push('/forgot-password'),
+                        child: const Text('Forgot password?'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     FilledButton(
                       onPressed: (_loading || _googleLoading) ? null : _submit,
                       child: _loading
@@ -285,8 +292,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       label: const Text('Continue with Google'),
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                    // Wraps rather than overflows at large text sizes.
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text("Don't have an account?",
                             style: theme.textTheme.bodyMedium),

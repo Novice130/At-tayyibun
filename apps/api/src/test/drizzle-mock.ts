@@ -1,3 +1,36 @@
+import type { SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
+
+/**
+ * Like `chain`, but records every builder call, so a spec can inspect what the
+ * service built: `calls.where[0][0]` is the first argument of the first
+ * `.where(...)`. Render it with `renderSql`.
+ */
+export function recordingChain<T>(result: T, calls: Record<string, unknown[][]> = {}): any {
+  const promise = Promise.resolve(result);
+  const proxy: any = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        if (prop === 'then' || prop === 'catch' || prop === 'finally') {
+          return (promise as any)[prop].bind(promise);
+        }
+        return (...args: unknown[]) => {
+          (calls[String(prop)] ??= []).push(args);
+          return proxy;
+        };
+      },
+    },
+  );
+  return proxy;
+}
+
+/** Renders a Drizzle SQL fragment to its text and bound parameters. */
+export function renderSql(fragment: unknown): { sql: string; params: unknown[] } {
+  const { sql, params } = new PgDialect().sqlToQuery(fragment as SQL);
+  return { sql, params };
+}
+
 /**
  * Minimal stand-in for a Drizzle query builder.
  *

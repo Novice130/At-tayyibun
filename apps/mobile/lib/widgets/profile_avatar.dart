@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
-/// Avatars come from DiceBear as **SVG**, which Image.network cannot decode —
-/// hence flutter_svg. Falls back to an initial when the URL is missing or the
-/// fetch fails.
+import '../core/avatar_url.dart';
+
+/// A preset avatar, or the person's initial when the URL is missing, not on
+/// the allow-list (see [trustedAvatarUrl]), or fails to load.
+///
+/// The API sends a DiceBear SVG URL for members with no image, and `users.image`
+/// can hold a Google photo URL. Neither is fetched, so those members show their
+/// initial.
 class ProfileAvatar extends StatelessWidget {
   const ProfileAvatar({
     super.key,
@@ -22,31 +26,14 @@ class ProfileAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final radius = borderRadius ?? BorderRadius.circular(16);
     final placeholder = _Fallback(label: fallbackLabel, size: size);
-
-    if (url.isEmpty) {
-      return ClipRRect(borderRadius: radius, child: placeholder);
-    }
-
-    // DiceBear avatars are SVG; the preset catalogue is JPG. Branch on the
-    // extension so both render. Image.network has no placeholderBuilder, so
-    // a broken JPG falls straight to the errorBuilder fallback.
-    final isSvg = url.endsWith('.svg') || url.contains('api.dicebear.com');
+    final trusted = trustedAvatarUrl(url);
 
     return ClipRRect(
       borderRadius: radius,
-      child: isSvg
-          ? SvgPicture.network(
-              url,
-              width: size,
-              height: size,
-              fit: BoxFit.cover,
-              placeholderBuilder: (_) => placeholder,
-              // Broken/unreachable avatar URLs used to render a blank box —
-              // fall back to the initial so the UI never shows an empty avatar.
-              errorBuilder: (_, _, _) => placeholder,
-            )
+      child: trusted == null
+          ? placeholder
           : Image.network(
-              url,
+              trusted,
               width: size,
               height: size,
               fit: BoxFit.cover,

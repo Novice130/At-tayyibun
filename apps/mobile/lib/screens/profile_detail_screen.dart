@@ -380,9 +380,7 @@ class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              p.isAnonymous
-                  ? '${p.displayName} · ${p.age}'
-                  : '${p.displayName}, ${p.age}',
+              '${p.displayName}, ${p.age}',
               textAlign: TextAlign.center,
               style: theme.textTheme.headlineSmall
                   ?.copyWith(fontWeight: FontWeight.bold),
@@ -402,6 +400,14 @@ class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
                   _Meta(icon: Icons.location_on_outlined, label: p.location),
               ],
             ),
+            if (!p.isFullView) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Full profile unlocks after a request is accepted.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
             if (p.bio != null && p.bio!.isNotEmpty) ...[
               const SizedBox(height: 24),
               Card(
@@ -531,7 +537,7 @@ class _ProfileDetailScreenState extends ConsumerState<ProfileDetailScreen> {
   List<Widget> _canRequest(ThemeData theme, ProfileSummary p) => [
         Text(
           'Contact details are private. Send a request and ${p.displayName} '
-          'will decide whether to share their phone number and email with you.',
+          'will decide whether to accept. If they do, they choose whose contact to share with you.',
           style: theme.textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),

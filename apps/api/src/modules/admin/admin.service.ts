@@ -6,9 +6,15 @@ import {
 } from '@nestjs/common';
 import { and, count, desc, eq, ilike, isNull, notInArray, or, sql } from 'drizzle-orm';
 import { DrizzleService } from '../../db/drizzle.service';
-import { infoRequests, profiles, systemConfig, users } from '../../db/schema';
+import { auditLogs, infoRequests, profiles, systemConfig, users } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
+import { ModerationService } from '../moderation/moderation.service';
+
+/** Members per bulk-nudge request; at 2 emails/s this is about 20 seconds. */
+export const NUDGE_BATCH = 40;
+/** Stop starting new sends after this long, so the request ends in time. */
+export const NUDGE_TIME_BUDGET_MS = 45_000;
 
 @Injectable()
 export class AdminService {
@@ -16,6 +22,7 @@ export class AdminService {
     private readonly drizzle: DrizzleService,
     private readonly auditService: AuditService,
     private readonly emailService: EmailService,
+    private readonly moderationService: ModerationService,
   ) {}
 
   async getAnalytics() {
@@ -78,6 +85,7 @@ export class AdminService {
           role: true,
           membershipTier: true,
           isVerified: true,
+          suspendedAt: true,
           isPhoneVerified: true,
           emailVerified: true,
           createdAt: true,
@@ -114,24 +122,38 @@ export class AdminService {
 
   async getUser(identifier: string) {
     const db = this.drizzle.db;
+    // Explicit allowlist: exactly what the admin inspector reads. Never return
+    // the whole row — users carries the legacy password_hash and token columns,
+    // and profiles carries encrypted fields (lastNameEnc, bioEnc, biodataJsonEnc).
     const user = await db.query.users.findFirst({
       where: or(eq(users.id, identifier), eq(users.publicId, identifier)),
+      columns: {
+        id: true,
+        publicId: true,
+        name: true,
+        email: true,
+        emailIsPlaceholder: true,
+        phone: true,
+        isPhoneVerified: true,
+        role: true,
+        membershipTier: true,
+        isVerified: true,
+        suspendedAt: true,
+        rankBoost: true,
+        createdAt: true,
+      },
       with: {
-        profiles: true,
-        infoRequests_requesterId: { limit: 10, orderBy: (t, { desc }) => [desc(t.createdAt)] },
-        infoRequests_targetId: { limit: 10, orderBy: (t, { desc }) => [desc(t.createdAt)] },
+        profiles: { columns: { firstName: true } },
       },
     });
 
     if (!user) throw new NotFoundException('User not found');
 
-    // Normalize introspected relation names to the shape the frontend consumed before.
-    const { profiles: profileRows, infoRequests_requesterId, infoRequests_targetId, ...rest } = user as any;
+    // Normalize the introspected relation name to the shape the frontend consumes.
+    const { profiles: profileRows, ...rest } = user as any;
     return {
       ...rest,
       profile: Array.isArray(profileRows) ? profileRows[0] ?? null : profileRows ?? null,
-      sentRequests: infoRequests_requesterId ?? [],
-      receivedRequests: infoRequests_targetId ?? [],
     };
   }
 
@@ -213,17 +235,41 @@ export class AdminService {
     return { success: true, email: row.email };
   }
 
+  /**
+   * Emails incomplete signups in batches. Sends are paced to Resend's rate
+   * limit, so one HTTP request handles at most NUDGE_BATCH members and stops
+   * starting new sends after NUDGE_TIME_BUDGET_MS, well inside the
+   * Cloudflare/Caddy timeout. Anyone nudged in the last 24 hours is skipped,
+   * so a retry or a second click moves on to the next members instead of
+   * emailing the same people again. `more` tells the admin to run it again.
+   */
   async nudgeAllIncomplete(adminId: string) {
     const db = this.drizzle.db;
-    const targets = await db
+    const recentlyNudged = sql`exists (
+      select 1 from ${auditLogs}
+      where ${auditLogs.action} = 'ADMIN_NUDGE_VERIFY_PHONE'
+        and ${auditLogs.resourceId} = ${users.id}
+        and ${auditLogs.createdAt} > now() - interval '24 hours')`;
+    const rows = await db
       .select({ id: users.id, email: users.email, name: users.name })
       .from(users)
       .leftJoin(profiles, eq(profiles.userId, users.id))
-      .where(this.incompleteSignupWhere());
+      .where(and(this.incompleteSignupWhere(), sql`not ${recentlyNudged}`))
+      .orderBy(users.createdAt)
+      .limit(NUDGE_BATCH + 1);
+    let more = rows.length > NUDGE_BATCH;
+    const targets = rows.slice(0, NUDGE_BATCH);
 
+    const stopAt = Date.now() + NUDGE_TIME_BUDGET_MS;
     let sent = 0;
+    let attempted = 0;
     const failed: { email: string; error: string }[] = [];
     for (const t of targets) {
+      if (Date.now() > stopAt) {
+        more = true;
+        break;
+      }
+      attempted += 1;
       try {
         await this.emailService.sendVerifyPhoneNudgeEmail(t.email, t.name ? t.name.split(' ')[0] : null);
         await this.auditService.logAdminAction(adminId, 'NUDGE_VERIFY_PHONE', 'user', t.id, { email: t.email });
@@ -232,7 +278,7 @@ export class AdminService {
         failed.push({ email: t.email, error: e?.message || 'send failed' });
       }
     }
-    return { total: targets.length, sent, failed };
+    return { total: attempted, sent, failed, more };
   }
 
   async deleteUser(adminId: string, userId: string) {
@@ -242,14 +288,19 @@ export class AdminService {
     if (!target) throw new NotFoundException('User not found');
     if (target.role === 'SUPER_ADMIN') throw new ForbiddenException('Cannot delete a SUPER_ADMIN');
 
-    // info_requests has FK ... ON DELETE RESTRICT for both requester and target,
-    // so clear those rows first. Everything else (photos, profiles, session,
-    // account, twoFactor, campaign_recipients, unsubscribes) is ON DELETE
-    // CASCADE; audit_logs is ON DELETE SET NULL — both fine.
-    await db.delete(infoRequests).where(or(eq(infoRequests.requesterId, userId), eq(infoRequests.targetId, userId)));
-    await db.delete(users).where(eq(users.id, userId));
+    await this.moderationService.hardDeleteUser(userId, adminId);
 
     await this.auditService.logAdminAction(adminId, 'DELETE_USER', 'user', userId, { email: target.email });
+    return { success: true };
+  }
+
+  async unsuspendUser(adminId: string, userId: string) {
+    const db = this.drizzle.db;
+    const [target] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId));
+    if (!target) throw new NotFoundException('User not found');
+
+    await db.update(users).set({ suspendedAt: null }).where(eq(users.id, userId));
+    await this.auditService.logAdminAction(adminId, 'UNSUSPEND_USER', 'user', userId, {});
     return { success: true };
   }
 

@@ -13,7 +13,7 @@ import {
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
-import { twoFactor, useSession } from '@/lib/auth-client';
+import { signOut, twoFactor, useSession } from '@/lib/auth-client';
 import { toast } from 'sonner';
 
 type Step = 'selection' | 'email-verify' | 'backup-codes';
@@ -171,6 +171,25 @@ export default function MFASetupPage() {
           </p>
         </div>
       </div>
+
+      {step === 'selection' && isEnabled && !(session?.session as any)?.twoFactorVerified && (
+        <div className="card p-5 mb-6" role="alert">
+          <p className="font-semibold mb-1">Sign in again to use the admin panel</p>
+          <p className="text-sm text-secondary mb-3">
+            This session did not pass your second factor. Phone, Google and Apple sign-ins, and
+            sessions from before this check, cannot open admin pages. Sign out, then sign in with
+            your email, password and verification code. If you have no password yet, use
+            &quot;Forgot password&quot; on the login page to set one.
+          </p>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => signOut().then(() => router.replace('/login'))}
+          >
+            Sign out
+          </button>
+        </div>
+      )}
 
       {step === 'selection' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

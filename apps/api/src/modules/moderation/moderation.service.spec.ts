@@ -75,13 +75,40 @@ describe('ModerationService', () => {
   });
 
   describe('listBlocks', () => {
-    it('maps joined rows onto the public shape', async () => {
+    const row = (over = {}) => ({
+      createdAt: '2026-08-20T00:00:00.000Z',
+      publicId: 'pub_a',
+      firstName: 'Aisha',
+      publicFields: {},
+      ...over,
+    });
+
+    it('returns the first name and never the email', async () => {
+      db.select.mockReturnValueOnce(chain([row()]));
+      const [blocked] = await service.listBlocks(VIEWER);
+      expect(blocked).toEqual({ targetPublicId: 'pub_a', name: 'Aisha', createdAt: '2026-08-20T00:00:00.000Z' });
+      expect(blocked).not.toHaveProperty('email');
+    });
+
+    it('copies nothing else across, even if the row carries it', async () => {
       db.select.mockReturnValueOnce(
-        chain([{ createdAt: '2026-08-20T00:00:00.000Z', publicId: 'pub_a', name: 'A', email: 'a@x.com' }]),
+        chain([row({ email: '+15555550100@phone.attayyibun.invalid', name: 'Aisha Khan' })]),
       );
-      await expect(service.listBlocks(VIEWER)).resolves.toEqual([
-        { targetPublicId: 'pub_a', name: 'A', email: 'a@x.com', createdAt: '2026-08-20T00:00:00.000Z' },
-      ]);
+      const [blocked] = await service.listBlocks(VIEWER);
+      expect(JSON.stringify(blocked)).not.toContain('invalid');
+      expect(blocked.name).toBe('Aisha');
+    });
+
+    it('hides the name when the member chose hideName', async () => {
+      db.select.mockReturnValueOnce(chain([row({ publicFields: { hideName: true } })]));
+      const [blocked] = await service.listBlocks(VIEWER);
+      expect(blocked.name).toBeNull();
+    });
+
+    it('returns no name for an account without a profile', async () => {
+      db.select.mockReturnValueOnce(chain([row({ firstName: null, publicFields: null })]));
+      const [blocked] = await service.listBlocks(VIEWER);
+      expect(blocked.name).toBeNull();
     });
   });
 
@@ -152,6 +179,18 @@ describe('ModerationService', () => {
     });
   });
 
+  describe('listReports', () => {
+    it('rejects an unknown status instead of a Postgres enum 500', async () => {
+      await expect(service.listReports('NOPE')).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.select).not.toHaveBeenCalled();
+    });
+
+    it('accepts a known status', async () => {
+      db.select.mockReturnValueOnce(chain([{ id: 'r1' }]));
+      await expect(service.listReports(ReportStatus.PENDING)).resolves.toEqual([{ id: 'r1' }]);
+    });
+  });
+
   describe('resolveReport', () => {
     const ADMIN = 'admin-uuid';
 
@@ -200,6 +239,25 @@ describe('ModerationService', () => {
       expect(db.delete).toHaveBeenCalledTimes(6);
       // The ACCOUNT_DELETED audit row is inserted before the users row dies.
       expect(db.insert).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('suspendUser', () => {
+    it('suspends, signs out, and removes pending requests without touching verification', async () => {
+      db.select.mockReturnValueOnce(chain([{ role: 'USER' }]));
+      const set = jest.fn(() => chain([]));
+      db.update.mockReturnValueOnce({ set });
+
+      await service.suspendUser(TARGET.id);
+
+      expect(set).toHaveBeenCalledWith({ suspendedAt: expect.any(String) });
+      expect(db.delete).toHaveBeenCalledTimes(2);
+    });
+
+    it('refuses to suspend a SUPER_ADMIN', async () => {
+      db.select.mockReturnValueOnce(chain([{ role: 'SUPER_ADMIN' }]));
+      await expect(service.suspendUser(TARGET.id)).rejects.toBeInstanceOf(ForbiddenException);
+      expect(db.update).not.toHaveBeenCalled();
     });
   });
 });

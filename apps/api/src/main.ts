@@ -14,7 +14,9 @@ async function bootstrap() {
       logger: ['error', 'warn', 'log'],
     });
 
-    // Trust reverse proxy (Next.js rewrites, Nginx, Cloudflare) for accurate client IP tracking in rate limiting & audit logs
+    // One proxy hop: Caddy in production, Traefik on staging. req.ip is therefore
+    // that proxy's peer (a Cloudflare edge or the tunnel), not the visitor; use
+    // getClientIp from common/http/client-ip.ts, never req.ip directly.
     const expressApp = app.getHttpAdapter().getInstance();
     expressApp.set('trust proxy', 1);
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { api } from './api';
 import { authClient, useSession } from './auth-client';
+import { clearPendingEmail, onboardingRedirect, readPendingEmail, type GatedUser } from './email-gate';
 
 /**
  * Gate a page on an authenticated session.
@@ -20,25 +21,9 @@ import { authClient, useSession } from './auth-client';
  * redirecting.
  *
  * Also enforces the two onboarding gates, so every page using this hook
- * inherits them: a verified phone, then a real email. Both are only UX here —
- * the authoritative check is BetterAuthGuard in the API.
+ * inherits them: a verified phone, then a real email (see ./email-gate.ts).
+ * Both are only UX here — the authoritative check is BetterAuthGuard in the API.
  */
-type GatedUser = {
-  phoneNumberVerified?: boolean;
-  isPhoneVerified?: boolean;
-  phoneGateExempt?: boolean;
-  emailIsPlaceholder?: boolean;
-};
-
-// Pages each gate must not bounce away from, or the redirect loops. The phone
-// gate has the shorter list on purpose: /profile/setup is where the email gate
-// sends people, but a user with no verified phone cannot save anything there
-// (the API refuses it), so they belong at /verify-phone first.
-const PHONE_GATE_EXEMPT = ['/verify-phone'];
-const EMAIL_GATE_EXEMPT = ['/verify-phone', '/profile/setup'];
-
-const matches = (paths: string[], pathname: string) =>
-  paths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
 export function useRequireSession() {
   const router = useRouter();
@@ -96,23 +81,17 @@ export function useRequireSession() {
     const user = (effectiveSession as { user?: GatedUser }).user;
     if (!user) return;
 
-    const isPhoneVerified =
-      Boolean(user.phoneNumberVerified) ||
-      Boolean(user.isPhoneVerified) ||
-      Boolean(user.phoneGateExempt);
-
-    if (
-      !isPhoneVerified &&
-      !matches(PHONE_GATE_EXEMPT, pathname)
-    ) {
-      router.replace('/verify-phone');
-      return;
-    }
     // Phone-first accounts hold a +<e164>@phone.attayyibun.invalid placeholder
-    // until the wizard collects a real address.
-    if (user.emailIsPlaceholder && !matches(EMAIL_GATE_EXEMPT, pathname)) {
-      router.replace('/profile/setup');
-    }
+    // until the link mailed to their real address is opened. Once they have
+    // asked for one and finished the profile, they are let through and the
+    // Navbar banner keeps asking them to confirm.
+    if (!user.emailIsPlaceholder) clearPendingEmail(user.id);
+    const target = onboardingRedirect(
+      user,
+      pathname,
+      user.emailIsPlaceholder ? readPendingEmail(user.id) : null,
+    );
+    if (target) router.replace(target);
   }, [effectiveSession, verifying, pathname, router]);
 
   return { session: effectiveSession as typeof session, loading: isPending || verifying };

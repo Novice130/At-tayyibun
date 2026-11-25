@@ -4,17 +4,14 @@ class BlockedUser {
   const BlockedUser({
     required this.targetPublicId,
     this.name,
-    this.email,
   });
 
   final String targetPublicId;
   final String? name;
-  final String? email;
 
   factory BlockedUser.fromJson(Map<String, dynamic> json) => BlockedUser(
         targetPublicId: json['targetPublicId'] as String,
         name: json['name'] as String?,
-        email: json['email'] as String?,
       );
 }
 

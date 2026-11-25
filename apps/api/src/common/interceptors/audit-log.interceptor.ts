@@ -2,6 +2,7 @@ import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nes
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { AuditService } from '../../services/audit.service';
+import { getClientIp } from '../http/client-ip';
 
 /**
  * Audit log interceptor for sensitive actions.
@@ -26,7 +27,7 @@ export class AuditLogInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest();
-    const { method, path, user, ip, headers } = request;
+    const { method, path, user, headers } = request;
 
     // Check if this path should be audited
     const auditConfig = this.auditedPaths.find(
@@ -38,6 +39,7 @@ export class AuditLogInterceptor implements NestInterceptor {
     }
 
     const startTime = Date.now();
+    const ipAddress = getClientIp(request);
 
     return next.handle().pipe(
       tap({
@@ -47,7 +49,7 @@ export class AuditLogInterceptor implements NestInterceptor {
             userId: user?.id,
             action: `${auditConfig.action}_SUCCESS`,
             resourceType: this.extractResourceType(path),
-            ipAddress: ip,
+            ipAddress,
             userAgent: headers['user-agent'],
             metadata: {
               path,
@@ -62,7 +64,7 @@ export class AuditLogInterceptor implements NestInterceptor {
             userId: user?.id,
             action: `${auditConfig.action}_FAILED`,
             resourceType: this.extractResourceType(path),
-            ipAddress: ip,
+            ipAddress,
             userAgent: headers['user-agent'],
             metadata: {
               path,

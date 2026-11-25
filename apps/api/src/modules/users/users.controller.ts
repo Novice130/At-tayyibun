@@ -1,7 +1,7 @@
 import { Controller, Delete, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { CurrentUser } from '../../common/decorators';
+import { AllowSuspended, CurrentUser } from '../../common/decorators';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -10,6 +10,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Delete('me')
+  @AllowSuspended()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Permanently delete the caller's own account" })
   @ApiResponse({ status: 200, description: 'Account deleted' })

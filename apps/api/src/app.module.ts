@@ -13,11 +13,13 @@ import { ProfilesModule } from "./modules/profiles/profiles.module";
 import { RequestsModule } from "./modules/requests/requests.module";
 import { ModerationModule } from "./modules/moderation/moderation.module";
 import { AdminModule } from "./modules/admin/admin.module";
+import { NotificationsModule } from "./modules/notifications/notifications.module";
 // Guards & Interceptors
 import { BetterAuthGuard } from "./common/guards/better-auth.guard";
 import { AuditLogInterceptor } from "./common/interceptors/audit-log.interceptor";
 import { OriginCheckMiddleware } from "./common/middleware/origin-check.middleware";
-import { ThrottlerGuard } from "@nestjs/throttler";
+import { AppThrottlerGuard } from "./common/guards/app-throttler.guard";
+import { createLoadtestSkipIf } from "./common/loadtest/loadtest-bypass";
 
 @Module({
   imports: [
@@ -52,32 +54,39 @@ import { ThrottlerGuard } from "@nestjs/throttler";
 
     // Rate limiting (global defaults).
     //
-    // These are per-IP. The previous "short" bucket of 3/second was below what
+    // Counted per signed-in user, otherwise per client IP (AppThrottlerGuard).
+    // The previous "short" bucket of 3/second was below what
     // a single legitimate page load needs — /browse alone issues /profiles/me,
     // /profiles and /requests/active in parallel, plus the navbar's request
     // count — so normal navigation could 429 itself. It is also shared across
     // everyone behind one NAT. Abuse control for the sensitive operations lives
     // on the endpoints themselves (e.g. POST /requests is @Throttle 10/hour).
+    //
+    // skipIf is undefined unless the load-test bypass is allowed here, which it
+    // never is in production. See common/loadtest/loadtest-bypass.ts.
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => [
-        {
-          name: "short",
-          ttl: 1000,
-          limit: 20,
-        },
-        {
-          name: "medium",
-          ttl: 10000,
-          limit: 100,
-        },
-        {
-          name: "long",
-          ttl: 60000,
-          limit: 300,
-        },
-      ],
+      useFactory: () => ({
+        skipIf: createLoadtestSkipIf(process.env),
+        throttlers: [
+          {
+            name: "short",
+            ttl: 1000,
+            limit: 20,
+          },
+          {
+            name: "medium",
+            ttl: 10000,
+            limit: 100,
+          },
+          {
+            name: "long",
+            ttl: 60000,
+            limit: 300,
+          },
+        ],
+      }),
     }),
 
     // Database
@@ -93,16 +102,18 @@ import { ThrottlerGuard } from "@nestjs/throttler";
     RequestsModule,
     ModerationModule,
     AdminModule,
+    NotificationsModule,
   ],
   providers: [
     // Global guards (deny-by-default)
+    // Order matters: AppThrottlerGuard reads the req.user that BetterAuthGuard sets.
     {
       provide: APP_GUARD,
       useClass: BetterAuthGuard,
     },
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: AppThrottlerGuard,
     },
 
     // Global interceptors

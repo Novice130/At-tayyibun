@@ -27,6 +27,7 @@ interface UserRow {
   role: 'USER' | 'ADMIN' | 'SUPER_ADMIN';
   membershipTier: 'FREE' | 'SILVER' | 'GOLD';
   isVerified: boolean;
+  suspendedAt?: string | null;
   isPhoneVerified: boolean;
   emailVerified: boolean;
   createdAt: string;
@@ -160,6 +161,23 @@ export default function AdminUsersPage() {
     }
   };
 
+  const liftSuspension = async (userId: string) => {
+    setAction(null);
+    try {
+      await api.post(`/admin/users/${userId}/unsuspend`);
+      toast.success('Suspension lifted');
+      setList((prev) =>
+        prev
+          ? { ...prev, data: prev.data.map((u) => (u.id === userId ? { ...u, suspendedAt: null } : u)) }
+          : prev
+      );
+    } catch (e: any) {
+      const msg = e.message || 'Failed to lift suspension';
+      setAction({ type: 'error', msg });
+      toast.error(msg);
+    }
+  };
+
   const toggleVerified = async (userId: string, currentStatus: boolean) => {
     setAction(null);
     const nextStatus = !currentStatus;
@@ -275,20 +293,22 @@ export default function AdminUsersPage() {
     const count = list?.data.filter(isIncomplete).length ?? 0;
     if (
       !confirm(
-        `Send a verification reminder to every incomplete signup? This emails all accounts with no verified phone and no profile (across all pages, not just the ${count} on this one).`
+        `Send a verification reminder to incomplete signups? This emails accounts with no verified phone and no profile (across all pages, not just the ${count} on this one), in batches of up to 40, skipping anyone reminded in the last 24 hours.`
       )
     )
       return;
     setNudging('all');
     setAction(null);
     try {
-      const res: { total: number; sent: number; failed: { email: string; error: string }[] } = await api.post(
-        '/admin/users/nudge-unverified'
-      );
-      const msg =
+      // The API sends one batch per call and skips anyone reminded in the last
+      // 24 hours, so running it again continues with the next members.
+      const res: { total: number; sent: number; failed: { email: string; error: string }[]; more?: boolean } =
+        await api.post('/admin/users/nudge-unverified');
+      const base =
         res.failed.length > 0
           ? `Sent ${res.sent}/${res.total} reminders. Failed: ${res.failed.map((f) => f.email).join(', ')}`
           : `Sent ${res.sent} verification reminder${res.sent === 1 ? '' : 's'}`;
+      const msg = res.more ? `${base}. More remain: run it again to continue.` : base;
       setAction({ type: res.failed.length > 0 ? 'error' : 'info', msg });
       if (res.failed.length > 0) toast.error(`${res.failed.length} send(s) failed`);
       else toast.success(msg);
@@ -466,6 +486,18 @@ export default function AdminUsersPage() {
                                 <span className="inline-flex items-center gap-0.5 text-[10px] bg-blue-500/15 text-blue-400 font-semibold px-1.5 py-0.2 rounded">
                                   <UserCheck className="w-3 h-3" /> Verified
                                 </span>
+                              )}
+                              {u.suspendedAt && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    liftSuspension(u.id);
+                                  }}
+                                  className="text-[10px] bg-red-500/15 text-red-400 font-semibold px-1.5 py-0.2 rounded hover:bg-red-500/25"
+                                >
+                                  Suspended: lift
+                                </button>
                               )}
                               {isIncomplete(u) && (
                                 <span className="text-[10px] bg-amber-500/15 text-amber-400 font-semibold px-1.5 py-0.2 rounded">

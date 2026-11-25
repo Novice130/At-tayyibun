@@ -1,4 +1,4 @@
-# At-Tayyibun — Android app
+# At-Tayyibun — mobile app (Android and iOS)
 
 A native Flutter client for the At-Tayyibun matrimony platform. It talks to the
 existing production backend at `https://attayyibun.com` — there is no separate
@@ -10,8 +10,10 @@ Everything is cookie-based, exactly like the website:
 
 - `POST /auth/sign-in/email` returns a `__Secure-better-auth.session_token`
   cookie (better-auth applies the `__Secure-` prefix because the origin is HTTPS).
-- A `PersistCookieJar` (see `lib/core/api_client.dart`) stores that cookie on
-  disk, so the user stays signed in across app restarts.
+- A `PersistCookieJar` (see `lib/core/session_store.dart`) stores that cookie in
+  the iOS Keychain or Android encrypted storage, so the user stays signed in
+  across app restarts. It is excluded from backups. Sessions from older versions,
+  which used a plain file, are moved on first launch and the file is deleted.
 - The NestJS guard on `/api/*` reads the same cookie. There is no bearer-token
   path on the server, so the cookie jar *is* the session.
 
@@ -72,11 +74,22 @@ Release builds are signed with a keystore kept **outside** the repo at
 > published to the Play Store and the key is lost, updates to that listing
 > become impossible.
 
-If `key.properties` is missing (e.g. a fresh clone), the build falls back to
-debug signing so it still compiles.
+If `key.properties` is missing (e.g. a fresh clone), a release build fails with
+an error saying so. Debug builds do not need it. The file holds `storeFile`,
+`storePassword`, `keyAlias` and `keyPassword`.
+
+### Crash reporting
+
+Pass `--dart-define=SENTRY_DSN=...` to enable Sentry, and optionally
+`--dart-define=SENTRY_ENVIRONMENT=...`. Without a DSN it never starts. See
+`lib/core/crash_reporting.dart` for what is scrubbed.
+
+### Store submission
+
+`docs/store-submission.md` lists the inputs for the store forms.
 
 ## Not in this version
 
-The admin panel, push notifications, and 2FA enrolment. Admin accounts with
+The admin panel, push notifications, deep links, and 2FA enrolment. Admin accounts with
 2FA enabled cannot complete sign-in in the app — they are told to use the
 website.

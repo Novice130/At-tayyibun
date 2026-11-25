@@ -8,6 +8,7 @@ import { Loader, Heart, User, MapPin, Shield } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useRequireSession } from '@/lib/hooks';
 import { Navbar } from '@/components/Navbar';
+import { BlockedMembers } from '@/components/profile/BlockedMembers';
 // Mirrors the payload from GET /api/profiles/me
 // (apps/api/src/modules/profiles/profiles.service.ts -> getMyProfile).
 interface UserProfile {
@@ -219,12 +220,14 @@ export default function ProfilePage() {
               </div>
             )}
 
+            <BlockedMembers />
+
             {/* Legal */}
             <div className="card p-6 sm:p-8">
               <h2 className="font-heading text-xl font-bold mb-4">Legal</h2>
               <div className="flex flex-wrap gap-4">
                 <Link href="/privacy" className="btn-secondary">Privacy Policy</Link>
-                <Link href="/terms" className="btn-secondary">Terms of Service</Link>
+                <Link href="/terms" className="btn-secondary">Terms of Use</Link>
                 <Link href="/contact" className="btn-secondary">Contact Us</Link>
               </div>
             </div>

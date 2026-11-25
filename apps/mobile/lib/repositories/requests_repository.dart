@@ -26,15 +26,24 @@ class RequestsRepository {
 
   Future<List<InfoRequest>> outgoing() => _list('outgoing', 'target');
 
-  Future<void> respond(String id, {required bool approved}) async {
+  /// [shareSource] is GUARDIAN or SELF: whose contact the requester receives.
+  Future<void> respond(String id, {required bool approved, String? shareSource}) async {
     await _api.put<dynamic>(
       '/api/requests/$id/respond',
       body: {
         'approved': approved,
         // Matches the website: approving shares phone + email.
         if (approved) 'shareItems': const ['phone', 'email'],
+        if (approved && shareSource != null) 'shareSource': shareSource,
       },
     );
+  }
+
+  /// Reveal the contact shared on an approved request. Works once; a later call
+  /// throws ApiException with statusCode 410.
+  Future<SharedContact> revealContact(String id) async {
+    final data = await _api.post<dynamic>('/api/requests/$id/contact');
+    return SharedContact.fromJson((data as Map).cast<String, dynamic>());
   }
 
   /// Withdraw an outgoing pending request. Hard-deletes the row server-side,

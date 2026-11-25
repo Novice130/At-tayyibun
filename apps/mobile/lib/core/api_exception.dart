@@ -13,10 +13,15 @@ class ApiException implements Exception {
     required this.statusCode,
     this.code,
     this.retryAfter,
+    this.isNetworkFailure = false,
   });
 
   final String message;
   final int statusCode;
+
+  /// The request never got an answer from the server: no connection, DNS
+  /// failure, or a timeout. Says nothing about whether the session is valid.
+  final bool isNetworkFailure;
 
   /// better-auth error code, e.g. `EMAIL_NOT_VERIFIED`, `INVALID_ORIGIN`.
   final String? code;
@@ -29,18 +34,24 @@ class ApiException implements Exception {
   bool get isRateLimited => statusCode == 429;
   bool get isEmailNotVerified => code == 'EMAIL_NOT_VERIFIED';
 
+  /// Sent by the API's BetterAuthGuard on any route a suspended account may
+  /// not use.
+  bool get isSuspended => code == 'ACCOUNT_SUSPENDED';
+
+  /// Worth retrying later: the answer, if any, was about the server's state
+  /// rather than about this request or session.
+  bool get isTemporaryFailure =>
+      isNetworkFailure || isRateLimited || statusCode >= 500;
+
   factory ApiException.fromDio(DioException e) {
     final response = e.response;
 
     if (response == null) {
-      final offline = e.type == DioExceptionType.connectionError ||
-          e.type == DioExceptionType.connectionTimeout ||
-          e.type == DioExceptionType.receiveTimeout;
       return ApiException(
-        message: offline
-            ? 'Cannot reach At-Tayyibun. Check your connection and try again.'
-            : (e.message ?? 'Something went wrong. Please try again.'),
+        message:
+            'Cannot reach At-Tayyibun. Check your connection and try again.',
         statusCode: 0,
+        isNetworkFailure: e.type != DioExceptionType.cancel,
       );
     }
 

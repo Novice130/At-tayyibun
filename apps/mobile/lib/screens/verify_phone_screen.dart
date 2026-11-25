@@ -74,7 +74,7 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
               if (!mounted) return;
               setState(() {
                 _busy = false;
-                _error = _firebaseMessage(error);
+                _error = firebaseErrorMessage(error);
               });
             },
           );
@@ -88,13 +88,16 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = _firebaseMessage(e);
+        _error = firebaseErrorMessage(e);
       });
     } on PlatformException catch (e) {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = e.message ?? 'Phone verification failed on this device. Please try again.';
+        _error = platformErrorMessage(
+          e,
+          fallback: 'Phone verification failed on this device. Please try again.',
+        );
       });
     } catch (e) {
       if (!mounted) return;
@@ -148,13 +151,16 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = _firebaseMessage(e);
+        _error = firebaseErrorMessage(e);
       });
     } on PlatformException catch (e) {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = e.message ?? 'Failed to verify code. Please try again.';
+        _error = platformErrorMessage(
+          e,
+          fallback: 'Failed to verify code. Please try again.',
+        );
       });
     } catch (e) {
       if (!mounted) return;
@@ -269,7 +275,10 @@ class _VerifyPhoneScreenState extends ConsumerState<VerifyPhoneScreen> {
 }
 
 /// Turn Firebase's auth/* codes into something a user can act on.
-String _firebaseMessage(fb.FirebaseAuthException e) {
+@visibleForTesting
+String firebaseErrorMessage(fb.FirebaseAuthException e) {
+  // The SDK's text and the code are for us, not the user.
+  debugPrint('[verify_phone] firebase ${e.code}: ${e.message}');
   switch (e.code) {
     case 'invalid-phone-number':
       return 'That phone number is not valid. Include the country code.';
@@ -283,8 +292,16 @@ String _firebaseMessage(fb.FirebaseAuthException e) {
     case 'quota-exceeded':
       return 'We cannot send codes right now. Please try again later.';
     case 'operation-not-allowed':
-      return 'SMS phone verification is disabled or region blocked in Firebase Console. Please enable Phone provider & SMS Region Policy in Firebase.';
+      return 'We cannot send codes to this number right now. Please try again '
+          'later, or contact support@attayyibun.com.';
     default:
-      return e.message ?? 'Something went wrong. Please try again.';
+      return 'Something went wrong. Please try again.';
   }
+}
+
+/// Plugin messages are developer text, so they are logged and not shown.
+@visibleForTesting
+String platformErrorMessage(PlatformException e, {required String fallback}) {
+  debugPrint('[verify_phone] platform ${e.code}: ${e.message}');
+  return fallback;
 }

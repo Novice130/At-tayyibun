@@ -6,11 +6,15 @@ import {
   Delete,
   Param,
   Body,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { RequestsService } from './requests.service';
 import { CreateRequestDto, RespondRequestDto } from './dto';
-import { CurrentUser, Public } from '../../common/decorators';
+import { CurrentUser } from '../../common/decorators';
 import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Info Requests')
@@ -40,16 +44,28 @@ export class RequestsController {
 
   @Get('incoming')
   @ApiOperation({ summary: 'Get incoming info requests' })
-  @ApiResponse({ status: 200, description: 'List of incoming requests' })
-  async getIncoming(@CurrentUser('id') userId: string) {
-    return this.requestsService.getIncomingRequests(userId);
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'At most 100, the default' })
+  @ApiResponse({ status: 200, description: 'List of incoming requests, newest first' })
+  async getIncoming(
+    @CurrentUser('id') userId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.requestsService.getIncomingRequests(userId, { page: Number(page), limit: Number(limit) });
   }
 
   @Get('outgoing')
   @ApiOperation({ summary: 'Get outgoing info requests' })
-  @ApiResponse({ status: 200, description: 'List of outgoing requests' })
-  async getOutgoing(@CurrentUser('id') userId: string) {
-    return this.requestsService.getOutgoingRequests(userId);
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'At most 100, the default' })
+  @ApiResponse({ status: 200, description: 'List of outgoing requests, newest first' })
+  async getOutgoing(
+    @CurrentUser('id') userId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.requestsService.getOutgoingRequests(userId, { page: Number(page), limit: Number(limit) });
   }
 
   @Put(':id/respond')
@@ -75,13 +91,18 @@ export class RequestsController {
     return this.requestsService.cancelRequest(userId, requestId);
   }
 
-  @Public()
-  @Get('shared/:token')
+  @Post(':id/contact')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
   @Throttle({ long: { limit: 30, ttl: 60000 } })
-  @ApiOperation({ summary: 'View shared info via one-time link' })
-  @ApiResponse({ status: 200, description: 'Shared info' })
-  @ApiResponse({ status: 404, description: 'Invalid or used link' })
-  async getSharedInfo(@Param('token') token: string) {
-    return this.requestsService.getSharedInfo(token);
+  @ApiOperation({ summary: 'Reveal the shared contact on your approved request, once' })
+  @ApiResponse({ status: 200, description: 'Shared contact' })
+  @ApiResponse({ status: 404, description: 'Not your approved request' })
+  @ApiResponse({ status: 410, description: 'Already viewed, expired or unavailable' })
+  async revealContact(
+    @Param('id') requestId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.requestsService.revealContact(userId, requestId);
   }
 }

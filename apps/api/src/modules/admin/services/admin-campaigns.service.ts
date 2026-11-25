@@ -1,18 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { desc, eq, count } from 'drizzle-orm';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { and, desc, eq, count } from 'drizzle-orm';
 import { DrizzleService } from '../../../db/drizzle.service';
 import { emailCampaigns } from '../../../db/schema';
 import { AuditService } from '../../../services/audit.service';
 import { randomUUID } from 'crypto';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { EmailService, POSTAL_ADDRESS_MISSING } from '../../../services/email.service';
+import { CAMPAIGN_DISPATCH_VERSION } from '../processors/email-campaign.processor';
 
 @Injectable()
 export class AdminCampaignsService {
   constructor(
     private readonly drizzle: DrizzleService,
     private readonly auditService: AuditService,
-    @InjectQueue('email-campaign-queue') private readonly campaignQueue: Queue
+    @InjectQueue('email-campaign-queue') private readonly campaignQueue: Queue,
+    private readonly emailService: EmailService,
   ) {}
 
   async getCampaigns(page = 1, limit = 20) {
@@ -57,22 +60,34 @@ export class AdminCampaignsService {
   }
 
   async dispatchCampaign(adminId: string, id: string) {
+    if (!this.emailService.postalAddress) throw new BadRequestException(POSTAL_ADDRESS_MISSING);
+
     const db = this.drizzle.db;
-    
-    const [campaign] = await db.select().from(emailCampaigns).where(eq(emailCampaigns.id, id));
-    if (!campaign) throw new NotFoundException('Campaign not found');
 
-    // Add to BullMQ
-    await this.campaignQueue.add('send-emails', {
-      campaignId: campaign.id,
-      subject: campaign.subject,
-      audience: campaign.targetAudience
-    });
-
-    // Update status mapping to "SENDING"
-    await db.update(emailCampaigns)
+    // Only the UPDATE that still finds DRAFT may queue, so a double click or a
+    // second admin cannot send a campaign twice.
+    const [claimed] = await db.update(emailCampaigns)
       .set({ status: 'SENDING' })
-      .where(eq(emailCampaigns.id, id));
+      .where(and(eq(emailCampaigns.id, id), eq(emailCampaigns.status, 'DRAFT')))
+      .returning({ id: emailCampaigns.id });
+    if (!claimed) {
+      const [campaign] = await db.select().from(emailCampaigns).where(eq(emailCampaigns.id, id));
+      if (!campaign) throw new NotFoundException('Campaign not found');
+      throw new BadRequestException(`This campaign is already ${campaign.status}.`);
+    }
+
+    try {
+      await this.campaignQueue.add(
+        'send-emails',
+        { campaignId: id, dispatchVersion: CAMPAIGN_DISPATCH_VERSION },
+        { removeOnComplete: 100, removeOnFail: 500 },
+      );
+    } catch (err) {
+      await db.update(emailCampaigns)
+        .set({ status: 'DRAFT' })
+        .where(and(eq(emailCampaigns.id, id), eq(emailCampaigns.status, 'SENDING')));
+      throw err;
+    }
 
     await this.auditService.logAdminAction(adminId, 'DISPATCH_CAMPAIGN', 'email_campaign', id);
     return { success: true, message: 'Campaign queued for dispatch' };

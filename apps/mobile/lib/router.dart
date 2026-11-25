@@ -2,16 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/deep_links.dart';
 import 'providers.dart';
 import 'screens/avatar_picker_screen.dart';
 import 'screens/browse_screen.dart';
 import 'screens/edit_profile_screen.dart';
+import 'screens/forgot_password_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/my_profile_screen.dart';
+import 'screens/offline_screen.dart';
 import 'screens/profile_detail_screen.dart';
 import 'screens/requests_screen.dart';
 import 'screens/shell_screen.dart';
 import 'screens/signup_screen.dart';
+import 'screens/suspended_screen.dart';
 import 'screens/verify_phone_screen.dart';
 import 'screens/welcome_screen.dart';
 
@@ -30,11 +34,30 @@ final routerProvider = Provider<GoRouter>((ref) {
           path == '/welcome' ||
           path == '/login' ||
           path == '/signup' ||
-          path == '/signup/phone';
+          path == '/signup/phone' ||
+          path == '/forgot-password';
 
       // Hold on the splash until the session probe resolves, so a returning
-      // user is never briefly bounced to the login screen.
-      if (auth.status == AuthStatus.unknown) return '/splash';
+      // user is never briefly bounced to the login screen. An App Link or
+      // Universal Link that launched the app rides along in `from`, so it
+      // still opens once the session is confirmed.
+      if (auth.status == AuthStatus.unknown) {
+        if (path == '/splash') return null;
+        final target = deepLinkLocation(state.uri);
+        return target == null
+            ? '/splash'
+            : Uri(path: '/splash', queryParameters: {'from': target})
+                .toString();
+      }
+
+      if (auth.status == AuthStatus.offline) {
+        return path == '/offline' ? null : '/offline';
+      }
+
+      // Suspension outranks every other gate: nothing else would work anyway.
+      if (auth.status == AuthStatus.suspended) {
+        return path == '/suspended' ? null : '/suspended';
+      }
 
       if (!auth.isSignedIn) return isAuthRoute ? null : '/welcome';
 
@@ -50,7 +73,17 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (path == '/verify-phone') return '/browse';
 
-      if (isAuthRoute || path == '/splash') return '/browse';
+      if (path == '/splash') {
+        final from = state.uri.queryParameters['from'];
+        final target = from == null ? null : deepLinkLocation(Uri.parse(from));
+        return target ?? '/browse';
+      }
+
+      if (isAuthRoute ||
+          path == '/offline' ||
+          path == '/suspended') {
+        return '/browse';
+      }
       return null;
     },
     routes: [
@@ -60,6 +93,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/welcome', builder: (_, _) => const WelcomeScreen()),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (_, _) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(path: '/offline', builder: (_, _) => const OfflineScreen()),
+      GoRoute(path: '/suspended', builder: (_, _) => const SuspendedScreen()),
       GoRoute(path: '/signup', builder: (_, _) => const SignupScreen()),
       GoRoute(
         path: '/signup/phone',

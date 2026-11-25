@@ -1,9 +1,10 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { and, desc, eq, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import { DrizzleService } from '../../db/drizzle.service';
-import { blocks, reports, infoRequests, users, skipReasons, messages, emailCampaigns, campaignRecipients, auditLogs } from '../../db/schema';
+import { blocks, reports, infoRequests, session, users, profiles, skipReasons, messages, emailCampaigns, campaignRecipients, auditLogs } from '../../db/schema';
 import { AuditService } from '../../services/audit.service';
 import { EmailService } from '../../services/email.service';
 import { escapeHtml } from '../../common/utils/html';
@@ -37,7 +38,7 @@ export class ModerationService {
 
   private async resolveUserByPublicId(publicId: string) {
     const [user] = await this.drizzle.db
-      .select({ id: users.id, publicId: users.publicId, email: users.email, name: users.name })
+      .select({ id: users.id, publicId: users.publicId })
       .from(users)
       .where(eq(users.publicId, publicId))
       .limit(1);
@@ -98,24 +99,30 @@ export class ModerationService {
   }
 
   async listBlocks(blockerId: string) {
+    // Blocking only needs a public id, so nothing here may go beyond what the
+    // member's public profile shows. No email (a phone-first address embeds the
+    // phone number) and no users.name (it can be a full name and ignores hideName).
     const rows = await this.drizzle.db
       .select({
         createdAt: blocks.createdAt,
         publicId: users.publicId,
-        name: users.name,
-        email: users.email,
+        firstName: profiles.firstName,
+        publicFields: profiles.publicFields,
       })
       .from(blocks)
       .innerJoin(users, eq(blocks.blockedId, users.id))
+      .leftJoin(profiles, eq(profiles.userId, users.id))
       .where(eq(blocks.blockerId, blockerId))
       .orderBy(desc(blocks.createdAt));
 
-    return rows.map((r) => ({
-      targetPublicId: r.publicId,
-      name: r.name,
-      email: r.email,
-      createdAt: r.createdAt,
-    }));
+    return rows.map((r) => {
+      const publicFields = (r.publicFields ?? {}) as Record<string, unknown>;
+      return {
+        targetPublicId: r.publicId,
+        name: publicFields['hideName'] ? null : r.firstName ?? null,
+        createdAt: r.createdAt,
+      };
+    });
   }
 
   async report(reporterId: string, targetPublicId: string, reason: string, details?: string) {
@@ -185,6 +192,10 @@ export class ModerationService {
   // ---- admin side ----
 
   async listReports(status?: string) {
+    if (status && !Object.values(ReportStatus).includes(status as ReportStatus)) {
+      throw new BadRequestException('Unknown report status');
+    }
+    const reportedUser = alias(users, 'reported_user');
     const conds = status ? [eq(reports.status, status as ReportStatus)] : [];
     return this.drizzle.db
       .select({
@@ -201,9 +212,17 @@ export class ModerationService {
           publicId: users.publicId,
           email: users.email,
         },
+        // Null once the reported account has been deleted.
+        reported: {
+          publicId: reportedUser.publicId,
+          email: reportedUser.email,
+          name: reportedUser.name,
+          suspendedAt: reportedUser.suspendedAt,
+        },
       })
       .from(reports)
       .leftJoin(users, eq(reports.reporterId, users.id))
+      .leftJoin(reportedUser, eq(reports.reportedUserId, reportedUser.id))
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(reports.createdAt))
       .limit(100);
@@ -224,7 +243,7 @@ export class ModerationService {
 
     if (action !== 'DISMISS' && report.reportedUserId) {
       if (action === 'SUSPEND_USER') {
-        await db.update(users).set({ isVerified: false }).where(eq(users.id, report.reportedUserId));
+        await this.suspendUser(report.reportedUserId);
       } else {
         await this.hardDeleteUser(report.reportedUserId, adminId);
       }
@@ -246,6 +265,30 @@ export class ModerationService {
     });
 
     return { success: true };
+  }
+
+  /**
+   * Suspend an account: refused by the auth guard, hidden from other members,
+   * signed out everywhere. Pending requests in either direction are removed so
+   * nobody waits on them; approved ones stay for when a suspension is lifted.
+   */
+  async suspendUser(userId: string) {
+    const db = this.drizzle.db;
+    const [target] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+    if (target?.role === 'SUPER_ADMIN') throw new ForbiddenException('Cannot suspend a SUPER_ADMIN');
+
+    await db.transaction(async (tx) => {
+      await tx.update(users).set({ suspendedAt: new Date().toISOString() }).where(eq(users.id, userId));
+      await tx.delete(session).where(eq(session.userId, userId));
+      await tx
+        .delete(infoRequests)
+        .where(
+          and(
+            eq(infoRequests.status, RequestStatus.PENDING),
+            or(eq(infoRequests.requesterId, userId), eq(infoRequests.targetId, userId)),
+          ),
+        );
+    });
   }
 
   /**

@@ -2,8 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/api_client.dart';
+import 'core/api_exception.dart';
+import 'core/push_notifications.dart';
 import 'models/user.dart';
 import 'repositories/auth_repository.dart';
+import 'repositories/devices_repository.dart';
 import 'repositories/moderation_repository.dart';
 import 'repositories/profiles_repository.dart';
 import 'repositories/requests_repository.dart';
@@ -25,7 +28,25 @@ final requestsRepositoryProvider =
 final moderationRepositoryProvider =
     Provider((ref) => ModerationRepository(ref.watch(apiClientProvider)));
 
-enum AuthStatus { unknown, signedIn, signedOut }
+final devicesRepositoryProvider =
+    Provider((ref) => DevicesRepository(ref.watch(apiClientProvider)));
+
+/// Push registration and notification taps. Null, meaning push is off, unless
+/// main() overrides it once Firebase is up; tests leave it off.
+final pushNotificationsProvider = Provider<PushNotifications?>((ref) => null);
+
+enum AuthStatus {
+  unknown,
+  signedIn,
+  signedOut,
+
+  /// A saved session could not be checked because the server is unreachable.
+  /// Kept until a retry gets a real answer.
+  offline,
+
+  /// Signed in, but the API refuses this account. Only self-delete still works.
+  suspended,
+}
 
 class AuthState {
   const AuthState({required this.status, this.user});
@@ -44,15 +65,19 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._repo)
+  AuthController(this._repo, {this._beforeSignOut})
       : super(const AuthState(status: AuthStatus.unknown));
 
   final AuthRepository _repo;
+
+  /// Runs while the session still exists, so this device's push token can be
+  /// removed from the server. Must not throw.
+  final Future<void> Function()? _beforeSignOut;
   int _generation = 0;
 
-  /// Called once at startup. The persisted cookie means a returning user is
-  /// usually still signed in; this confirms it with the server rather than
-  /// trusting the cookie's presence.
+  /// Called at startup and on retry. The persisted cookie means a returning
+  /// user is usually still signed in; this confirms it with the server rather
+  /// than trusting the cookie's presence.
   Future<void> restore() async {
     final gen = ++_generation;
     try {
@@ -61,14 +86,37 @@ class AuthController extends StateNotifier<AuthState> {
       state = user == null
           ? const AuthState(status: AuthStatus.signedOut)
           : AuthState(status: AuthStatus.signedIn, user: user);
+    } on ApiException catch (e) {
+      if (gen != _generation) return;
+      // No answer says nothing about the session, so a saved one is kept for
+      // a retry. With nothing saved there is nothing to wait for.
+      final keep = e.isTemporaryFailure && await _hasSavedSession();
+      if (gen != _generation) return;
+      debugPrint('Session restore failed: status ${e.statusCode}');
+      state = AuthState(
+        status: keep ? AuthStatus.offline : AuthStatus.signedOut,
+      );
     } catch (e) {
       if (gen != _generation) return;
-      // Offline at launch shouldn't hard-log-out someone whose cookie is fine.
-      // Treat it as signed-out for routing, but keep it non-destructive: the
-      // cookie is untouched, so a retry can still succeed.
-      debugPrint('Session restore failed: $e');
+      debugPrint('Session restore failed: ${e.runtimeType}');
       state = const AuthState(status: AuthStatus.signedOut);
     }
+  }
+
+  Future<bool> _hasSavedSession() async {
+    try {
+      return await _repo.hasSessionCookie();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// The API refused a request because this account is suspended. A response
+  /// that arrives after sign-out is ignored.
+  void markSuspended() {
+    if (state.status != AuthStatus.signedIn) return;
+    _generation++;
+    state = AuthState(status: AuthStatus.suspended, user: state.user);
   }
 
   Future<SignInResult> signIn(String email, String password) async {
@@ -78,6 +126,34 @@ class AuthController extends StateNotifier<AuthState> {
       state = AuthState(status: AuthStatus.signedIn, user: result.user);
     }
     return result;
+  }
+
+  /// Creates the account, then signs in with the same credentials, because
+  /// sign-up itself never starts a session. The server answers sign-up the
+  /// same way for new and existing emails, and this keeps that property:
+  /// sign-up errors (validation, network) still throw, but any sign-in failure
+  /// only returns false. The caller then shows one message that does not say
+  /// which case it was. Returns true when signed in.
+  Future<bool> signUpAndSignIn({
+    required String email,
+    required String password,
+    required String name,
+    String? image,
+    required DateTime termsAcceptedAt,
+  }) async {
+    await _repo.signUp(
+      email: email,
+      password: password,
+      name: name,
+      image: image,
+      termsAcceptedAt: termsAcceptedAt,
+    );
+    try {
+      return await signIn(email, password) is SignInSuccess;
+    } catch (e) {
+      debugPrint('[sign_up] sign-in after sign-up failed: ${e.runtimeType}');
+      return false;
+    }
   }
 
   Future<SignInResult> signInWithGoogle() async {
@@ -134,15 +210,21 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> signOut() async {
     _generation++;
+    await _beforeSignOut?.call();
     await _repo.signOut();
     state = const AuthState(status: AuthStatus.signedOut);
   }
 }
 
 final authControllerProvider =
-    StateNotifierProvider<AuthController, AuthState>(
-  (ref) => AuthController(ref.watch(authRepositoryProvider)),
-);
+    StateNotifierProvider<AuthController, AuthState>((ref) {
+  final controller = AuthController(
+    ref.watch(authRepositoryProvider),
+    beforeSignOut: () async => ref.read(pushNotificationsProvider)?.stop(),
+  );
+  ref.watch(apiClientProvider).onAccountSuspended = controller.markSuspended;
+  return controller;
+});
 
 /// The signed-in user's own profile. Browse uses its gender to show the
 /// opposite gender, mirroring the website.

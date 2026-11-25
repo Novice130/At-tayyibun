@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Resend } from 'resend';
 import { escapeHtml } from '../common/utils/html';
+import { ResendSender } from './resend-sender';
 
 export interface EmailOptions {
   to: string;
@@ -17,17 +18,39 @@ export interface TemplatedEmailOptions {
   variables: Record<string, string>;
 }
 
+/**
+ * Longest a transactional send may wait for a slot or a 429 backoff. These
+ * sends run inside a member's or admin's HTTP request.
+ */
+export const TRANSACTIONAL_WAIT_BUDGET_MS = 5000;
+
+export const POSTAL_ADDRESS_MISSING =
+  'Campaign email needs a postal address: set EMAIL_POSTAL_ADDRESS on the API. Nothing was sent.';
+
 @Injectable()
 export class EmailService {
   private resendInstance?: Resend;
   private readonly fromEmail: string;
   private readonly fromName: string;
   private readonly webUrl: string;
+  private readonly sender: ResendSender;
+  /** Null until the owner sets EMAIL_POSTAL_ADDRESS. Campaigns refuse to send without it. */
+  readonly postalAddress: string | null;
 
   constructor(private readonly configService: ConfigService) {
+    this.postalAddress =
+      this.configService.get<string>('EMAIL_POSTAL_ADDRESS')?.replace(/^["']|["']$/g, '').trim() || null;
     this.fromEmail = this.configService.get<string>('RESEND_FROM_EMAIL', 'noreply@attayyibun.com');
     this.fromName = this.configService.get<string>('RESEND_FROM_NAME', 'At-Tayyibun');
     this.webUrl = this.configService.get<string>('WEB_URL', 'http://localhost:3000');
+    const num = (key: string, fallback: number) => {
+      const n = Number(this.configService.get<string>(key));
+      return Number.isFinite(n) && n > 0 ? n : fallback;
+    };
+    this.sender = new ResendSender({
+      rps: num('RESEND_RATE_LIMIT_RPS', 2),
+      maxAttempts: num('RESEND_MAX_ATTEMPTS', 5),
+    });
   }
 
   // Lazy: don't instantiate Resend at boot. The Resend constructor throws on
@@ -53,17 +76,70 @@ export class EmailService {
    */
   async sendEmail(options: EmailOptions): Promise<void> {
     try {
-      await this.resend.emails.send({
-        from: this.from,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-        text: options.text || this.stripHtml(options.html),
-      });
+      // Resolved outside the limiter so a missing key fails at once, by name.
+      const resend = this.resend;
+      // No idempotency key: only 429s (rejected before processing) are retried.
+      await this.sender.run(
+        () =>
+          resend.emails.send({
+            from: this.from,
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+            text: options.text || this.stripHtml(options.html),
+          }),
+        { kind: 'transactional', idempotent: false, deadline: Date.now() + TRANSACTIONAL_WAIT_BUDGET_MS },
+      );
     } catch (error) {
       console.error('Email send error:', error);
       throw new Error('Failed to send email');
     }
+  }
+
+  /**
+   * Send one marketing email: postal address, unsubscribe link and one-click
+   * headers (CAN-SPAM, RFC 8058). Throws rather than sends if the address is
+   * unset, and on a provider error, which Resend returns instead of throwing.
+   */
+  async sendCampaignEmail(options: {
+    to: string;
+    subject: string;
+    html: string;
+    unsubscribeUrl: string;
+    oneClickUrl: string;
+    /** Stable per (campaign, recipient). Lets Resend dedupe a retry for 24 hours. */
+    idempotencyKey?: string;
+  }): Promise<void> {
+    if (!this.postalAddress) throw new Error(POSTAL_ADDRESS_MISSING);
+
+    const footer = `
+      <div style="text-align: center; color: #999; font-size: 11px; margin-top: 20px; padding: 0 20px;">
+        <p>At-Tayyibun, ${escapeHtml(this.postalAddress)}</p>
+        <p>You received this email because you have an account on At-Tayyibun. <a href="${escapeHtml(options.unsubscribeUrl)}" style="color: #999;">Unsubscribe</a></p>
+      </div>`;
+    const closing = options.html.toLowerCase().lastIndexOf('</body>');
+    const html =
+      closing === -1 ? options.html + footer : options.html.slice(0, closing) + footer + options.html.slice(closing);
+
+    const payload = {
+      from: this.from,
+      to: options.to,
+      subject: options.subject,
+      html,
+      text: this.stripHtml(html),
+      headers: {
+        'List-Unsubscribe': `<${options.oneClickUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+    };
+    // Throws ResendSendError (message "Resend refused the email: <code>") on a
+    // refusal or when retries run out; the caller then leaves the member unsent.
+    const key = options.idempotencyKey;
+    const resend = this.resend; // throws now, unretried, if RESEND_API_KEY is unset
+    await this.sender.run(
+      () => resend.emails.send(payload, key ? { idempotencyKey: key } : undefined),
+      { kind: 'campaign', idempotent: !!key },
+    );
   }
 
   /**
@@ -143,7 +219,7 @@ export class EmailService {
       <p>You started signing up for <strong>At-Tayyibun</strong> but your account is not active yet. One step is left: verify your phone number.</p>
       <div style="background: #f8f4ed; padding: 20px; border-radius: 8px; margin: 24px 0; border-left: 4px solid #D4AF37;">
         <p style="margin: 0 0 10px; color: #8B7500;"><strong>Why verify?</strong></p>
-        <p style="margin: 0; color: #555;">Phone verification keeps At-Tayyibun a trusted space — one account per person, no fake profiles. Once verified, your profile appears in search and you can send and receive contact requests.</p>
+        <p style="margin: 0; color: #555;">Phone verification keeps At-Tayyibun a trusted space — helping keep it to one account per person. Once verified, your profile appears in search and you can send and receive contact requests.</p>
       </div>
       <p style="text-align: center; margin: 32px 0;">
         <a href="${loginUrl}" style="display: inline-block; background: linear-gradient(135deg, #D4AF37, #8B7500); color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold;">Verify My Phone</a>
@@ -194,37 +270,33 @@ export class EmailService {
   }
 
   /**
-   * Send shared info email when request is approved
+   * Tell a requester their request was approved. Carries a link only, never the
+   * contact details: the link needs the requester's login, so a forwarded or
+   * stored email exposes nothing.
    */
-  async sendSharedInfoEmail(
+  async sendContactLinkEmail(
     recipientEmail: string,
     recipientName: string,
     sharedBy: string,
-    shares: { phone?: string; email?: string },
+    requestId: string,
+    linkDays: number,
   ): Promise<void> {
     const safeRecipientName = escapeHtml(recipientName);
     const safeSharedBy = escapeHtml(sharedBy);
-    const sharedItems: string[] = [];
-    if (shares.phone) {
-      sharedItems.push(`<p><strong>Phone:</strong> ${escapeHtml(shares.phone)}</p>`);
-    }
-    if (shares.email) {
-      sharedItems.push(`<p><strong>Email:</strong> ${escapeHtml(shares.email)}</p>`);
-    }
+    const link = `${this.webUrl}/requests/${encodeURIComponent(requestId)}/contact`;
 
     const html = this.wrapInLayout(`
-      <h2 style="color: #1a1a2e; margin-bottom: 16px;">Contact Information Shared</h2>
+      <h2 style="color: #1a1a2e; margin-bottom: 16px;">Your Request Was Accepted</h2>
       <p>Assalamu Alaikum ${safeRecipientName},</p>
-      <p><strong>${safeSharedBy}</strong> has approved your request and shared the following information with you:</p>
-      <div style="background: #f8f4ed; padding: 20px; border-radius: 8px; margin: 24px 0; border-left: 4px solid #D4AF37;">
-        ${sharedItems.join('')}
-      </div>
+      <p><strong>${safeSharedBy}</strong> has accepted your request and chosen a contact to share with you.</p>
+      <p style="margin: 24px 0;"><a href="${escapeHtml(link)}" style="background: #D4AF37; color: #1a1a2e; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">View contact details</a></p>
+      <p>You will need to sign in. The details can be viewed once, within ${linkDays} days, so please save them when you open them.</p>
       <p>May Allah bless your journey towards finding a righteous spouse.</p>
     `);
 
     await this.sendEmail({
       to: recipientEmail,
-      subject: `At-Tayyibun: ${safeSharedBy} has shared their information with you`,
+      subject: `At-Tayyibun: ${sharedBy} accepted your request`,
       html,
     });
   }
@@ -278,7 +350,8 @@ export class EmailService {
           </div>
           <div style="text-align: center; color: #999; font-size: 11px; margin-top: 20px; padding: 0 20px;">
             <p>At-Tayyibun - Privacy-First Muslim Matrimony</p>
-            <p>You received this email because you have an account on At-Tayyibun. <a href="${this.webUrl}/unsubscribe" style="color: #999;">Unsubscribe</a></p>
+            ${this.postalAddress ? `<p>${escapeHtml(this.postalAddress)}</p>` : ''}
+            <p>This is a service message about your At-Tayyibun account.</p>
           </div>
         </div>
       </body>

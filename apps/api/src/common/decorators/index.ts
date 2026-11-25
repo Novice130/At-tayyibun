@@ -2,3 +2,4 @@ export * from './current-user.decorator';
 export * from './roles.decorator';
 export * from './public.decorator';
 export * from './allow-unverified-phone.decorator';
+export * from './allow-suspended.decorator';

@@ -1,0 +1,6 @@
+# Reviewed false positives: commit:file:rule:line. Add an entry only after
+# checking the value by hand, and say why.
+#
+# Fake test key ("abc" body) in the push service spec; the fixture is now built
+# from parts so later commits do not trip the rule.
+461a08b440361d227e498b8caf171a96e42907a5:apps/api/src/modules/notifications/push.service.spec.ts:private-key:24

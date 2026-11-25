@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Loader, Lock, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader, Lock, X } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { ProfileCard } from '@/components/profile/ProfileCard';
 import { FilterBar, FilterState } from '@/components/filters/FilterBar';
 import { api } from '@/lib/api';
 import { useRequireSession } from '@/lib/hooks';
+import { pageFromSearch, pageToRecoverTo, reachablePages } from '@/lib/browse-paging';
 
 interface ActiveRequest {
   id: string;
@@ -20,6 +21,8 @@ interface ActiveRequest {
     profile: { firstName: string | null } | null;
   };
 }
+
+type FetchProfiles = (activeFilters: FilterState, gender: 'MALE' | 'FEMALE' | null | undefined, requestedPage?: number) => Promise<void>;
 
 const defaultFilters: FilterState = {
   ethnicity: '',
@@ -37,14 +40,21 @@ export default function BrowsePage() {
   const [myGender, setMyGender] = useState<'MALE' | 'FEMALE' | null | undefined>(undefined);
   const [cancelling, setCancelling] = useState(false);
   const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  // Only the newest fetch may write state: paging fast must not let a slow
+  // earlier response overwrite the page the member is now on.
+  const latestFetch = useRef(0);
   const { session, loading: sessionLoading } = useRequireSession();
 
-  const fetchProfiles = useCallback(async (activeFilters: FilterState, gender: 'MALE' | 'FEMALE' | null | undefined) => {
+  const fetchProfiles: FetchProfiles = useCallback(async (activeFilters: FilterState, gender: 'MALE' | 'FEMALE' | null | undefined, requestedPage = 1) => {
+    const thisFetch = ++latestFetch.current;
     setLoading(true);
     try {
       const opposite = gender === 'MALE' ? 'FEMALE' : gender === 'FEMALE' ? 'MALE' : 'FEMALE';
       const queryParams: Record<string, string> = {
         gender: opposite,
+        page: requestedPage.toString(),
       };
 
       if (activeFilters.ethnicity && activeFilters.ethnicity !== 'All Ethnicities') {
@@ -65,15 +75,30 @@ export default function BrowsePage() {
 
       const params = new URLSearchParams(queryParams);
       const data = await api.get('/profiles?' + params.toString());
-      setProfiles(data.data || data.items || []);
+      if (thisFetch !== latestFetch.current) return;
+      const rows = data.data || data.items || [];
+      const apiPages = Number(data.meta?.pages) || 0;
+
+      const recoverTo = pageToRecoverTo(requestedPage, rows.length, apiPages);
+      if (recoverTo !== null) {
+        await fetchProfiles(activeFilters, gender, recoverTo);
+        return;
+      }
+
+      setProfiles(rows);
+      setPage(requestedPage);
+      setTotalPages(reachablePages(apiPages));
+      // Keeps the page across a refresh and the browser Back button from a profile.
+      window.history.replaceState(null, '', requestedPage > 1 ? `/browse?page=${requestedPage}` : '/browse');
     } catch (error: any) {
       if (error?.statusCode === 403 && error?.code === 'PROFILE_INCOMPLETE') {
         router.replace('/profile/setup');
         return;
       }
       console.error('Failed to fetch profiles:', error);
+      if (thisFetch === latestFetch.current) toast.error('Failed to load profiles. Please try again.');
     } finally {
-      setLoading(false);
+      if (thisFetch === latestFetch.current) setLoading(false);
     }
   }, [router]);
 
@@ -92,7 +117,7 @@ export default function BrowsePage() {
         }
         const gender: 'MALE' | 'FEMALE' | null = profile?.gender ?? null;
         setMyGender(gender);
-        fetchProfiles(filters, gender);
+        fetchProfiles(filters, gender, pageFromSearch(window.location.search));
       })
       .catch((err) => {
         if (!mounted) return;
@@ -146,6 +171,11 @@ export default function BrowsePage() {
     if (myGender !== undefined) {
       fetchProfiles(defaultFilters, myGender);
     }
+  };
+
+  const goToPage = (next: number) => {
+    fetchProfiles(filters, myGender, next);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   if (sessionLoading || !session || myGender === undefined) {
@@ -204,11 +234,36 @@ export default function BrowsePage() {
             <Loader className="w-10 h-10 text-gold-500 animate-spin" />
           </div>
         ) : profiles.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {profiles.map((profile) => (
-              <ProfileCard key={profile.publicId} {...profile} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+              {profiles.map((profile) => (
+                <ProfileCard key={profile.publicId} {...profile} />
+              ))}
+            </div>
+            {totalPages > 1 && (
+              <nav aria-label="Pagination" className="mt-8 flex items-center justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page <= 1}
+                  className="btn-secondary disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" /> Previous
+                </button>
+                <span className="text-sm" aria-current="page" style={{ color: 'var(--color-text-secondary)' }}>
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page >= totalPages}
+                  className="btn-secondary disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  Next <ChevronRight className="w-4 h-4 ml-1" />
+                </button>
+              </nav>
+            )}
+          </>
         ) : (
           <div className="text-center py-16">
             <p style={{ color: 'var(--color-text-secondary)' }}>No profiles match your filters</p>

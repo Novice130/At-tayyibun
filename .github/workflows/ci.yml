@@ -1,5 +1,6 @@
-# CI: install, lint, typecheck and unit-test the web + api workspaces.
-# The Flutter app in apps/mobile is not covered here.
+# CI: install, lint, typecheck and unit-test the web + api workspaces; production
+# builds with dummy env; Flutter analyze and test; gitleaks on new commits.
+# Playwright is not run: the e2e specs need a running API, database and auth.
 # Needs no secrets or variables.
 name: CI
 
@@ -20,12 +21,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # Version comes from "packageManager": "pnpm@9.15.4" in package.json
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: pnpm
@@ -44,3 +45,67 @@ jobs:
       # turbo test -> the unit tests of apps/api (jest) and apps/web.
       - name: Test
         run: pnpm test
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build API
+        run: pnpm --filter ./apps/api build
+      # `next build` sets NODE_ENV=production itself. Values are placeholders.
+      - name: Build web (dummy public env)
+        run: pnpm --filter ./apps/web build
+        env:
+          NEXT_PUBLIC_WEB_URL: https://ci.invalid
+          NEXT_PUBLIC_DEFAULT_COUNTRY_CODE: "+1"
+          NEXT_PUBLIC_FIREBASE_API_KEY: dummy
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: dummy
+          NEXT_PUBLIC_FIREBASE_APP_ID: dummy
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "0"
+          INTERNAL_API_URL: http://127.0.0.1:3001
+
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      # Scans only the commits this run adds, so old history does not fail every
+      # build. --redact keeps values out of the public log.
+      - name: Scan new commits
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          range=""
+          if [ -n "$BASE_SHA" ] && [ "$BASE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            range="--log-opts=${BASE_SHA}..HEAD"
+          fi
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git /repo --redact --verbose --no-banner \
+            --gitleaks-ignore-path /repo/.gitleaksignore $range

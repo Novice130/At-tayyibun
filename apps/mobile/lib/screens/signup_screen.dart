@@ -63,7 +63,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     if (!_formKey.currentState!.validate() || _loading) return;
     if (!_termsAccepted) {
       setState(() => _error =
-          'Please accept the Terms of Service and Privacy Policy to continue.');
+          'Please accept the Terms of Use and Privacy Policy to continue.');
       return;
     }
     if (toE164(_phone.text) == null) {
@@ -97,24 +97,30 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     });
 
     try {
-      await ref.read(authRepositoryProvider).signUp(
-            email: _email.text.trim(),
-            password: _password.text,
-            name: _name.text.trim(),
-            image: _avatar,
-            termsAcceptedAt: DateTime.now(),
-          );
-      if (mounted) context.go('/verify-phone');
+      final signedIn =
+          await ref.read(authControllerProvider.notifier).signUpAndSignIn(
+                email: _email.text.trim(),
+                password: _password.text,
+                name: _name.text.trim(),
+                image: _avatar,
+                termsAcceptedAt: DateTime.now(),
+              );
+      if (!mounted) return;
+      if (signedIn) {
+        context.go('/verify-phone');
+      } else {
+        // Deliberately the same text whether the email was new, already
+        // registered, or awaiting verification.
+        setState(() => _error =
+            'Check your email to verify your account, or try signing in.');
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        // The failure is always about a details-step field (a duplicate
-        // email), so send them back to where it can be corrected.
+        // Sign-up errors are about a details-step field, so send them back
+        // to where it can be corrected.
         _avatarStep = false;
-        _error = RegExp('duplicate|unique', caseSensitive: false)
-                .hasMatch(e.message)
-            ? 'That email address is already registered.'
-            : e.message;
+        _error = e.message;
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -235,7 +241,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                 children: [
                                   const TextSpan(
                                       text:
-                                          'I agree to the '),
+                                          'Members must be 18 or older. I confirm the person this profile is for is 18 or older, and I agree to the '),
                                   WidgetSpan(
                                     alignment: PlaceholderAlignment.baseline,
                                     baseline: TextBaseline.alphabetic,
@@ -244,7 +250,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                                           Uri.parse('$kBaseUrl/terms'),
                                           mode: LaunchMode.externalApplication),
                                       child: Text(
-                                        'Terms of Service',
+                                        'Terms of Use',
                                         style: TextStyle(
                                           color: theme.colorScheme.primary,
                                           decoration: TextDecoration.underline,

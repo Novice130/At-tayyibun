@@ -54,6 +54,14 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {
       message = `Server error ${response.status}`;
     }
 
+    if (
+      data?.code === 'ACCOUNT_SUSPENDED' &&
+      typeof window !== 'undefined' &&
+      window.location.pathname !== '/suspended'
+    ) {
+      window.location.assign('/suspended');
+    }
+
     throw {
       message,
       statusCode: response.status,

@@ -109,6 +109,16 @@ export class AdminController {
     return this.adminService.deleteUser(adminId, userId);
   }
 
+  @Post('users/:id/unsuspend')
+  @ApiOperation({ summary: 'Lift an account suspension' })
+  @ApiResponse({ status: 200, description: 'Suspension lifted' })
+  async unsuspendUser(
+    @Param('id') userId: string,
+    @CurrentUser('id') adminId: string,
+  ) {
+    return this.adminService.unsuspendUser(adminId, userId);
+  }
+
   @Post('admins')
   @Roles(Role.SUPER_ADMIN)
   @ApiOperation({ summary: 'Add admin user (SUPER_ADMIN only)' })

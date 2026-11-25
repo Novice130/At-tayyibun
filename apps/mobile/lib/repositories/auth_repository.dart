@@ -234,6 +234,30 @@ class AuthRepository {
     return AppUser.fromJson(user);
   }
 
+  /// Whether a session cookie is saved on this device. Does not prove the
+  /// session is still valid.
+  Future<bool> hasSessionCookie() => _api.hasSessionCookie();
+
+  /// Asks better-auth to email a reset link. The link opens the website's
+  /// reset page, the same page the web flow uses.
+  ///
+  /// Any answer from the server counts as done, including errors: an error
+  /// that only some addresses trigger (a failed send, say) would reveal which
+  /// addresses have accounts. This throws only when nothing can have been
+  /// sent because of the caller's own connection or rate limit, neither of
+  /// which depends on the address.
+  Future<void> requestPasswordReset(String email) async {
+    try {
+      await _api.post<dynamic>(
+        '/auth/request-password-reset',
+        body: {'email': email, 'redirectTo': '$kBaseUrl/reset-password'},
+      );
+    } on ApiException catch (e) {
+      if (e.isNetworkFailure || e.isRateLimited) rethrow;
+      debugPrint('[password_reset] server answered ${e.statusCode}');
+    }
+  }
+
   Future<void> signOut() async {
     try {
       await _api.post<dynamic>('/auth/sign-out');

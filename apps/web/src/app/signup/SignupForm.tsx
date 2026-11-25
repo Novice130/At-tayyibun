@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock, User, Phone, ChevronLeft, Users, Loader, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
-import { signUp, useSession } from '@/lib/auth-client';
+import { signIn, signUp, useSession } from '@/lib/auth-client';
 import { toE164, formatPhoneInput } from '@/lib/phone';
 
 
@@ -124,7 +124,7 @@ export default function SignupForm() {
       return;
     }
     if (!termsAccepted) {
-      setError('Please accept the Terms of Service and Privacy Policy.');
+      setError('Please accept the Terms of Use and Privacy Policy.');
       return;
     }
     // Phone validation kept active — we still collect the phone for the
@@ -163,9 +163,20 @@ export default function SignupForm() {
         throw new Error(authError.message);
       }
 
-      // requireEmailVerification: true — signUp does NOT auto-create a session.
-      // Stash the pre-seed; /profile/setup will drain it after the user clicks
-      // the verification link and autoSignInAfterVerification creates the cookie.
+      // Sign-up answers the same whether or not the address is already registered
+      // and creates no session, so sign in as a separate step. Failure here is the
+      // one case where someone already holds the address with another password.
+      const { error: signInError } = await signIn.email({
+        email: formData.email,
+        password: formData.password,
+      });
+      if (signInError) {
+        throw new Error(
+          "We couldn't finish creating your account. If you already have one, please sign in or reset your password.",
+        );
+      }
+
+      // Stash the pre-seed for /profile/setup to drain.
       //
       // localStorage, not sessionStorage: the verification link is opened from
       // an email client, which almost always means a NEW tab — and sometimes a
@@ -299,8 +310,8 @@ export default function SignupForm() {
             <div className="text-center mb-6">
               <h1 className="font-heading text-2xl font-bold mb-2" style={{ color: 'var(--color-text)' }}>Guardian / Parent Contact</h1>
               <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                This contact information will be shared with interested parties.
-                We only share the guardian/parent&apos;s phone number, never the candidate&apos;s direct contact.
+                When a request is accepted, you choose whether to share this contact or your own.
+                Nothing is shared until then.
               </p>
             </div>
 
@@ -459,8 +470,9 @@ export default function SignupForm() {
                 className="mt-1 accent-gold-500"
               />
               <span>
-                I agree to the{' '}
-                <Link href="/terms" className="text-gold-400 underline">Terms of Service</Link>{' '}
+                Members must be 18 or older. I confirm the person this profile is for is 18 or
+                older, and I agree to the{' '}
+                <Link href="/terms" className="text-gold-400 underline">Terms of Use</Link>{' '}
                 and{' '}
                 <Link href="/privacy" className="text-gold-400 underline">Privacy Policy</Link>,
                 and I understand that At-Tayyibun has zero tolerance for
@@ -667,8 +679,8 @@ export default function SignupForm() {
           </h2>
           <p className="text-white/75">
             {formData.creatorRole === 'SELF'
-              ? 'At-Tayyibun provides a respectful, privacy-conscious environment for Muslims seeking marriage. Your data is encrypted, your photos are protected, and your privacy is our priority.'
-              : 'At-Tayyibun welcomes parents, guardians, and siblings to create profiles. We share only the guardian\'s contact information to ensure family involvement from the start.'}
+              ? 'At-Tayyibun provides a respectful, privacy-conscious environment for Muslims seeking marriage. Your last name, bio and biodata are encrypted, profiles use cartoon avatars instead of photos, and you choose whose contact to share.'
+              : 'At-Tayyibun welcomes parents, guardians, and siblings to create profiles. When a request is accepted, you choose whether to share the guardian\'s contact or your own.'}
           </p>
         </div>
       </div>

@@ -33,6 +33,10 @@ export default function AboutPage() {
               At-Tayyibun was created to provide a halal alternative to mainstream dating 
               apps, with Islamic values at its core.
             </p>
+            <p className="text-secondary text-sm mt-4">
+              Members share a biodata: the personal background that families traditionally
+              exchange when considering a marriage.
+            </p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8">
@@ -48,15 +52,15 @@ export default function AboutPage() {
               <Users className="w-10 h-10 text-gold-500 mb-4" />
               <h3 className="font-heading text-xl font-semibold mb-2">Verified Users</h3>
               <p className="text-secondary">
-                Every user must verify their phone number, ensuring one account per person 
-                and authentic connections.
+                Every user must verify their phone number, helping keep it to one account per
+                person.
               </p>
             </div>
             <div className="card p-6">
               <Heart className="w-10 h-10 text-gold-500 mb-4" />
               <h3 className="font-heading text-xl font-semibold mb-2">Marriage Focused</h3>
               <p className="text-secondary">
-                Built for nikah, not dating. Our platform encourages respectful communication 
+                Built for nikah (the Islamic marriage contract), not dating. Our platform encourages respectful communication 
                 with serious marriage intentions.
               </p>
             </div>
@@ -64,8 +68,8 @@ export default function AboutPage() {
               <Clock className="w-10 h-10 text-gold-500 mb-4" />
               <h3 className="font-heading text-xl font-semibold mb-2">Safe Information Sharing</h3>
               <p className="text-secondary">
-                When you share your information, it's time-limited and expires automatically, 
-                keeping you in control.
+                When you accept a request, you choose whose contact to share. The sender can view
+                it once, through a sign-in link that expires after 7 days.
               </p>
             </div>
           </div>
@@ -77,10 +81,10 @@ export default function AboutPage() {
         <div className="max-w-2xl mx-auto px-4 text-center">
           <h2 className="font-heading text-2xl font-bold mb-4">Ready to Begin?</h2>
           <p className="text-secondary mb-6">
-            Join thousands of Muslims who trust At-Tayyibun to help them find their spouse.
+            Join Muslim families across the United States.
           </p>
           <Link href="/signup" className="btn-primary px-8 py-4 inline-flex">
-            Create Free Account
+            Create Account
             <ChevronRight className="w-5 h-5 ml-2" />
           </Link>
         </div>
