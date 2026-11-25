@@ -4,3 +4,13 @@
 # Fake test key ("abc" body) in the push service spec; the fixture is now built
 # from parts so later commits do not trip the rule.
 461a08b440361d227e498b8caf171a96e42907a5:apps/api/src/modules/notifications/push.service.spec.ts:private-key:24
+
+# Firebase client API keys (AIza...) in the mobile app configs. Google
+# documents these as public identifiers shipped inside every app build; access
+# is limited by Firebase security rules and API-key restrictions, not secrecy.
+c05411356cce0e62fe16d0d13d542fc0b5d48300:apps/mobile/lib/firebase_options.dart:gcp-api-key:23
+c05411356cce0e62fe16d0d13d542fc0b5d48300:apps/mobile/lib/firebase_options.dart:gcp-api-key:31
+c05411356cce0e62fe16d0d13d542fc0b5d48300:apps/mobile/lib/firebase_options_dev.dart:gcp-api-key:24
+c05411356cce0e62fe16d0d13d542fc0b5d48300:apps/mobile/lib/firebase_options_dev.dart:gcp-api-key:32
+c05411356cce0e62fe16d0d13d542fc0b5d48300:apps/mobile/android/app/src/dev/google-services.json:gcp-api-key:31
+c05411356cce0e62fe16d0d13d542fc0b5d48300:apps/mobile/android/app/src/prod/google-services.json:gcp-api-key:23
