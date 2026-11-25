@@ -6,7 +6,7 @@
 # ============================================================
 
 # --- Stage 1: Install deps once (cached) ---
-FROM node:20-alpine AS deps
+FROM node:26-alpine AS deps
 RUN apk add --no-cache libc6-compat python3 make g++
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
@@ -42,7 +42,7 @@ RUN pnpm install --filter @at-tayyibun/api --prod --frozen-lockfile --prefer-off
  && rm -rf /root/.local/share/pnpm /root/.cache
 
 # --- Stage 4: Runner ---
-FROM node:20-alpine AS runner
+FROM node:26-alpine AS runner
 # Runtime does not need package managers. Patch OpenSSL (libssl3/libcrypto3)
 # past whatever the base image shipped, then drop npm/npx/corepack/yarn.
 RUN apk add --no-cache libc6-compat \
