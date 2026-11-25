@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { Shield, Lock, EyeOff, FileKey, UserX, Trash2, Share2, Mail } from 'lucide-react';
 import { Navbar } from '@/components/Navbar';
 import { LEGAL } from '@/lib/legal';
@@ -139,8 +140,11 @@ export default function PrivacyPage() {
               <div className="text-secondary space-y-3">
                 <p>
                   We keep your data until your account is deleted. You can delete it at any time
-                  from your profile page, in the app or on the web. Deletion is immediate and
-                  permanent.
+                  from your profile page, in the app, or on our{' '}
+                  <Link href="/delete-account" className="text-gold-400 underline">
+                    account deletion page
+                  </Link>
+                  . Deletion is immediate and permanent.
                 </p>
                 <p>
                   A few things remain after deletion: a log entry recording that the account was
