@@ -159,7 +159,7 @@ export class BetterAuthGuard implements CanActivate {
     ]);
     if (user?.suspendedAt && !allowSuspended) {
       throw new ForbiddenException({
-        message: 'This account is suspended. Please contact support@attayyibun.com.',
+        message: 'This account is suspended. Please contact admin@attayyibun.com.',
         code: 'ACCOUNT_SUSPENDED',
       });
     }

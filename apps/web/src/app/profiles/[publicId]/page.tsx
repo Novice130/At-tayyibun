@@ -10,10 +10,15 @@ import { api } from '@/lib/api';
 import { useRequireSession } from '@/lib/hooks';
 import { Navbar } from '@/components/Navbar';
 import { ProfileSafetyActions } from '@/components/profile/ProfileSafetyActions';
+import { PhoneVerifiedBadge } from '@/components/profile/PhoneVerifiedBadge';
+import { formatPlace, memberDisplayName } from '@/lib/format';
 
 interface ProfileData {
   publicId: string;
+  /** First name, or an alias like "Sister 4821". Missing on older API responses. */
+  displayName?: string | null;
   firstName: string | null;
+  phoneVerified?: boolean;
   age: number;
   gender: string;
   ethnicity: string;
@@ -51,8 +56,8 @@ interface ActiveRequest {
   status: string;
   target: {
     publicId: string;
-    profile: { firstName: string | null } | null;
-  };
+    profile: { firstName: string | null; displayName?: string | null } | null;
+  } | null;
 }
 
 export default function ProfileDetailPage() {
@@ -155,13 +160,13 @@ export default function ProfileDetailPage() {
     );
   }
 
-  const displayName = profile.firstName ?? 'Member';
+  const displayName = memberDisplayName(profile);
+  const place = formatPlace(profile.city, profile.state);
 
   // Same rows, same order as the owner's own Details card on /profile.
   const details = [
     ['Gender', biodataValue(profile.gender)] as const,
     ['Ethnicity', biodataValue(profile.ethnicity)] as const,
-    ['Public ID', biodataValue(profile.publicId)] as const,
     ...BIODATA_LABELS.map(([key, label]) => [label, biodataValue(profile.biodata?.[key])] as const),
   ].filter((row): row is readonly [string, string] => row[1] !== null);
   const lookingFor: Array<[string, string]> = [
@@ -201,18 +206,21 @@ export default function ProfileDetailPage() {
                     {profile.gender === 'MALE' ? 'Brother' : 'Sister'}
                   </span>
                   <span className="text-gold-400">{profile.ethnicity}</span>
-                  {(profile.city || profile.state) && (
+                  {place && (
                     <span className="flex items-center gap-1">
-                      <MapPin className="w-4 h-4" />
-                      {[profile.city, profile.state].filter(Boolean).join(', ')}
+                      <MapPin className="w-4 h-4" aria-hidden="true" />
+                      {place}
                     </span>
                   )}
                 </div>
-                {profile.membershipTier && profile.membershipTier !== 'FREE' && (
-                  <div className="mt-2">
-                    <span className={profile.membershipTier === 'GOLD' ? 'badge-gold' : 'badge-silver'}>
-                      {profile.membershipTier} Member
-                    </span>
+                {((profile.membershipTier && profile.membershipTier !== 'FREE') || (profile.phoneVerified ?? false)) && (
+                  <div className="mt-2 flex flex-wrap justify-center md:justify-start gap-2">
+                    {profile.membershipTier && profile.membershipTier !== 'FREE' && (
+                      <span className={profile.membershipTier === 'GOLD' ? 'badge-gold' : 'badge-silver'}>
+                        {profile.membershipTier} Member
+                      </span>
+                    )}
+                    {(profile.phoneVerified ?? false) && <PhoneVerifiedBadge />}
                   </div>
                 )}
               </div>
@@ -299,7 +307,7 @@ export default function ProfileDetailPage() {
                 </div>
                 <h3 className="text-lg font-semibold mb-2">Request Locked</h3>
                 <p className="max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
-                  You already have a pending request for <strong>{activeRequest?.target?.profile?.firstName || activeRequest?.target?.publicId}</strong>.
+                  You already have a pending request for <strong>{memberDisplayName(activeRequest?.target?.profile)}</strong>.
                   Wait for their response, or cancel it to request {displayName} instead.
                 </p>
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 mt-4">

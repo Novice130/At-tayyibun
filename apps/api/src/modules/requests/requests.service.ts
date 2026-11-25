@@ -19,6 +19,7 @@ import { RequestStatus } from '../../common/types/role';
 import { RespondRequestDto } from './dto';
 import { hasCompleteProfile, isMutualMatch, toMatchSide } from '../profiles/marital-match';
 import type { MaritalStatus } from '../profiles/marital-match';
+import { displayNameFor, formatCity, formatState } from '../profiles/display-name';
 import { CONTACT_LINK_TTL_DAYS, contactStateOf, isStalePending } from './request-state';
 
 export type SharedContact = { name?: string; phone?: string; email?: string };
@@ -204,7 +205,10 @@ export class RequestsService {
         ? {
             publicId: target.publicId,
             profile: target.profile
-              ? { firstName: this.maskFirstNameIfHidden(target.profile) }
+              ? {
+                  firstName: this.maskFirstNameIfHidden(target.profile),
+                  displayName: this.displayNameOf(target.publicId, target.profile),
+                }
               : null,
           }
         : null,
@@ -214,6 +218,12 @@ export class RequestsService {
   private maskFirstNameIfHidden(p: any): string | null {
     const pf = p?.publicFields && typeof p.publicFields === 'object' ? p.publicFields : {};
     return pf['hideName'] ? null : p.firstName;
+  }
+
+  /** The card name other members see; same rule as browse. Never the publicId. */
+  private displayNameOf(publicId: string, p: any): string {
+    const pf = p?.publicFields && typeof p.publicFields === 'object' ? p.publicFields : {};
+    return displayNameFor({ firstName: p?.firstName, hideName: !!pf['hideName'], gender: p?.gender, publicId });
   }
 
   async respondToRequest(
@@ -384,10 +394,11 @@ export class RequestsService {
               profile: otherProfile
                 ? {
                     firstName: this.maskFirstNameIfHidden(otherProfile),
+                    displayName: this.displayNameOf(otherPublicId, otherProfile),
                     gender: otherProfile.gender,
                     ethnicity: otherProfile.ethnicity,
-                    city: otherProfile.city,
-                    state: otherProfile.state,
+                    city: formatCity(otherProfile.city),
+                    state: formatState(otherProfile.state),
                     // Incoming only: the receiver sees the requester's status.
                     // openTo* preferences are never returned.
                     maritalStatus: (otherProfile.maritalStatus ?? null) as MaritalStatus | null,
@@ -429,10 +440,11 @@ export class RequestsService {
             profile: otherProfile
               ? {
                   firstName: this.maskFirstNameIfHidden(otherProfile),
+                  displayName: this.displayNameOf(otherPublicId, otherProfile),
                   gender: otherProfile.gender,
                   ethnicity: otherProfile.ethnicity,
-                  city: otherProfile.city,
-                  state: otherProfile.state,
+                  city: formatCity(otherProfile.city),
+                  state: formatState(otherProfile.state),
                 }
               : null,
           }

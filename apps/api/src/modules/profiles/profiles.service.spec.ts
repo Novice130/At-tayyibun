@@ -271,6 +271,17 @@ describe('ProfilesService', () => {
       // A truthiness guard would have dropped this key entirely.
       expect(set.mock.calls[0][0]).toHaveProperty('city', null);
     });
+
+    it('stores city and state normalised', async () => {
+      db.select.mockReturnValueOnce(chain([{ userId: USER_ID }]));
+      jest.spyOn(service, 'getMyProfile').mockResolvedValue({ ok: true } as any);
+      const set = jest.fn((_v: any) => chain([]));
+      db.update.mockReturnValueOnce({ set } as any);
+
+      await service.updateMyProfile(USER_ID, { city: '  st.   louis ', state: 'mo' });
+
+      expect(set.mock.calls[0][0]).toMatchObject({ city: 'St. Louis', state: 'MO' });
+    });
   });
 
   describe('updateMyProfile marital status', () => {
@@ -509,6 +520,8 @@ describe('ProfilesService', () => {
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].firstName).toBe('Fatima');
+      expect(result.data[0].displayName).toBe('Fatima');
+      expect(result.data[0].phoneVerified).toBe(false);
       expect(result.data[0].ethnicity).toBe('Arab');
       expect(result.data[0].age).toBeGreaterThan(0);
       expect(result.meta.total).toBe(1);
@@ -530,6 +543,42 @@ describe('ProfilesService', () => {
         expect(calls.offset).toEqual([[40]]);
       },
     );
+
+    it('labels a hidden name by gender, normalises the place and passes the phone badge', async () => {
+      const mockProfile = {
+        id: 'prof-1',
+        userId: 'user-1',
+        firstName: 'Fatima',
+        dob: '1998-05-15',
+        gender: Gender.FEMALE,
+        ethnicity: 'Arab',
+        city: 'lorton',
+        state: 'va',
+        publicFields: { bio: 'A bio', hideName: true },
+        profileComplete: true,
+      };
+      const mockUser = {
+        publicId: 'usr_pub_1',
+        image: 'https://attayyibun.com/avatars/female/female-1.jpg',
+        rankBoost: 0,
+        membershipTier: 'FREE',
+        createdAt: '2026-01-01',
+        isPhoneVerified: true,
+      };
+      db.select.mockReturnValueOnce(chain([viewerRow()]));
+      db.select.mockReturnValueOnce(chain([{ profile: mockProfile, user: mockUser }]));
+      db.select.mockReturnValueOnce(chain([{ value: 1 }]));
+
+      const result = await service.browseProfiles({}, 'viewer-uuid');
+      const card = result.data[0];
+
+      expect(card.firstName).toBeNull();
+      expect(card.displayName).toMatch(/^Sister \d{4}$/);
+      expect(card.displayName).not.toContain('usr_pub_1');
+      expect(card.city).toBe('Lorton');
+      expect(card.state).toBe('VA');
+      expect(card.phoneVerified).toBe(true);
+    });
 
     it('works safely without a viewerId and defaults gender', async () => {
       db.select
@@ -739,6 +788,24 @@ describe('ProfilesService', () => {
       const result: any = await service.getProfileByPublicId('usr_pub_1', true);
 
       expect(result.firstName).toBeNull();
+      expect(result.displayName).toMatch(/^Sister \d{4}$/);
+      expect(result.phoneVerified).toBe(false);
+    });
+
+    it('returns a display name, normalised place and phone badge', async () => {
+      db.query.users.findFirst.mockResolvedValueOnce({
+        ...baseUser,
+        isPhoneVerified: true,
+        profiles: { ...baseProfile, firstName: 'fatima', city: 'new york', state: 'ny' },
+      });
+
+      const result: any = await service.getProfileByPublicId('usr_pub_1', false);
+
+      expect(result.firstName).toBe('fatima');
+      expect(result.displayName).toBe('Fatima');
+      expect(result.city).toBe('New York');
+      expect(result.state).toBe('NY');
+      expect(result.phoneVerified).toBe(true);
     });
 
     it('omits biodata for unauthenticated viewers', async () => {

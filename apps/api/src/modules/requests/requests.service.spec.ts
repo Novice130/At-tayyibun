@@ -300,6 +300,33 @@ describe('RequestsService', () => {
       expect(incoming).not.toHaveProperty('oneTimeToken');
     });
 
+    it('gives every counterpart a display name and a normalised place', async () => {
+      db.select.mockReturnValueOnce(
+        chain([joined(profile({ firstName: 'omar', gender: 'MALE', city: 'lorton', state: 'va' }), 'usr_pub_r')]),
+      );
+      const [incoming] = await service.getIncomingRequests(TARGET_ID);
+      expect(incoming.requester?.profile).toMatchObject({ firstName: 'omar', displayName: 'Omar', city: 'Lorton', state: 'VA' });
+
+      db.select.mockReturnValueOnce(
+        chain([joined(profile({ gender: 'FEMALE', publicFields: { hideName: true } }), 'usr_pub_t')]),
+      );
+      const [outgoing] = await service.getOutgoingRequests(REQUESTER_ID);
+      expect(outgoing.target?.profile?.firstName).toBeNull();
+      expect(outgoing.target?.profile?.displayName).toMatch(/^Sister \d{4}$/);
+      expect(outgoing.target?.profile?.displayName).not.toContain('usr_pub_t');
+    });
+
+    it('gives the active request target a display name', async () => {
+      db.select.mockReturnValueOnce(chain([row]));
+      db.query.users.findFirst.mockResolvedValueOnce({
+        id: TARGET_ID,
+        publicId: 'usr_pub_t',
+        profiles: [profile({ firstName: '', gender: 'FEMALE' })],
+      });
+      const active = await service.getActiveRequest(REQUESTER_ID);
+      expect(active?.target?.profile?.displayName).toMatch(/^Sister \d{4}$/);
+    });
+
     it('carries the contact state on outgoing rows', async () => {
       db.select.mockReturnValueOnce(chain([joinedRow({ status: 'APPROVED', contactExpiresAt: FUTURE })]));
       const [item] = await service.getOutgoingRequests(REQUESTER_ID);

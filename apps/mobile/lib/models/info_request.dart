@@ -1,3 +1,5 @@
+import '../core/place.dart';
+
 /// A contact request. The list endpoints return the raw `info_requests` row
 /// plus one nested counterparty (`requester` on incoming, `target` on outgoing).
 class InfoRequest {
@@ -64,22 +66,28 @@ class RequestParty {
     this.maritalStatus,
     this.hasChildren,
     this.childrenCount,
-  });
+    String? displayName,
+    this.phoneVerified = false,
+  }) : displayName = displayName ?? _nonEmpty(firstName) ?? 'Member';
 
   final String? maritalStatus;
   final bool? hasChildren;
   final int? childrenCount;
 
+  /// For routes and API calls only. Show [displayName] instead.
   final String publicId;
   final String? firstName;
   final String? ethnicity;
   final String? city;
   final String? state;
 
-  String get displayName => firstName ?? 'Member';
+  /// First name, or an alias like "Sister 4821" when the name is hidden.
+  final String displayName;
 
-  String get location =>
-      [city, state].where((e) => e != null && e.isNotEmpty).join(', ');
+  /// True when the counterpart has verified a phone number.
+  final bool phoneVerified;
+
+  String get location => formatPlace(city, state);
 
   factory RequestParty.fromJson(Map<String, dynamic> json) {
     final profile = (json['profile'] as Map?)?.cast<String, dynamic>();
@@ -92,6 +100,14 @@ class RequestParty {
       maritalStatus: profile?['maritalStatus'] as String?,
       hasChildren: profile?['hasChildren'] as bool?,
       childrenCount: (profile?['childrenCount'] as num?)?.toInt(),
+      // Newer APIs put these on the party; accept them on the profile too.
+      displayName: _nonEmpty(json['displayName']) ??
+          _nonEmpty(profile?['displayName']),
+      phoneVerified: json['phoneVerified'] == true ||
+          profile?['phoneVerified'] == true,
     );
   }
 }
+
+String? _nonEmpty(Object? value) =>
+    value is String && value.trim().isNotEmpty ? value : null;

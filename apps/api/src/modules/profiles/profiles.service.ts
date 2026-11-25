@@ -16,6 +16,7 @@ import {
 } from './marital-match';
 import { Gender } from '../../common/types/role';
 import { grantsFullView, isLiveRequest } from '../requests/request-state';
+import { displayNameFor, formatCity, formatState } from './display-name';
 
 export interface BrowseFilters {
   ethnicity?: string;
@@ -181,6 +182,7 @@ export class ProfilesService {
             rankBoost: users.rankBoost,
             membershipTier: users.membershipTier,
             createdAt: users.createdAt,
+            isPhoneVerified: users.isPhoneVerified,
           },
         })
         .from(profiles)
@@ -198,11 +200,18 @@ export class ProfilesService {
       return {
         publicId: user.publicId,
         firstName: nameHidden ? null : profile.firstName,
+        displayName: displayNameFor({
+          firstName: profile.firstName,
+          hideName: nameHidden,
+          gender: profile.gender,
+          publicId: user.publicId,
+        }),
         age: this.calculateAgeFromString(profile.dob),
         gender: profile.gender,
         ethnicity: profile.ethnicity,
-        city: profile.city,
-        state: profile.state,
+        city: formatCity(profile.city),
+        state: formatState(profile.state),
+        phoneVerified: !!user.isPhoneVerified,
         avatarUrl: user.image?.trim()
           ? user.image
           : this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
@@ -309,11 +318,18 @@ export class ProfilesService {
     const publicData = {
       publicId: user.publicId,
       firstName: nameHidden ? null : profile.firstName,
+      displayName: displayNameFor({
+        firstName: profile.firstName,
+        hideName: nameHidden,
+        gender: profile.gender,
+        publicId: user.publicId,
+      }),
       age: this.calculateAgeFromString(profile.dob),
       gender: profile.gender,
       ethnicity: profile.ethnicity,
-      city: profile.city,
-      state: profile.state,
+      city: formatCity(profile.city),
+      state: formatState(profile.state),
+      phoneVerified: !!user.isPhoneVerified,
       avatarUrl: user.image?.trim()
         ? user.image
         : this.avatarService.getAvatarDisplay(profile.userId, profile.gender),
@@ -368,13 +384,20 @@ export class ProfilesService {
       profile: profile
         ? {
             firstName: profile.firstName,
+            // How other members see this name on cards (hidden name -> "Sister 1234").
+            displayName: displayNameFor({
+              firstName: profile.firstName,
+              hideName: !!(profile.publicFields as Record<string, unknown> | null)?.['hideName'],
+              gender: profile.gender,
+              publicId: user.publicId,
+            }),
             lastName,
             dob: profile.dob,
             age: this.calculateAgeFromString(profile.dob),
             gender: profile.gender,
             ethnicity: profile.ethnicity,
-            city: profile.city,
-            state: profile.state,
+            city: formatCity(profile.city),
+            state: formatState(profile.state),
             bio,
             biodata,
             profileComplete: profile.profileComplete,
@@ -431,8 +454,9 @@ export class ProfilesService {
       if (data.dob !== undefined) updateData.dob = data.dob.toISOString().slice(0, 10);
       if (data.gender !== undefined) updateData.gender = data.gender;
       if (data.ethnicity !== undefined) updateData.ethnicity = data.ethnicity;
-      if (data.city !== undefined) updateData.city = data.city || null;
-      if (data.state !== undefined) updateData.state = data.state || null;
+      // Stored normalised ("lorton" -> "Lorton", "va" -> "VA") so cards look the same.
+      if (data.city !== undefined) updateData.city = formatCity(data.city);
+      if (data.state !== undefined) updateData.state = formatState(data.state);
       if (data.bio !== undefined) {
         updateData.bioEnc = data.bio ? this.encryptionService.encrypt(data.bio) : null;
       }
@@ -538,8 +562,8 @@ export class ProfilesService {
           dob: (updateData.dob as string) ?? new Date().toISOString().slice(0, 10),
           gender: (data.gender as any) ?? 'MALE',
           ethnicity: data.ethnicity ?? '',
-          city: data.city ?? null,
-          state: data.state ?? null,
+          city: formatCity(data.city),
+          state: formatState(data.state),
           bioEnc: (updateData.bioEnc as string) ?? null,
           biodataJsonEnc: (updateData.biodataJsonEnc as string) ?? null,
           publicFields: updateData.publicFields as any,
