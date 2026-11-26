@@ -21,3 +21,19 @@ export function safeNextPath(next: string | null | undefined): string | null {
   if (parsed.pathname.startsWith("//")) return null;
   return `${parsed.pathname}${parsed.search}${parsed.hash}`;
 }
+
+/** Pages a signed-in account may open before it has verified a phone number. */
+const PHONE_FREE_PATHS = ["/delete-account"];
+
+/**
+ * Where a Google or Apple sign-in should land, given the login page's `next`.
+ * Normally the phone gate, which forwards `next` once the phone is verified.
+ * The account deletion page needs no phone and is reached directly: an account
+ * that never verified a phone must still be able to delete itself.
+ */
+export function socialCallbackPath(next: string | null | undefined): string {
+  const safe = safeNextPath(next);
+  if (!safe) return "/verify-phone";
+  if (PHONE_FREE_PATHS.includes(new URL(safe, PARSE_BASE).pathname)) return safe;
+  return `/verify-phone?next=${encodeURIComponent(safe)}`;
+}

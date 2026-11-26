@@ -32,6 +32,7 @@ test('the sitemap lists public pages only, and is empty on staging', () => {
   const urls = buildSitemap(PROD).map((e) => e.url);
   assert.ok(urls.includes('https://attayyibun.com'));
   assert.ok(urls.includes('https://attayyibun.com/privacy'));
+  assert.ok(urls.includes('https://attayyibun.com/delete-account'));
   assert.equal(urls.filter((u) => /admin|browse|profile|requests|download/.test(u)).length, 0);
   assert.deepEqual(buildSitemap(STAGING), []);
 });

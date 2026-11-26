@@ -44,7 +44,7 @@ export function isIndexable(env: SeoEnv = readSeoEnv()): boolean {
 }
 
 /** Pages anyone can open without an account. Nothing member-only or admin belongs here. */
-export const PUBLIC_PATHS = ['/', '/about', '/contact', '/privacy', '/terms', '/signup', '/login'] as const;
+export const PUBLIC_PATHS = ['/', '/about', '/contact', '/privacy', '/terms', '/delete-account', '/signup', '/login'] as const;
 
 const DISALLOWED_PATHS = [
   '/admin',
