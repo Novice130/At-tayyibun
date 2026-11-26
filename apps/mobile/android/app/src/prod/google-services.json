@@ -14,6 +14,30 @@
       },
       "oauth_client": [
         {
+          "client_id": "302409438996-3a0l9itrpjgb4ricg4sjqmn3sjvuv924.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.attayyibun.at_tayyibun",
+            "certificate_hash": "d1982339f5365aac9e03e3494aaa6f8c126a83c1"
+          }
+        },
+        {
+          "client_id": "302409438996-7d1ipmhnboh8tokhnrv39i5rrd8lnfb3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.attayyibun.at_tayyibun",
+            "certificate_hash": "2b27c0eda3530d1b96340c9555314dcc5c5a616f"
+          }
+        },
+        {
+          "client_id": "302409438996-niml7nicodrddmc50d9oldn5k5ic67di.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.attayyibun.at_tayyibun",
+            "certificate_hash": "a585f59ad2073667e4b890724f3547feb1f3e820"
+          }
+        },
+        {
           "client_id": "302409438996-qclj5g2m8jl1cr5lp0o9g0q11cmpurpl.apps.googleusercontent.com",
           "client_type": 3
         }

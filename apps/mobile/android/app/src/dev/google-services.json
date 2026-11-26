@@ -14,11 +14,35 @@
       },
       "oauth_client": [
         {
+          "client_id": "1011611778098-eue5elg55rd3rqpsp9s1doibfivrfdpc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.attayyibun.at_tayyibun.dev",
+            "certificate_hash": "39a899cfae7443e18e5eeb6688054d976e6afc26"
+          }
+        },
+        {
+          "client_id": "1011611778098-fem2pmaji4jjdqjgifmaogmhqpa5gku0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.attayyibun.at_tayyibun.dev",
+            "certificate_hash": "d1982339f5365aac9e03e3494aaa6f8c126a83c1"
+          }
+        },
+        {
           "client_id": "1011611778098-h7vtp8g4dkhcpspq78q2j72v2378v0rc.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.attayyibun.at_tayyibun.dev",
             "certificate_hash": "99f6a78bdc1efee3e1351789445459e73c0bf1dd"
+          }
+        },
+        {
+          "client_id": "1011611778098-n6lomnd4pr862l81uv2oift79ofovir8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.attayyibun.at_tayyibun.dev",
+            "certificate_hash": "1354177408ccf2b2ca73a68aeb087ee6206bbb14"
           }
         },
         {
