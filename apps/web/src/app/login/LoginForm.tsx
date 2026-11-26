@@ -6,7 +6,11 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { authClient, signIn } from '@/lib/auth-client';
-import { safeNextPath } from '@/lib/safe-redirect';
+import { safeNextPath, socialCallbackPath } from '@/lib/safe-redirect';
+
+function socialCallbackURL(): string {
+  return socialCallbackPath(new URLSearchParams(window.location.search).get('next'));
+}
 
 export default function LoginForm() {
   const router = useRouter();
@@ -35,7 +39,7 @@ export default function LoginForm() {
       // has a verified phone, /verify-phone redirects onward to /profile/setup.
       const { error: authError } = await signIn.social({
         provider: 'google',
-        callbackURL: '/verify-phone',
+        callbackURL: socialCallbackURL(),
       });
       if (authError) {
         const msg =
@@ -59,7 +63,7 @@ export default function LoginForm() {
     try {
       const { error: authError } = await signIn.social({
         provider: 'apple',
-        callbackURL: '/verify-phone',
+        callbackURL: socialCallbackURL(),
       });
       if (authError) {
         const msg =

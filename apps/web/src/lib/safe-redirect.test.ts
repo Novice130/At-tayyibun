@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { safeNextPath } from "./safe-redirect";
+import { safeNextPath, socialCallbackPath } from "./safe-redirect";
 
 describe("safeNextPath", () => {
   for (const good of ["/browse", "/requests/abc/contact", "/verify-phone?new=1", "/profile#photos"]) {
@@ -31,4 +31,22 @@ describe("safeNextPath", () => {
   for (const [name, value] of bad) {
     it(`rejects ${name}`, () => assert.equal(safeNextPath(value), null));
   }
+});
+
+describe("socialCallbackPath", () => {
+  it("sends a plain sign-in to the phone gate", () => {
+    assert.equal(socialCallbackPath(null), "/verify-phone");
+  });
+
+  it("carries the destination through the phone gate", () => {
+    assert.equal(socialCallbackPath("/requests/abc"), "/verify-phone?next=%2Frequests%2Fabc");
+  });
+
+  it("skips the phone gate for account deletion", () => {
+    assert.equal(socialCallbackPath("/delete-account"), "/delete-account");
+  });
+
+  it("drops an off-site destination", () => {
+    assert.equal(socialCallbackPath("//evil.example"), "/verify-phone");
+  });
 });

@@ -149,9 +149,8 @@ export default function PrivacyPage() {
                 <p>
                   A few things remain after deletion: a log entry recording that the account was
                   deleted, reports made about or by the account (without the link to you), emails
-                  already sent, your phone number&apos;s record at our verification provider, and
-                  our database provider&apos;s limited restore history. To ask about any of these,
-                  email us.
+                  already sent, and our database provider&apos;s restore history, which expires
+                  within 7 days. To ask about any of these, email us.
                 </p>
               </div>
             </div>

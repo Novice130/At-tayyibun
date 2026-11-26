@@ -118,8 +118,8 @@ export default function DeleteAccountPage() {
                   </a>
                 </div>
                 <p className="text-muted text-sm">
-                  Email requests are processed after verifying account ownership, typically within
-                  one business day.
+                  We confirm the request came from the account&apos;s owner, then delete the account
+                  within 7 days.
                 </p>
               </div>
             )}
@@ -157,8 +157,8 @@ export default function DeleteAccountPage() {
               <p className="font-medium text-primary">Deleted immediately and permanently:</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>
-                  Your account record, profile, encrypted last name, bio, biodata, and guardian
-                  contact details.
+                  Your account record, profile, photos, encrypted last name, bio, biodata, and
+                  guardian contact details.
                 </li>
                 <li>
                   All contact requests, skip reasons, messages, block records, and email campaign
@@ -169,6 +169,10 @@ export default function DeleteAccountPage() {
                   and mobile push notification tokens. If Sign in with Apple was linked, we also
                   revoke the Apple authorization token.
                 </li>
+                <li>
+                  Your phone number&apos;s record at our verification provider (Firebase
+                  Authentication).
+                </li>
               </ul>
             </div>
 
@@ -176,17 +180,20 @@ export default function DeleteAccountPage() {
               <p className="font-medium text-primary">Retained after deletion:</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>
-                  An anonymized audit entry recording that an account deletion occurred (the link to
-                  your user record is removed).
+                  A log entry recording that an account was deleted. It holds the account&apos;s
+                  random internal ID and the time, not your name, email or phone number. Kept
+                  indefinitely as a security record.
                 </li>
                 <li>
-                  Safety and moderation reports submitted by or about the account, with your user
-                  identifier removed (kept for platform safety).
+                  Safety and moderation reports submitted by or about the account, with the link to
+                  your account removed. Kept as long as needed to keep members safe.
                 </li>
                 <li>
-                  Transactional emails already delivered, your phone verification record at Firebase
-                  Auth, and our database provider&apos;s (Neon) point-in-time restore history until
-                  its automatic restore window expires.
+                  Our database provider&apos;s (Neon) restore history, which can hold deleted data
+                  for up to 7 days before it expires automatically.
+                </li>
+                <li>
+                  Emails we already sent you stay in your own inbox; we cannot recall them.
                 </li>
               </ul>
             </div>

@@ -6,6 +6,13 @@ import Image from 'next/image';
 import { Loader } from 'lucide-react';
 import PhoneVerify from '@/components/PhoneVerify';
 import { authClient, useSession } from '@/lib/auth-client';
+import { safeNextPath } from '@/lib/safe-redirect';
+
+/** The page a Google or Apple sign-in was headed for, once the phone is verified. */
+function destinationAfterVerify(): string {
+  if (typeof window === 'undefined') return '/profile/setup';
+  return safeNextPath(new URLSearchParams(window.location.search).get('next')) ?? '/profile/setup';
+}
 
 // The gate. Anyone who signed in with email or Google but has no verified phone
 // lands here and cannot get past it. Accounts created before phone verification
@@ -30,7 +37,7 @@ export default function VerifyPhonePage() {
 
   useEffect(() => {
     if (session && isVerified) {
-      router.replace('/profile/setup');
+      router.replace(destinationAfterVerify());
     }
   }, [session, isVerified, router]);
 
@@ -97,7 +104,7 @@ export default function VerifyPhonePage() {
           initialPhone={initialPhone}
           title="Verify your phone to continue"
           subtitle="One account per phone number keeps At-Tayyibun free of duplicate profiles. Your number is never shown on your profile."
-          onVerified={() => router.replace('/profile/setup')}
+          onVerified={() => router.replace(destinationAfterVerify())}
           onPhoneTaken={(phone) => setTakenNumber(phone)}
         />
 
